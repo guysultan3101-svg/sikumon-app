@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>סיכומון AI</title>
+  <meta name="description" content="סיכום לכל שיעור, דף נוסחאות ומבחן קצר. גרסת בדיקה.">
+  <meta name="theme-color" content="#F7F9FE" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0B1120" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="סיכומון">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&family=Heebo:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="side" aria-label="ניווט ראשי">
+      <a class="brand" href="#home">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="3" width="26" height="26" rx="7" fill="var(--blue)" stroke="var(--ink)" stroke-width="2"/><path d="M10 12h12M10 17h12M10 22h7" stroke="var(--on-blue)" stroke-width="2.4" stroke-linecap="round"/><circle cx="23.5" cy="22" r="3" fill="var(--marker)" stroke="var(--ink)" stroke-width="1.5"/></svg>
+        <span>סיכומון AI</span>
+      </a>
+      <nav class="tabs" id="tabs"></nav>
+      <p class="beta">גרסת בדיקה</p>
+    </aside>
+    <main id="view" tabindex="-1"></main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
