@@ -263,6 +263,15 @@ export class LessonRecorder extends EventTarget {
     this.dispatchEvent(new Event("change"));
   }
 
+  // ⭐ רגע חשוב: נשמר המקום המדויק בהקלטה (קטע + זמן בתוכו)
+  mark() {
+    if (!this.rec || !this.segActive) return null;
+    const m = { seg: this.segment, t: Date.now() - this.segmentStart, at: this.elapsedMs };
+    this.rec.marks = [...(this.rec.marks || []), m];
+    store.saveRecording(this.rec);
+    return m;
+  }
+
   async resume() {
     this.rec.status = "stopping"; // סגירת הקטע הקודם היא לא קטיעה
     await this._closeSegment();

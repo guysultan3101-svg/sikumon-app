@@ -3,6 +3,7 @@ import { LessonRecorder, store, segmentsOf, support, recoverOrphans } from "./re
 import { demoSummary, demoQuiz, onboardingQuestions } from "./demo-data.js";
 import { InkEditor, COLORS, MARKER_COLORS, pdfToPages, makeThumb } from "./notes.js";
 import { initStudy } from "./study.js";
+import { initExtras } from "./extras.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const view = $("#view");
@@ -128,6 +129,8 @@ async function home() {
   const items = await store.listItems();
   const news = await study.moodleNew();
   const nowSlot = currentSlot();
+  const next = (await extras.upcoming()).slice(0, 3);
+  const hasMarks = (await store.listRecordings()).some((r) => (r.marks || []).length);
   const lastSum = items.filter((x) => x.type === "summary" && x.kind !== "formulas").sort((a, b) => b.date.localeCompare(a.date))[0];
   const quizCount = items.filter((x) => x.type === "quiz").length;
   const recent = (await store.listLessons()).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")).slice(0, 3);
@@ -141,6 +144,8 @@ async function home() {
       <span class="rec-btn" style="width:84px;height:84px;box-shadow:3px 3px 0 var(--ink);flex:none">${svg("mic")}</span>
     </a>
     ${news && news.length ? `<section class="soft"><div class="row" style="justify-content:space-between"><h3>חדש במודל <span class="chip new">${news.length}</span></h3><a class="small" href="#notebooks">לפי קורסים</a></div><div class="list" style="margin-top:10px">${news.slice(0, 5).map((it) => study.moodleItem(it, true)).join("")}</div></section>` : ""}
+    ${next.length ? `<section class="soft"><div class="row" style="justify-content:space-between"><h3>⏳ הבא בתור</h3><a class="small" href="#deadlines">לוח מבחנים</a></div><div class="list" style="margin-top:10px">${next.map((x) => `<a class="item" href="#deadlines"><span style="min-width:0"><span class="t">${x.kind === "exam" ? "📝" : "📌"} ${esc(x.title)}</span><br><span class="small muted">${esc(x.course)}</span></span>${extras.chip(x)}</a>`).join("")}</div></section>` : ""}
+    ${hasMarks ? `<a class="item" href="#reels"><span><span class="t">🎬 הרגעים החשובים מהשיעורים</span><br><span class="small muted">קטע של דקה סביב כל ⭐ שסימנת</span></span></a>` : ""}
     ${study.getCode() ? "" : `<a class="item pair-cta" href="#summaries"><span><span class="t">🔗 חיבור אוטומטי למודל</span><br><span class="small muted">קוד אחד מהמחשב, ומאז הכול נכנס לבד</span></span></a>`}
     ${installHint()}
     <section class="soft">
@@ -295,6 +300,8 @@ function record() {
         ${recorder?.running ? svg("stop") + "<span>סיום</span>" : svg("mic") + "<span>" + (paused ? "המשך" : "הקלט") + "</span>"}
       </button>
       <p class="saved-line" id="savedLine" aria-live="polite">${savedLine()}</p>
+      ${recorder?.running ? `<button class="btn star-btn" id="starBtn">⭐ רגע חשוב <span id="starN">${(recorder.rec.marks || []).length || ""}</span></button><p class="small muted">לוחצים כשהמרצה אומר משהו חשוב. אחרי השיעור כל כוכב הופך לקטע של דקה ב"רילס".</p>` : ""}
+      ${recorder?.running && recorder.rec.slotEnd ? `<p class="small muted">🕘 ההקלטה תיעצר לבד בסוף השיעור (<bdi>${new Date(recorder.rec.slotEnd).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}</bdi>), אחרי שתאשרו.</p>` : ""}
       ${paused ? '<p class="notice alert" style="text-align:right">ההקלטה נעצרה. לחצו "המשך" כדי להמשיך מאותה נקודה, או סיימו ושמרו את מה שכבר הוקלט.</p><button class="btn ghost" id="finishPaused">לסיים ולשמור</button>' : ""}
     </div>
     <div class="notice"><strong>כדי שההקלטה תחזיק את כל השיעור:</strong>
@@ -303,6 +310,7 @@ function record() {
     <p class="small muted">ההקלטה נכנסת אוטומטית למחברת של הקורס, לשיעור של היום. מקליטים רק כשזה מותר לפי מדיניות המרצה והמוסד. ההקלטה נשמרת רק במכשיר שלך.</p>
   </div>`;
   $("#recBtn").onclick = onRecClick;
+  $("#starBtn") && ($("#starBtn").onclick = starNow);
   $("#finishPaused") && ($("#finishPaused").onclick = finish);
   bindRecorderUi();
 }
@@ -315,6 +323,40 @@ function savedLine() {
   return recorder.running ? `מקליט · ${saved}` : saved;
 }
 
+// ⭐ סימון רגע חשוב בהקלטה הפעילה
+function starNow() {
+  const m = recorder?.mark();
+  if (!m) return;
+  navigator.vibrate?.(30);
+  const n = recorder.rec.marks.length;
+  $("#starN") && ($("#starN").textContent = n);
+  $("#lstar") && ($("#lstar").lastElementChild.textContent = n);
+  toast(`⭐ נשמר רגע חשוב (${fmtTime(m.at)})`);
+}
+
+// סוף השיעור לפי מערכת השעות: שואלים אם לסיים, ואם אין תשובה תוך 3 דקות – מסיימים ושומרים לבד
+let endPrompt = null;
+function beep() {
+  try { const a = new (window.AudioContext || window.webkitAudioContext)(); const o = a.createOscillator(); o.frequency.value = 880; o.connect(a.destination); o.start(); o.stop(a.currentTime + 0.25); setTimeout(() => a.close(), 600); } catch { /* */ }
+}
+setInterval(async () => {
+  const end = recorder?.running && recorder.rec.slotEnd ? new Date(recorder.rec.slotEnd) : null;
+  if (!end || Date.now() < end || endPrompt) return;
+  beep(); navigator.vibrate?.([200, 100, 200]);
+  try { const reg = await navigator.serviceWorker?.getRegistration(); if (Notification?.permission === "granted") reg?.showNotification("השיעור נגמר", { body: "לסיים את ההקלטה? היא תיעצר לבד בעוד 3 דקות.", tag: "lesson-end" }); } catch { /* */ }
+  let left = 180;
+  document.body.insertAdjacentHTML("beforeend", `<div class="modal" id="endModal" role="alertdialog" aria-labelledby="endT"><div class="card"><h2 id="endT">השיעור ב${esc(recorder.rec.course)} נגמר</h2>
+    <p class="muted">לפי מערכת השעות. לסיים ולשמור את ההקלטה? אם לא תענו, היא תיעצר ותישמר לבד בעוד <b id="endLeft">3:00</b>.</p>
+    <div class="row"><button class="btn" id="endYes">סיום ושמירה</button><button class="btn ghost" id="endMore">להמשיך עוד 15 דק׳</button></div></div></div>`);
+  const close = () => { clearInterval(endPrompt); endPrompt = null; $("#endModal")?.remove(); };
+  endPrompt = setInterval(async () => {
+    left -= 1; $("#endLeft") && ($("#endLeft").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`);
+    if (left <= 0) { close(); if (recorder) await finish(true); }
+  }, 1000);
+  $("#endYes").onclick = async () => { close(); if (recorder) await finish(true); };
+  $("#endMore").onclick = () => { recorder.rec.slotEnd = new Date(Date.now() + 15 * 60e3).toISOString(); close(); toast("ממשיכים להקליט עוד 15 דקות"); };
+}, 20000);
+
 // מתחיל הקלטה ומשייך אותה לשיעור (של היום בקורס הזה, או לשיעור שפתוח במחברת)
 async function startRecording(course, lessonId = null) {
   const lesson = lessonId ? await store.getLesson(lessonId) : await lessonForToday(course);
@@ -322,6 +364,13 @@ async function startRecording(course, lessonId = null) {
   bindRecorder(r);
   await r.start(course, lesson.id);
   recorder = r; // רק אחרי שהמיקרופון באמת נפתח
+  // אם השיעור במערכת השעות – זוכרים מתי הוא נגמר, כדי להציע לעצור לבד
+  const slot = currentSlot();
+  if (slot && slot.course === course) {
+    const [h, m] = slot.end.split(":").map(Number); const end = new Date(); end.setHours(h, m, 0, 0);
+    r.rec.slotEnd = end.toISOString();
+    try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch { /* */ }
+  }
   lesson.recIds = [...(lesson.recIds || []), r.rec.id];
   await store.saveLesson(lesson);
   toast("ההקלטה התחילה");
@@ -405,6 +454,7 @@ async function recordingDetail(id) {
     <p class="muted"><bdi>${fmtDate(r.startedAt)}</bdi> · משך <bdi>${fmtTime(r.durationMs || 0)}</bdi> · <bdi>${fmtMB(r.bytes || 0)}</bdi></p>
     ${segs.map((s, i) => `<div class="soft"><div class="row" style="justify-content:space-between"><b>${segs.length > 1 ? "חלק " + (i + 1) + " מתוך " + segs.length : "ההקלטה"}</b></div><audio controls preload="metadata" src="${urls[i]}" style="margin-top:10px"></audio>
       <div class="row" style="margin-top:10px"><button class="btn ghost" data-share="${i}">${svg("share")} שיתוף / שמירה</button></div></div>`).join("") || '<p class="notice alert">לא נשמר אודיו בהקלטה הזו.</p>'}
+    ${(r.marks || []).length ? `<a class="item" href="#reels-${r.id}"><span><span class="t">🎬 ${r.marks.length} רגעים חשובים</span><br><span class="small muted">${r.marks.map((m) => "⭐ " + fmtTime(m.at)).join(" · ")}</span></span></a>` : ""}
     ${r.interruptions.length ? `<div class="soft"><h3>קטיעות</h3><ul>${r.interruptions.map((x) => `<li>${fmtDate(x.at)}: ${esc(x.what)}</li>`).join("")}</ul></div>` : ""}
     <details class="soft"><summary><b>פרטים טכניים</b> <span class="muted small">(אם משהו לא עבד)</span></summary>
       <pre id="report" style="white-space:pre-wrap;font:13px/1.5 var(--font-mono);direction:ltr;text-align:left;margin:10px 0 0">${esc(JSON.stringify({ duration: fmtTime(r.durationMs || 0), size: fmtMB(r.bytes || 0), segments: segs.length, chunks: segs.reduce((a, s) => a + s.chunks, 0), interruptions: r.interruptions.length, mime: r.mime, support: support(), device: r.device }, null, 1))}</pre>
@@ -489,7 +539,7 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
     </aside>
     <section class="nb-main">
       <div class="row" style="justify-content:space-between">
-        <h1 style="font-size:clamp(24px,3.5vw,32px)${course ? `;color:${color(sel)}` : ""}">${course ? esc(course) : "כל השיעורים"}</h1>
+        <div><h1 style="font-size:clamp(24px,3.5vw,32px)${course ? `;color:${color(sel)}` : ""}">${course ? esc(course) : "כל השיעורים"}</h1>${course ? `<a href="#deadlines" class="cd-row">${(await extras.upcoming(course)).slice(0, 2).map(extras.chip).join("")}</a>` : ""}</div>
         <div class="row" style="gap:8px">
           ${course ? `<label class="btn ghost small-btn">${svg("download")} ייבוא מ-Notability<input type="file" id="pdfIn" accept="application/pdf,.pdf" multiple hidden></label>` : ""}
           <button class="btn ghost small-btn" id="editNb" aria-pressed="false">עריכה</button>
@@ -498,10 +548,12 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
       </div>
       <div class="cards" id="cards">${list.map(card).join("") || `<p class="muted">${course ? 'עוד אין שיעורים בתיקייה הזו. לחצו "חדש" כדי לפתוח דף, או "ייבוא מ-Notability" כדי להכניס את מה שכתבתם בעבר.' : "עוד אין שיעורים. בחרו תיקייה מהרשימה ולחצו \"חדש\"."}</p>`}</div>
       ${!course && list.length === 0 ? "" : ""}
+      ${course ? extras.pastExamsBlock(await extras.pastExams(course), course) : ""}
       ${course ? study.moodleSection(await study.moodleCourse(course)) : ""}
     </section>
   </div>`;
 
+  extras.bindPastExams(() => notebooks(sel));
   // מצב עריכה: מופיעים כפתורי מחיקה על כל שיעור ועל כל תיקייה
   $("#editNb").onclick = () => {
     const on = !view.querySelector(".nb").classList.toggle("editing") ? false : true;
@@ -614,6 +666,7 @@ async function lessonPage(id) {
       </div>
       <div class="row" style="gap:8px">
         <button class="btn ghost small-btn" id="lrec">${svg("mic")} <span>הקלטה</span></button>
+        <button class="btn ghost small-btn" id="lstar" hidden>⭐ <span></span></button>
         <button class="btn ghost small-btn" id="lshare">${svg("share")} <span>שיתוף</span></button>
         <button class="btn small-btn" id="lfull">${svg("expand")} <span>מסך מלא</span></button>
       </div>
@@ -718,6 +771,7 @@ async function lessonPage(id) {
     const b = $("#lrec"); if (!b) return clearInterval(lessonTimer);
     const mine = recorder?.rec?.lessonId === l.id;
     b.classList.toggle("live", !!(mine && recorder.running));
+    const st = $("#lstar"); if (st) { st.hidden = !(mine && recorder.running); st.onclick = starNow; st.lastElementChild.textContent = (recorder?.rec?.marks || []).length || "רגע חשוב"; }
     b.lastElementChild.textContent = !recorder ? "הקלטה" : !mine ? "מקליט בשיעור אחר" : recorder.running ? "עצירה · " + fmtTime(recorder.elapsedMs) : "המשך הקלטה";
   };
   $("#lrec").onclick = async () => {
@@ -954,13 +1008,19 @@ async function routeInner() {
   try { hash = decodeURIComponent(hash); } catch { /* כתובת לא תקינה */ }
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
-  const tab = hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
+  const tab = hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
   renderTabs(tab);
   if (hash === "home") await home();
   else if (hash === "record") record();
   else if (hash === "recordings") await recordings();
   else if (hash.startsWith("rec-")) await recordingDetail(hash.slice(4));
-  else if (hash === "summaries") await study.summaries();
+  else if (hash === "summaries") {
+    await study.summaries();
+    const nx = (await extras.upcoming())[0];
+    view.querySelector(".page h1")?.insertAdjacentHTML("afterend", `<div class="grid2">
+      <a class="card star-card" href="#exam-focus"><h3>⭐ מה יהיה במבחן</h3><p class="small muted">כל מה שהמרצים אמרו שחשוב, מכל הסיכומים</p></a>
+      <a class="card" href="#deadlines"><h3>⏳ לוח מבחנים והגשות</h3><p class="small muted">${nx ? esc(nx.title) + " · " + extras.inDays(extras.daysTo(nx.when)) : "הוסיפו את תאריכי המבחנים"}</p></a></div>`);
+  }
   else if (hash === "summary") summary();
   else if (hash.startsWith("sum-")) await study.summaryPage(hash.slice(4));
   else if (hash === "quizzes") await study.quizzes();
@@ -972,6 +1032,10 @@ async function routeInner() {
   else if (hash === "feedback") feedback();
   else if (hash === "diag") await diag();
   else if (hash === "timetable") timetable();
+  else if (hash === "deadlines") await extras.deadlinesScreen();
+  else if (hash === "exam-focus") await extras.examFocus();
+  else if (hash === "reels") await extras.reels();
+  else if (hash.startsWith("reels-")) await extras.reels(hash.slice(6));
   else if (hash === "notebooks") await notebooks();
   else if (hash.startsWith("course-")) await courseFolder(+hash.slice(7));
   else if (hash.startsWith("lesson-")) { closeLesson(); await lessonPage(hash.slice(7)); }
@@ -980,6 +1044,7 @@ async function routeInner() {
   window.scrollTo(0, 0);
 }
 const study = initStudy({ view, $, esc, svg, toast, prefs, store, demoQuiz });
+const extras = initExtras({ view, $, esc, svg, toast, prefs, store, segmentsOf, fmtTime });
 window.addEventListener("hashchange", route);
 // אזהרה לפני סגירה באמצע הקלטה
 window.addEventListener("beforeunload", (e) => { if (recorder?.running) { e.preventDefault(); e.returnValue = ""; } });

@@ -24,11 +24,13 @@ export function initStudy(ctx) {
     if (pack?.type !== "sikumon-pack") throw new Error("זה לא קובץ של סיכומון.");
     for (const s of pack.summaries || []) await store.putItem({ ...s, type: "summary" });
     if (pack.moodle) await store.putItem({ id: "moodle-feed", type: "moodle", courses: pack.moodle, at: pack.createdAt });
+    if (pack.deadlines) await store.putItem({ id: "deadlines", type: "deadlines", events: pack.deadlines, at: pack.createdAt });
     for (const q of pack.quizzes || []) await store.putItem({ ...q, type: "quiz" });
     // קורסים חדשים מ-Moodle נכנסים גם למחברות
     const p = prefs.get();
     const add = (pack.courses || []).filter((c) => !(p.courses || []).includes(c) && !(p.hiddenCourses || []).includes(c));
     // מערכת השעות מגיעה מהמחשב, כל עוד לא שינית אותה בעצמך באפליקציה
+    if (pack.exams?.length && !p.examsEdited) p.exams = pack.exams;
     if (pack.timetable?.length && !p.timetableEdited) p.timetable = pack.timetable.filter((x) => !(p.hiddenCourses || []).includes(x.course));
     p.courses = [...(p.courses || []), ...add];
     p.lastImport = new Date().toISOString();
