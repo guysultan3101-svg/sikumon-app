@@ -274,3 +274,58 @@ export class InkEditor extends EventTarget {
   isEmpty() { return this.pages.every((p) => !p.strokes.length && !p.image); }
   destroy() { this._ro.disconnect(); }
 }
+
+// ---------- ייבוא PDF (למשל מ-Notability) ----------
+// pdf.js נטען רק כשצריך. עמוד ארוך (Notability גולל ברצף) נחתך לעמודי מחברת.
+async function loadPdfJs() {
+  if (window.pdfjsLib) return window.pdfjsLib;
+  await new Promise((res, rej) => {
+    const sc = document.createElement("script");
+    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    sc.onload = res; sc.onerror = () => rej(new Error("צריך אינטרנט כדי לפתוח PDF"));
+    document.head.appendChild(sc);
+  });
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  return window.pdfjsLib;
+}
+export async function pdfToPages(file) {
+  const lib = await loadPdfJs();
+  const doc = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pages = [];
+  for (let k = 1; k <= doc.numPages; k++) {
+    const pg = await doc.getPage(k);
+    const vp = pg.getViewport({ scale: 1200 / pg.getViewport({ scale: 1 }).width });
+    const sliceH = Math.round(vp.width * PAGE_H / PAGE_W);
+    // מציירים פרוסה אחרי פרוסה, כדי לא לחרוג מגודל הקנבס המותר באייפד
+    for (let y = 0; y < vp.height; y += sliceH) {
+      const h = Math.min(sliceH, Math.ceil(vp.height - y));
+      if (h < 60) break;
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(vp.width); cv.height = h;
+      const ctx = cv.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);
+      await pg.render({ canvasContext: ctx, viewport: vp, transform: [1, 0, 0, 1, 0, -y] }).promise;
+      pages.push({ ...newPage("blank"), image: cv.toDataURL("image/jpeg", 0.8) });
+    }
+  }
+  if (!pages.length) throw new Error("ה-PDF ריק");
+  return pages;
+}
+
+// תמונה קטנה של העמוד הראשון – לכרטיס במסך המחברות
+export async function makeThumb(page) {
+  if (!page) return null;
+  const W = 240, H = Math.round(240 * PAGE_H / PAGE_W);
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d");
+  ctx.scale(W / PAGE_W, H / PAGE_H);
+  drawPaper(ctx, page.bg);
+  if (page.image) {
+    const im = await loadImage(page.image);
+    const k = Math.min(PAGE_W / im.width, PAGE_H / im.height);
+    ctx.drawImage(im, (PAGE_W - im.width * k) / 2, 0, im.width * k, im.height * k);
+  }
+  for (const st of page.strokes) drawStroke(ctx, st);
+  return cv.toDataURL("image/jpeg", 0.72);
+}

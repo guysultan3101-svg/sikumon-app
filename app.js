@@ -1,7 +1,7 @@
 // סיכומון AI – האפליקציה (גרסת בדיקה). ניווט לפי # בכתובת, כל מסך הוא פונקציה שמציירת HTML.
 import { LessonRecorder, store, segmentsOf, support, recoverOrphans } from "./recorder.js";
 import { demoSummary, demoQuiz, onboardingQuestions } from "./demo-data.js";
-import { InkEditor, COLORS, MARKER_COLORS } from "./notes.js";
+import { InkEditor, COLORS, MARKER_COLORS, pdfToPages, makeThumb } from "./notes.js";
 import { initStudy } from "./study.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -32,6 +32,7 @@ const icon = {
   redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   hand: '<path d="M7 11V6a1.5 1.5 0 0 1 3 0v4M10 10V4.5a1.5 1.5 0 0 1 3 0V10M13 10V5.5a1.5 1.5 0 0 1 3 0V11M16 11V8.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1a7 7 0 0 1-5-2.5L3.5 15a1.5 1.5 0 0 1 2.3-2L7 14"/>',
   type: '<path d="M4 7V5h16v2M12 5v14M9 19h6"/>',
   check: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 12l3 3 5-6"/>',
@@ -400,64 +401,123 @@ function lessonItem(l, withCourse = false) {
   return `<a class="item" href="#lesson-${l.id}"><span style="min-width:0"><span class="t">${esc(lessonTitle(l))}</span><br><span class="small muted">${withCourse ? esc(l.course) + " · " : ""}${fmtDay(l.date)}</span></span><span class="chips">${chips || '<span class="chip">ריק</span>'}</span></a>`;
 }
 
-async function notebooks() {
+// מסך המחברות בסגנון Notability: תיקיות צבעוניות בצד, חיפוש, וכרטיסים עם תצוגה מקדימה של כל שיעור
+const fmtCardDate = (key) => new Date(key + "T12:00").toLocaleDateString("he-IL", { day: "numeric", month: "short", year: "numeric" });
+
+async function notebooks(sel = null) { // sel = אינדקס הקורס, או null = כל השיעורים
   const p = prefs.get();
-  const lessons = await store.listLessons();
   const courses = p.courses || [];
+  const course = sel === null ? null : courses[sel];
+  if (sel !== null && !course) { location.hash = "notebooks"; return; }
+  const all = await store.listLessons();
   const newBy = {};
   for (const it of (await study.moodleNew()) || []) newBy[it.course] = (newBy[it.course] || 0) + 1;
-  view.innerHTML = `<div class="page">
-    <h1 style="font-size:32px">המחברות שלי</h1>
-    <p class="muted">תיקייה לכל קורס, ובכל תיקייה דף נפרד לכל שיעור. בדף יש כתב יד, הקלדה וההקלטה של אותו שיעור.</p>
-    <div class="folders">${courses.map((c, i) => {
-      const n = lessons.filter((l) => l.course === c).length;
-      return `<a class="folder" href="#course-${i}" style="--fc:${FOLDER_COLORS[i % FOLDER_COLORS.length]}">${svg("folder")}<b>${esc(c)}</b><span class="small muted">${n ? n + (n === 1 ? " שיעור" : " שיעורים") : "עוד אין שיעורים"}</span>${newBy[c] ? `<span class="chip new" style="justify-self:start">${newBy[c]} חדשים במודל</span>` : ""}</a>`;
-    }).join("")}
-      <button class="folder add" id="addCourse">${svg("plus")}<b>קורס חדש</b></button>
-    </div>
-    <p class="small"><a href="#recordings">כל ההקלטות</a></p>
+  const color = (i) => FOLDER_COLORS[i % FOLDER_COLORS.length];
+  const list = (course ? all.filter((l) => l.course === course) : all)
+    .sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || "").localeCompare(a.createdAt || ""));
+  const card = (l) => {
+    const snippet = !l.thumb && l.text?.trim() ? `<span class="snip">${esc(l.text.trim().slice(0, 160))}</span>` : "";
+    return `<a class="ncard" href="#lesson-${l.id}" data-id="${l.id}" data-q="${esc((lessonTitle(l) + " " + l.course + " " + (l.text || "")).toLowerCase())}">
+      <div class="thumb">${l.thumb ? `<img src="${l.thumb}" alt="" loading="lazy">` : snippet}${l.recIds?.length ? `<span class="rec-dot" title="יש הקלטה">${svg("mic")}</span>` : ""}</div>
+      <b>${esc(lessonTitle(l))}</b><span class="small muted">${course ? "" : esc(l.course) + " · "}${fmtCardDate(l.date)}</span></a>`;
+  };
+  view.innerHTML = `<div class="nb">
+    <aside class="nb-side" aria-label="תיקיות">
+      <label class="nb-search">${svg("search")}<input type="search" id="nbSearch" name="search" placeholder="חיפוש…" autocomplete="off" aria-label="חיפוש בשיעורים"></label>
+      <a class="nb-f ${sel === null ? "on" : ""}" href="#notebooks"><i style="background:var(--ink)"></i><span>כל השיעורים</span><b>${all.length || ""}</b></a>
+      <div class="nb-h"><span>תיקיות</span><button class="link" id="addCourse" aria-label="תיקייה חדשה">${svg("plus")}</button></div>
+      ${courses.map((c, i) => {
+        const n = all.filter((l) => l.course === c).length;
+        return `<a class="nb-f ${sel === i ? "on" : ""}" href="#course-${i}"><i style="background:${color(i)}"></i><span>${esc(c)}</span>${newBy[c] ? `<span class="chip new">${newBy[c]}</span>` : ""}<b>${n || ""}</b></a>`;
+      }).join("")}
+      <a class="nb-f" href="#recordings"><i style="background:var(--red)"></i><span>כל ההקלטות</span></a>
+    </aside>
+    <section class="nb-main">
+      <div class="row" style="justify-content:space-between">
+        <h1 style="font-size:clamp(24px,3.5vw,32px)${course ? `;color:${color(sel)}` : ""}">${course ? esc(course) : "כל השיעורים"}</h1>
+        <div class="row" style="gap:8px">
+          ${course ? `<label class="btn ghost small-btn">${svg("download")} ייבוא מ-Notability<input type="file" id="pdfIn" accept="application/pdf,.pdf" multiple hidden></label>` : ""}
+          <button class="btn small-btn" id="newLesson">${svg("plus")} חדש</button>
+        </div>
+      </div>
+      <div class="cards" id="cards">${list.map(card).join("") || `<p class="muted">${course ? 'עוד אין שיעורים בתיקייה הזו. לחצו "חדש" כדי לפתוח דף, או "ייבוא מ-Notability" כדי להכניס את מה שכתבתם בעבר.' : "עוד אין שיעורים. בחרו תיקייה מהרשימה ולחצו \"חדש\"."}</p>`}</div>
+      ${!course && list.length === 0 ? "" : ""}
+      ${course ? study.moodleSection(await study.moodleCourse(course)) : ""}
+    </section>
   </div>`;
+
+  // בטלפון: התיקייה שנבחרה נגללת לתוך השורה
+  if (innerWidth <= 820) $(".nb-f.on")?.scrollIntoView({ inline: "center", block: "nearest" });
+  // חיפוש מיידי בכרטיסים
+  $("#nbSearch").oninput = (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    view.querySelectorAll(".ncard").forEach((c) => (c.hidden = !!q && !c.dataset.q.includes(q)));
+  };
   $("#addCourse").onclick = () => {
-    const name = (prompt("שם הקורס החדש:") || "").trim();
+    const name = (prompt("שם התיקייה (הקורס) החדשה:") || "").trim();
     if (!name) return;
     const pr = prefs.get();
-    if ((pr.courses || []).includes(name)) return toast("הקורס הזה כבר קיים");
+    if ((pr.courses || []).includes(name)) return toast("התיקייה הזו כבר קיימת");
     pr.courses = [...(pr.courses || []), name]; prefs.set(pr);
-    notebooks(); toast("נוספה תיקייה: " + name);
+    location.hash = "course-" + (pr.courses.length - 1);
+    toast("נוספה תיקייה: " + name);
   };
-}
-
-async function courseFolder(i) {
-  const course = (prefs.get().courses || [])[i];
-  if (!course) { location.hash = "notebooks"; return; }
-  const lessons = (await store.listLessons()).filter((l) => l.course === course).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
-  view.innerHTML = `<div class="page">
-    <a href="#notebooks" class="small">→ כל המחברות</a>
-    <div class="row" style="justify-content:space-between"><h1 style="font-size:30px;color:${FOLDER_COLORS[i % FOLDER_COLORS.length]}">${esc(course)}</h1>
-      <button class="btn" id="newLesson">${svg("plus")} שיעור חדש</button></div>
-    <div class="list">${lessons.length ? lessons.map((l) => lessonItem(l)).join("") : '<p class="muted">עוד אין שיעורים בקורס הזה. לחצו "שיעור חדש" כדי לפתוח דף ולכתוב.</p>'}</div>
-    ${study.moodleSection(await study.moodleCourse(course))}
-  </div>`;
   $("#newLesson").onclick = async () => {
-    const l = newLesson(course);
+    const target = course || (sel === null && courses.length === 1 ? courses[0] : null);
+    if (!target) { toast("בחרו קודם תיקייה מהרשימה, ואז \"חדש\""); return; }
+    const l = newLesson(target);
     await store.saveLesson(l);
     location.hash = "lesson-" + l.id;
   };
+  // ייבוא קובצי PDF מ-Notability: כל קובץ הופך לשיעור בתיקייה הזו
+  $("#pdfIn") && ($("#pdfIn").onchange = async (e) => {
+    const files = [...(e.target.files || [])];
+    e.target.value = "";
+    if (!files.length) return;
+    let done = 0;
+    for (const f of files) {
+      try {
+        toast(`מייבא ${done + 1} מתוך ${files.length}: ${f.name}`);
+        const pages = await pdfToPages(f);
+        const date = todayKey(new Date(f.lastModified || Date.now()));
+        const l = { ...newLesson(course, date), title: f.name.replace(/\.pdf$/i, "").trim(), pages, source: "notability" };
+        l.thumb = await makeThumb(pages[0]);
+        await store.saveLesson(l);
+        done += 1;
+      } catch (err) { toast(`לא הצלחתי לייבא את ${f.name}: ${err.message}`); }
+    }
+    toast(`יובאו ${done} שיעורים ל"${course}". אפשר להמשיך לכתוב עליהם`);
+    notebooks(sel);
+  });
+  // תצוגה מקדימה לשיעורים ישנים שעוד אין להם (נוצרת פעם אחת ונשמרת)
+  for (const l of list.filter((x) => !x.thumb && (x.pages || []).some((pg) => pg.strokes.length || pg.image))) {
+    const first = l.pages.find((pg) => pg.strokes.length || pg.image);
+    l.thumb = await makeThumb(first);
+    await store.saveLesson(l);
+    const box = view.querySelector(`.ncard[data-id="${l.id}"] .thumb`);
+    if (box) box.insertAdjacentHTML("afterbegin", `<img src="${l.thumb}" alt="">`);
+  }
 }
+const courseFolder = (i) => notebooks(i);
 
 // ----- דף השיעור: כתב יד / הקלדה / הקלטות -----
 let editor = null, editingLesson = null, saveTimer = null, lessonTimer = null;
-function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(flushLesson, 700); }
-async function flushLesson() {
+function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(() => flushLesson(), 700); }
+async function flushLesson(withThumb = false) {
   clearTimeout(saveTimer);
-  if (!editingLesson) return;
-  if (editor) editingLesson.pages = editor.pages;
-  await store.saveLesson(editingLesson);
+  const l = editingLesson, ed = editor; // שומרים הפניה – הסגירה מאפסת את המשתנים
+  if (!l) return;
+  if (ed) l.pages = ed.pages;
+  if (withThumb) {
+    const first = (l.pages || []).find((pg) => pg.strokes.length || pg.image);
+    l.thumb = first ? await makeThumb(first) : null;
+  }
+  await store.saveLesson(l);
 }
 function closeLesson() {
   document.body.classList.remove("focus");
   if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-  if (editingLesson) flushLesson();
+  if (editingLesson) flushLesson(true);
   editor?.destroy(); editor = null; editingLesson = null; clearInterval(lessonTimer);
 }
 
@@ -821,7 +881,7 @@ window.addEventListener("hashchange", route);
 window.addEventListener("beforeunload", (e) => { if (recorder?.running) { e.preventDefault(); e.returnValue = ""; } });
 // אם האפליקציה נסגרה באמצע הקלטה בפעם הקודמת, מסמנים אותה כנקטעה ואז מציגים
 // שמירה לפני יציאה מהאפליקציה (באייפד: מעבר לאפליקציה אחרת)
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushLesson(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushLesson(true); });
 window.addEventListener("pagehide", () => flushLesson());
 recoverOrphans().then(migrateRecordings).catch(() => {}).finally(route);
 let lastAutoSync = 0;

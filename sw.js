@@ -1,5 +1,5 @@
 // Service worker: שומר את קבצי האפליקציה במכשיר, כדי שתיפתח מהר וגם בלי אינטרנט
-const CACHE = "sikumon-v6";
+const CACHE = "sikumon-v7";
 const FILES = ["./", "index.html", "styles.css", "app.js", "recorder.js", "demo-data.js", "notes.js", "study.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
