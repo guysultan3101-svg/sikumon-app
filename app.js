@@ -5,6 +5,8 @@ import { InkEditor, COLORS, MARKER_COLORS, pdfToPages, makeThumb } from "./notes
 import { initStudy } from "./study.js";
 import { initExtras } from "./extras.js";
 import { initPractice } from "./practice.js";
+import { initPlanner } from "./planner.js";
+import * as ai from "./ai.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const view = $("#view");
@@ -41,6 +43,8 @@ const icon = {
   lasso: '<path d="M12 4c5 0 9 2.5 9 6s-4 6-9 6-9-2.5-9-6 4-6 9-6z" stroke-dasharray="3 3"/><path d="M7 15c-2 2-1 5 2 5"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   split: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>',
+  cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   hand: '<path d="M7 11V6a1.5 1.5 0 0 1 3 0v4M10 10V4.5a1.5 1.5 0 0 1 3 0V10M13 10V5.5a1.5 1.5 0 0 1 3 0V11M16 11V8.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1a7 7 0 0 1-5-2.5L3.5 15a1.5 1.5 0 0 1 2.3-2L7 14"/>',
   type: '<path d="M4 7V5h16v2M12 5v14M9 19h6"/>',
@@ -55,6 +59,7 @@ const TABS = [
   { hash: "home", label: "בית", icon: "home" },
   { hash: "notebooks", label: "מחברות", icon: "folder" },
   { hash: "record", label: "הקלטה", icon: "mic", cls: "rec-tab" },
+  { hash: "calendar", label: "יומן", icon: "cal" },
   { hash: "summaries", label: "סיכומים", icon: "book" },
   { hash: "quizzes", label: "מבחנים", icon: "check" },
   { hash: "profile", label: "פרופיל", icon: "user", cls: "hide-phone" },
@@ -146,7 +151,7 @@ async function home() {
   view.innerHTML = `<div class="page">
     <div>
       <p class="eyebrow">${new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}</p>
-      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}${(p.streak || 0) > 1 && p.streakDay >= new Date(Date.now() - 864e5).toLocaleDateString("en-CA") ? ` <span class="streak">🔥 ${p.streak}</span>` : ""}</h1><a href="#profile" class="tool show-phone" aria-label="פרופיל">${svg("user")}</a></div>
+      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}${(p.streak || 0) > 1 && p.streakDay >= new Date(Date.now() - 864e5).toLocaleDateString("en-CA") ? ` <span class="streak">🔥 ${p.streak}</span>` : ""}</h1><span class="row" style="gap:4px"><a href="#inbox" class="tool bell" aria-label="הודעות">${svg("bell")}<span class="bell-n" hidden></span></a><a href="#profile" class="tool show-phone" aria-label="פרופיל">${svg("user")}</a></span></div>
     </div>
     <a class="card" href="#record" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;gap:16px">
       <div><h2 style="font-size:24px">${nowSlot ? "עכשיו: " + esc(nowSlot.course) : "מתחיל שיעור?"}</h2><p class="muted">${nowSlot ? `<bdi>${nowSlot.start}–${nowSlot.end}</bdi> · לחיצה אחת, וההקלטה נכנסת ישר למחברת של הקורס.` : "לחיצה אחת ומתחילים להקליט. ההקלטה נכנסת למחברת של השיעור."}</p></div>
@@ -248,6 +253,77 @@ const toMin = (t) => { const [h, m] = String(t || "0:0").split(":").map(Number);
 function currentSlot(d = new Date()) {
   const now = d.getHours() * 60 + d.getMinutes();
   return (prefs.get().timetable || []).find((x) => +x.day === d.getDay() && now >= toMin(x.start) - 15 && now <= toMin(x.end) + 10) || null;
+}
+
+// ----- 💬 שאל את השיעור + 🪄 הסבר נוסף (AI) -----
+async function attachAI(id) {
+  const sum = await store.getItem(id);
+  const page = view.querySelector(".page"); if (!sum || !page) return;
+  const lessonText = ai.htmlToText(sum.html);
+  const hasKey = !!ai.getKey();
+  page.insertAdjacentHTML("beforeend", `<section class="card chat" id="chat">
+    <h2 style="font-size:21px">💬 שאל את השיעור</h2>
+    ${hasKey ? `<p class="small muted">שואלים כל שאלה על השיעור הזה, ומקבלים הסבר לפי החומר. אפשר גם לסמן משפט בסיכום ולבקש הסבר נוסף.</p>
+    <div class="chat-log" id="chatLog" aria-live="polite"></div>
+    <div class="chips-row" id="chatSugg">${["לא הבנתי את הנושא המרכזי, תסביר שוב", "תן לי דוגמה מספרית", "מה הכי חשוב לזכור מהשיעור למבחן?", "תשאל אותי שאלה לבדוק שהבנתי"].map((q) => `<button class="chip-btn" data-q="${q}">${q}</button>`).join("")}</div>
+    <form class="chat-form" id="chatForm"><textarea id="chatIn" name="question" rows="2" placeholder="למשל: מה ההבדל בין עלות שולית לעלות ממוצעת…" autocomplete="off"></textarea><button class="btn" id="chatSend">שליחה</button></form>`
+    : `<p class="notice">כדי להשתמש, מכניסים פעם אחת מפתח API בפרופיל ← "🤖 AI". <a href="#profile">להגדרה</a></p>`}
+  </section>`);
+  // כפתור "הסבר נוסף" ליד כל כותרת בסיכום
+  view.querySelectorAll(".md-body h2").forEach((h) => h.insertAdjacentHTML("beforeend", ` <button class="explain-btn" aria-label="הסבר נוסף על החלק הזה">🪄 הסבר נוסף</button>`));
+  const history = [];
+  let ctrl = null;
+  const send = async (question) => {
+    if (!hasKey) { location.hash = "profile"; toast("קודם מגדירים מפתח API"); return; }
+    if (ctrl) return;
+    $("#chat").scrollIntoView({ behavior: "smooth", block: "start" });
+    const log = $("#chatLog");
+    log.insertAdjacentHTML("beforeend", `<div class="bubble me">${esc(question)}</div><div class="bubble bot"><span class="typing">חושב…</span></div>`);
+    const bot = log.lastElementChild;
+    let text = "";
+    ctrl = new AbortController();
+    $("#chatSend").textContent = "עצירה";
+    try {
+      const full = await ai.ask({ lessonTitle: sum.title, lessonText, history, question, signal: ctrl.signal, onText: (t) => { text += t; bot.innerHTML = ai.miniMd(text); } });
+      history.push({ role: "user", content: question }, { role: "assistant", content: full });
+      bot.innerHTML = ai.miniMd(full);
+    } catch (e) {
+      if (e.code !== "abort") bot.innerHTML = `<span class="err">${esc(e.message)}</span>`;
+      else if (text) history.push({ role: "user", content: question }, { role: "assistant", content: text });
+    } finally { ctrl = null; $("#chatSend") && ($("#chatSend").textContent = "שליחה"); }
+  };
+  if (hasKey) {
+    $("#chatForm").onsubmit = (e) => {
+      e.preventDefault();
+      if (ctrl) { ctrl.abort(); return; }
+      const q = $("#chatIn").value.trim(); if (!q) return;
+      $("#chatIn").value = ""; send(q);
+    };
+    $("#chatIn").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#chatForm").requestSubmit(); } };
+    view.querySelectorAll("#chatSugg [data-q]").forEach((b) => (b.onclick = () => send(b.dataset.q)));
+  }
+  view.querySelectorAll(".explain-btn").forEach((b) => (b.onclick = () => {
+    const h = b.closest("h2"); let t = h.textContent.replace("🪄 הסבר נוסף", "").trim() + "\n";
+    for (let el = h.nextElementSibling; el && el.tagName !== "H2"; el = el.nextElementSibling) t += el.textContent + "\n";
+    send("תסביר לי את החלק הזה מהשיעור בצורה פשוטה יותר, עם דוגמה:\n\n" + t.trim().slice(0, 2500));
+  }));
+  // סימון טקסט בסיכום -> סרגל "הסבר נוסף"
+  const bar = document.createElement("div"); bar.className = "sel-bar"; bar.hidden = true;
+  bar.innerHTML = `<button class="btn small-btn" data-m="simple">🪄 תסביר פשוט יותר</button><button class="btn ghost small-btn" data-m="example">📝 תן דוגמה</button>`;
+  document.body.appendChild(bar);
+  let picked = "";
+  const onSel = () => {
+    const sel = getSelection(); const t = sel?.toString().trim() || "";
+    const inside = sel?.rangeCount && view.querySelector(".md-body")?.contains(sel.getRangeAt(0).commonAncestorContainer);
+    picked = inside && t.length > 3 ? t : ""; bar.hidden = !picked;
+  };
+  document.addEventListener("selectionchange", onSel);
+  bar.querySelectorAll("button").forEach((b) => (b.onpointerdown = (e) => {
+    e.preventDefault(); if (!picked) return;
+    const q = b.dataset.m === "simple" ? `תסביר לי בפשטות את זה מהשיעור: "${picked}"` : `תן לי דוגמה פשוטה (אם אפשר עם מספרים) ל: "${picked}"`;
+    bar.hidden = true; getSelection().removeAllRanges(); send(q);
+  }));
+  window.addEventListener("hashchange", () => { document.removeEventListener("selectionchange", onSel); bar.remove(); ctrl?.abort(); }, { once: true });
 }
 
 // ----- מחיקה (עם אישור) -----
@@ -1028,6 +1104,10 @@ function profile() {
     <div class="soft"><b>${esc(p.name || "")}</b> · ${esc(p.inst || "")}</div>
     <h2 style="font-size:22px">איך אני לומד/ת</h2><div class="list">${rows}</div>
     <h2 style="font-size:22px">הקורסים</h2><div class="soft">${(p.courses || []).map(esc).join(" · ")}</div>
+    <section class="soft" id="aiBox"><h3>🤖 AI: שאל את השיעור והסבר נוסף</h3>
+      <p class="small muted">מדביקים מפתח API של Anthropic (מ-console.anthropic.com ← API Keys). בגרסת הבדיקה המפתח נשמר רק במכשיר הזה ולא נשלח לשום מקום חוץ מ-Anthropic. אל תגדירו אותו במכשיר של מישהו אחר.</p>
+      <p class="small" style="margin-top:6px">מצב: <b id="aiState">${ai.getKey() ? "✅ מוגדר" : "לא מוגדר"}</b></p>
+      <div class="row" style="margin-top:8px"><input type="password" id="aiKey" name="aiKey" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" style="flex:1;min-width:200px;direction:ltr"><button class="btn" id="aiSave">שמירה</button><button class="btn ghost" id="aiTest" ${ai.getKey() ? "" : "disabled"}>בדיקה</button><button class="btn ghost" id="aiDel" ${ai.getKey() ? "" : "disabled"}>הסרה</button></div></section>
     <a class="item" href="#timetable"><span><span class="t">🕘 מערכת השעות</span><br><span class="small muted">${(p.timetable || []).length ? (p.timetable.length + " שיעורים בשבוע · ההקלטות נכנסות לבד לקורס הנכון") : "עוד לא הוגדרה. בלעדיה בוחרים קורס ידנית בכל הקלטה"}</span></span></a>
     <div class="row"><button class="btn ghost" id="redo">לענות מחדש על השאלון</button><a class="btn" href="#feedback">${svg("share")} שליחת משוב</a></div>
     <div class="soft small"><b>פרטיות:</b> בגרסת הבדיקה הכול נשמר רק במכשיר שלך: התשובות, הקורסים וההקלטות. שום דבר לא נשלח לשרת. משוב נשלח רק כשאתם לוחצים "שליחה" ובוחרים למי.</div>
@@ -1036,6 +1116,9 @@ function profile() {
     ${!s.standalone ? '<p class="notice"><b>להתקנה באייפד/אייפון:</b> ב-Safari לוחצים על כפתור השיתוף ובוחרים "הוסף למסך הבית".</p>' : ""}
   </div>`;
   $("#redo").onclick = () => onboarding(0);
+  $("#aiSave").onclick = () => { const k = $("#aiKey").value.trim(); if (!k.startsWith("sk-ant-")) { toast("זה לא נראה כמו מפתח של Anthropic (מתחיל ב-sk-ant-)"); return; } ai.setKey(k); $("#aiKey").value = ""; toast("המפתח נשמר במכשיר"); profile(); };
+  $("#aiDel").onclick = () => { ai.setKey(""); toast("המפתח הוסר מהמכשיר"); profile(); };
+  $("#aiTest").onclick = async () => { $("#aiTest").disabled = true; $("#aiState").textContent = "בודק…"; try { const r = await ai.testKey(); $("#aiState").textContent = "✅ עובד (" + r.slice(0, 20) + ")"; } catch (e) { $("#aiState").textContent = "❌ " + e.message; } $("#aiTest").disabled = false; };
 }
 
 // ---------- ניתוב ----------
@@ -1055,9 +1138,9 @@ async function routeInner() {
   try { hash = decodeURIComponent(hash); } catch { /* כתובת לא תקינה */ }
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
-  const tab = hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash.startsWith("cards") || hash === "progress" ? "quizzes" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
+  const tab = hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash.startsWith("cards") || hash === "progress" ? "quizzes" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
   renderTabs(tab);
-  if (hash === "home") await home();
+  if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
   else if (hash === "record") record();
   else if (hash === "recordings") await recordings();
   else if (hash.startsWith("rec-")) await recordingDetail(hash.slice(4));
@@ -1069,7 +1152,11 @@ async function routeInner() {
       <a class="card" href="#deadlines"><h3>⏳ לוח מבחנים והגשות</h3><p class="small muted">${nx ? esc(nx.title) + " · " + extras.inDays(extras.daysTo(nx.when)) : "הוסיפו את תאריכי המבחנים"}</p></a></div>`);
   }
   else if (hash === "summary") summary();
-  else if (hash.startsWith("sum-")) await study.summaryPage(hash.slice(4));
+  else if (hash.startsWith("sum-")) { await study.summaryPage(hash.slice(4)); await attachAI(hash.slice(4)); }
+  else if (hash === "calendar") await planner.calendar();
+  else if (hash.startsWith("calendar-")) await planner.calendar(hash.slice(9));
+  else if (hash === "inbox") await planner.inbox();
+  else if (hash === "weekly") await planner.weekly();
   else if (hash === "quizzes") {
     await study.quizzes();
     view.querySelector(".page > .row")?.insertAdjacentHTML("afterend", `<div class="grid2"><a class="card" href="#cards"><h3>🃏 כרטיסיות זיכרון</h3><p class="small muted">חזרה מרווחת מכל המבחנים ודפי הנוסחאות</p></a><a class="card" href="#progress"><h3>📈 ההתקדמות שלי</h3><p class="small muted">ציונים לאורך זמן, ובמה כדאי לחזור</p></a></div>`);
@@ -1102,6 +1189,11 @@ const study = initStudy(studyCtx);
 const practice = initPractice({ view, $, esc, svg, toast, prefs, store });
 studyCtx.onQuizDone = () => practice.bumpStreak();
 const extras = initExtras({ view, $, esc, svg, toast, prefs, store, segmentsOf, fmtTime });
+const planner = initPlanner({ view, $, esc, toast, prefs, store, extras, study, lessonForToday });
+// הודעות: בודקים בפתיחה, אחרי סנכרון, וכל 10 דקות
+async function refreshInbox() { try { const f = await planner.refresh(); if (f.length && location.hash !== "#inbox") toast(`🔔 ${f[0].title}${f.length > 1 ? ` (+${f.length - 1})` : ""}`); } catch (e) { logError("inbox", e); } }
+setTimeout(refreshInbox, 2500);
+setInterval(refreshInbox, 10 * 60e3);
 window.addEventListener("hashchange", route);
 // אזהרה לפני סגירה באמצע הקלטה
 window.addEventListener("beforeunload", (e) => { if (recorder?.running) { e.preventDefault(); e.returnValue = ""; } });
@@ -1116,7 +1208,8 @@ async function autoSync() {
   lastAutoSync = Date.now();
   try {
     const r = await study.syncNow();
-    if (r?.fresh && ["#home", "#summaries", "#quizzes", "#notebooks", ""].includes(location.hash)) { route(); toast("עודכן מהמודל"); }
+    refreshInbox();
+    if (r?.fresh && ["#home", "#summaries", "#quizzes", "#notebooks", "#calendar", "#deadlines", "#inbox", ""].includes(location.hash)) { route(); toast("עודכן מהמודל"); }
   } catch { /* בלי אינטרנט – ננסה בפעם הבאה */ }
 }
 setTimeout(autoSync, 1500);

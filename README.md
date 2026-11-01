@@ -10,6 +10,8 @@ A Hebrew, iPad-first web app (PWA) for a market test: students record a lesson i
 - `recorder.js` – recording engine (MediaRecorder, wake lock, interruption handling)
 - `notes.js` – handwriting engine (Apple Pencil pressure, pen/marker/eraser, undo, pages, image pages, export to PNG)
 - `study.js` – summaries (imported pack from Drive), quizzes with history, retry-wrong, mixed review and self-made quizzes
+- `ai.js` – "ask the lesson" chat and "explain more" via the Claude API (official SDK 1.3.0 from jsDelivr, user key on device for testing)
+- `planner.js` – semester calendar (lessons / deadlines / exams), in-app inbox and weekly digest
 - `demo-data.js` – sample summary, quiz and onboarding questions
 - `sw.js`, `manifest.webmanifest`, `icons/` – install to home screen
 
