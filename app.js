@@ -127,6 +127,7 @@ async function home() {
   const p = prefs.get();
   const items = await store.listItems();
   const news = await study.moodleNew();
+  const nowSlot = currentSlot();
   const lastSum = items.filter((x) => x.type === "summary" && x.kind !== "formulas").sort((a, b) => b.date.localeCompare(a.date))[0];
   const quizCount = items.filter((x) => x.type === "quiz").length;
   const recent = (await store.listLessons()).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")).slice(0, 3);
@@ -136,7 +137,7 @@ async function home() {
       <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}</h1><a href="#profile" class="tool show-phone" aria-label="פרופיל">${svg("user")}</a></div>
     </div>
     <a class="card" href="#record" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;gap:16px">
-      <div><h2 style="font-size:24px">מתחיל שיעור?</h2><p class="muted">לחיצה אחת ומתחילים להקליט. ההקלטה נכנסת למחברת של השיעור.</p></div>
+      <div><h2 style="font-size:24px">${nowSlot ? "עכשיו: " + esc(nowSlot.course) : "מתחיל שיעור?"}</h2><p class="muted">${nowSlot ? `<bdi>${nowSlot.start}–${nowSlot.end}</bdi> · לחיצה אחת, וההקלטה נכנסת ישר למחברת של הקורס.` : "לחיצה אחת ומתחילים להקליט. ההקלטה נכנסת למחברת של השיעור."}</p></div>
       <span class="rec-btn" style="width:84px;height:84px;box-shadow:3px 3px 0 var(--ink);flex:none">${svg("mic")}</span>
     </a>
     ${news && news.length ? `<section class="soft"><div class="row" style="justify-content:space-between"><h3>חדש במודל <span class="chip new">${news.length}</span></h3><a class="small" href="#notebooks">לפי קורסים</a></div><div class="list" style="margin-top:10px">${news.slice(0, 5).map((it) => study.moodleItem(it, true)).join("")}</div></section>` : ""}
@@ -225,6 +226,52 @@ function recItem(r) {
   return `<a class="item" href="#rec-${r.id}"><span><span class="t">${esc(r.course)}</span><br><span class="small muted"><bdi>${fmtDate(r.startedAt)}</bdi> · <bdi>${fmtTime(r.durationMs || 0)}</bdi></span></span>${st}</a>`;
 }
 
+// ----- מערכת שעות: לפי היום והשעה יודעים איזה שיעור עכשיו -----
+const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+const toMin = (t) => { const [h, m] = String(t || "0:0").split(":").map(Number); return h * 60 + (m || 0); };
+// השיעור שמתקיים עכשיו (כולל רבע שעה לפני ו-10 דקות אחרי)
+function currentSlot(d = new Date()) {
+  const now = d.getHours() * 60 + d.getMinutes();
+  return (prefs.get().timetable || []).find((x) => +x.day === d.getDay() && now >= toMin(x.start) - 15 && now <= toMin(x.end) + 10) || null;
+}
+
+// ----- מחיקה (עם אישור) -----
+async function removeRecording(id) {
+  const r = await store.getRecording(id);
+  await store.deleteRecording(id);
+  if (r?.lessonId) {
+    const l = await store.getLesson(r.lessonId);
+    if (l) { l.recIds = (l.recIds || []).filter((x) => x !== id); await store.saveLesson(l); }
+  }
+}
+async function removeLesson(l) {
+  const recs = (l.recIds || []).length;
+  if (!confirm(`למחוק את "${lessonTitle(l)}"? אי אפשר לבטל.`)) return false;
+  if (recs && confirm(`בשיעור יש ${recs === 1 ? "הקלטה אחת" : recs + " הקלטות"}. למחוק גם אותן?\n(ביטול = ההקלטות נשארות ב"כל ההקלטות")`)) {
+    for (const id of l.recIds) await store.deleteRecording(id);
+  }
+  await store.deleteLesson(l.id);
+  toast("השיעור נמחק");
+  return true;
+}
+async function removeCourse(i) {
+  const p = prefs.get();
+  const course = (p.courses || [])[i];
+  const lessons = (await store.listLessons()).filter((l) => l.course === course);
+  if (!confirm(`למחוק את התיקייה "${course}"${lessons.length ? ` ואת ${lessons.length} השיעורים שבה` : ""}? אי אפשר לבטל.`)) return;
+  const recIds = lessons.flatMap((l) => l.recIds || []);
+  const delRecs = recIds.length && confirm(`למחוק גם ${recIds.length} הקלטות של הקורס?\n(ביטול = ההקלטות נשארות ב"כל ההקלטות")`);
+  for (const l of lessons) await store.deleteLesson(l.id);
+  if (delRecs) for (const id of recIds) await store.deleteRecording(id);
+  // הקורס לא יחזור בסנכרון הבא מהמודל, וגם יוצא ממערכת השעות
+  p.courses = p.courses.filter((c) => c !== course);
+  p.hiddenCourses = [...new Set([...(p.hiddenCourses || []), course])];
+  p.timetable = (p.timetable || []).filter((x) => x.course !== course);
+  prefs.set(p);
+  toast(`התיקייה "${course}" נמחקה`);
+  location.hash = "notebooks";
+}
+
 // ----- הקלטה -----
 let recorder = null;
 function record() {
@@ -233,11 +280,14 @@ function record() {
   if (!s.secure) problems.push("האפליקציה חייבת לרוץ בכתובת מאובטחת (https) כדי להשתמש במיקרופון.");
   if (!s.mic || !s.recorder) problems.push("הדפדפן הזה לא תומך בהקלטה. באייפד ובאייפון צריך iOS 14.3 ומעלה, בדפדפן Safari.");
   const active = recorder?.rec && recorder.rec.status !== "done";
+  const slot = currentSlot();
+  if (slot && !(p.courses || []).includes(slot.course)) p.courses = [...(p.courses || []), slot.course];
   const paused = recorder?.rec?.status === "paused";
   view.innerHTML = `<div class="page">
     <h1 style="font-size:32px">הקלטת שיעור</h1>
     ${problems.map((x) => `<p class="notice alert">${x}</p>`).join("")}
-    <label class="field">איזה קורס?<select id="course" name="course" ${active ? "disabled" : ""}>${(p.courses || []).map((c) => `<option ${recorder?.rec?.course === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+    <label class="field">איזה קורס?<select id="course" name="course" ${active ? "disabled" : ""}>${(p.courses || []).map((c) => `<option ${(recorder?.rec?.course || slot?.course) === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+    <p class="small ${slot ? "" : "muted"}" style="margin-top:-12px">${active ? "" : slot ? `🕘 זוהה לפי מערכת השעות: <b>${esc(slot.course)}</b> (${DAYS[slot.day]} <bdi>${slot.start}–${slot.end}</bdi>). ההקלטה תיכנס למחברת שלו, לשיעור של היום.` : `אין שיעור במערכת השעות עכשיו, אז בוחרים קורס. <a href="#timetable">למערכת השעות</a>`}</p>
     <div class="card rec-stage">
       <div class="clock" id="clock" role="timer">${fmtTime(recorder?.elapsedMs || 0)}</div>
       <div class="meter" aria-hidden="true"><i id="lvl"></i></div>
@@ -335,8 +385,12 @@ async function recordings() {
   view.innerHTML = `<div class="page">
     <h1 style="font-size:32px">ההקלטות שלי</h1>
     <p class="muted">ההקלטות נשמרות כרגע רק במכשיר הזה. בגרסה הבאה הן יעלו לענן ויהפכו לסיכום לבד.</p>
-    <div class="list">${recs.length ? recs.map(recItem).join("") : '<p class="muted">עוד אין הקלטות.</p>'}</div>
+    <div class="list">${recs.length ? recs.map((r) => `<div class="rec-row">${recItem(r)}<button class="link del-rec" data-id="${r.id}" aria-label="מחיקת ההקלטה">${svg("trash")}</button></div>`).join("") : '<p class="muted">עוד אין הקלטות.</p>'}</div>
   </div>`;
+  view.querySelectorAll(".del-rec").forEach((b) => (b.onclick = async () => {
+    if (!confirm("למחוק את ההקלטה? אי אפשר לבטל.")) return;
+    await removeRecording(b.dataset.id); toast("ההקלטה נמחקה"); recordings();
+  }));
 }
 
 async function recordingDetail(id) {
@@ -370,7 +424,7 @@ async function recordingDetail(id) {
     catch { getSelection().selectAllChildren($("#report")); toast("סמנו והעתיקו את הדוח"); }
   };
   $("#del").onclick = async () => {
-    if ($("#del").dataset.sure) { await store.deleteRecording(id); toast("ההקלטה נמחקה"); location.hash = "recordings"; }
+    if ($("#del").dataset.sure) { await removeRecording(id); toast("ההקלטה נמחקה"); location.hash = r.lessonId ? "lesson-" + r.lessonId : "recordings"; }
     else { $("#del").dataset.sure = "1"; $("#del").lastChild.textContent = " לחצו שוב למחיקה"; }
   };
 }
@@ -418,6 +472,7 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
   const card = (l) => {
     const snippet = !l.thumb && l.text?.trim() ? `<span class="snip">${esc(l.text.trim().slice(0, 160))}</span>` : "";
     return `<a class="ncard" href="#lesson-${l.id}" data-id="${l.id}" data-q="${esc((lessonTitle(l) + " " + l.course + " " + (l.text || "")).toLowerCase())}">
+      <button class="card-del" data-del="${l.id}" aria-label="מחיקת השיעור">${svg("trash")}</button>
       <div class="thumb">${l.thumb ? `<img src="${l.thumb}" alt="" loading="lazy">` : snippet}${l.recIds?.length ? `<span class="rec-dot" title="יש הקלטה">${svg("mic")}</span>` : ""}</div>
       <b>${esc(lessonTitle(l))}</b><span class="small muted">${course ? "" : esc(l.course) + " · "}${fmtCardDate(l.date)}</span></a>`;
   };
@@ -428,7 +483,7 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
       <div class="nb-h"><span>תיקיות</span><button class="link" id="addCourse" aria-label="תיקייה חדשה">${svg("plus")}</button></div>
       ${courses.map((c, i) => {
         const n = all.filter((l) => l.course === c).length;
-        return `<a class="nb-f ${sel === i ? "on" : ""}" href="#course-${i}"><i style="background:${color(i)}"></i><span>${esc(c)}</span>${newBy[c] ? `<span class="chip new">${newBy[c]}</span>` : ""}<b>${n || ""}</b></a>`;
+        return `<a class="nb-f ${sel === i ? "on" : ""}" href="#course-${i}"><i style="background:${color(i)}"></i><span>${esc(c)}</span>${newBy[c] ? `<span class="chip new">${newBy[c]}</span>` : ""}<b>${n || ""}</b><button class="folder-del" data-i="${i}" aria-label="מחיקת התיקייה ${esc(c)}">${svg("trash")}</button></a>`;
       }).join("")}
       <a class="nb-f" href="#recordings"><i style="background:var(--red)"></i><span>כל ההקלטות</span></a>
     </aside>
@@ -437,6 +492,7 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
         <h1 style="font-size:clamp(24px,3.5vw,32px)${course ? `;color:${color(sel)}` : ""}">${course ? esc(course) : "כל השיעורים"}</h1>
         <div class="row" style="gap:8px">
           ${course ? `<label class="btn ghost small-btn">${svg("download")} ייבוא מ-Notability<input type="file" id="pdfIn" accept="application/pdf,.pdf" multiple hidden></label>` : ""}
+          <button class="btn ghost small-btn" id="editNb" aria-pressed="false">עריכה</button>
           <button class="btn small-btn" id="newLesson">${svg("plus")} חדש</button>
         </div>
       </div>
@@ -446,6 +502,21 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
     </section>
   </div>`;
 
+  // מצב עריכה: מופיעים כפתורי מחיקה על כל שיעור ועל כל תיקייה
+  $("#editNb").onclick = () => {
+    const on = !view.querySelector(".nb").classList.toggle("editing") ? false : true;
+    $("#editNb").setAttribute("aria-pressed", on); $("#editNb").textContent = on ? "סיום" : "עריכה";
+    if (on) toast("לחצו על פח האשפה כדי למחוק שיעור או תיקייה");
+  };
+  view.querySelectorAll(".card-del").forEach((b) => (b.onclick = async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const l = list.find((x) => x.id === b.dataset.del);
+    if (l && await removeLesson(l)) notebooks(sel).then(() => $("#editNb")?.click());
+  }));
+  view.querySelectorAll(".folder-del").forEach((b) => (b.onclick = async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    await removeCourse(+b.dataset.i);
+  }));
   // בטלפון: התיקייה שנבחרה נגללת לתוך השורה
   if (innerWidth <= 820) $(".nb-f.on")?.scrollIntoView({ inline: "center", block: "nearest" });
   // חיפוש מיידי בכרטיסים
@@ -685,10 +756,8 @@ async function lessonPage(id) {
   // --- מחיקה (לחיצה שנייה לאישור) ---
   $("#ldel").onclick = async () => {
     const b = $("#ldel");
-    if (!b.dataset.sure) { b.dataset.sure = "1"; b.lastElementChild.textContent = "בטוח? לחצו שוב (ההקלטות יישארו)"; return; }
+    if (!(await removeLesson(l))) return;
     editingLesson = null;
-    await store.deleteLesson(l.id);
-    toast("השיעור נמחק");
     location.hash = ci >= 0 ? "course-" + ci : "notebooks";
   };
 }
@@ -816,6 +885,39 @@ async function diag() {
   $("#copyDiag").onclick = async () => { try { await navigator.clipboard.writeText(report()); toast("הדוח הועתק. הדביקו אותו לקלוד"); } catch { toast("לא הצלחתי להעתיק"); } };
 }
 
+function timetable() {
+  const p = prefs.get();
+  const rows = [...(p.timetable || [])].sort((a, b) => a.day - b.day || toMin(a.start) - toMin(b.start));
+  const courses = p.courses || [];
+  const row = (x, k) => `<div class="tt-row" data-k="${k}">
+    <select class="tt-day" aria-label="יום">${DAYS.slice(0, 6).map((d, i) => `<option value="${i}" ${+x.day === i ? "selected" : ""}>${d}</option>`).join("")}</select>
+    <input type="time" class="tt-start" value="${x.start}" aria-label="שעת התחלה"><span>עד</span><input type="time" class="tt-end" value="${x.end}" aria-label="שעת סיום">
+    <select class="tt-course" aria-label="קורס">${courses.map((c) => `<option ${c === x.course ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
+    <button class="link tt-del" aria-label="מחיקת השיעור מהמערכת">${svg("trash")}</button></div>`;
+  view.innerHTML = `<div class="page">
+    <a href="#profile" class="small">→ פרופיל</a>
+    <h1 style="font-size:30px">מערכת השעות שלי</h1>
+    <p class="muted">לפי המערכת, כשלוחצים "הקלט" האפליקציה יודעת לבד איזה שיעור עכשיו, וההקלטה נכנסת ישר למחברת של אותו קורס.</p>
+    <div class="list" id="ttList">${rows.map(row).join("") || '<p class="muted">עוד אין שיעורים במערכת.</p>'}</div>
+    <div class="row"><button class="btn ghost" id="ttAdd">${svg("plus")} שיעור במערכת</button><button class="btn" id="ttSave">שמירה</button></div>
+  </div>`;
+  $("#ttAdd").onclick = () => {
+    if (!courses.length) { toast("צריך קודם קורס אחד לפחות במחברות"); return; }
+    const k = Date.now();
+    $("#ttList").querySelector("p")?.remove();
+    $("#ttList").insertAdjacentHTML("beforeend", row({ day: new Date().getDay() % 6, start: "09:00", end: "12:00", course: courses[0] }, k));
+    bindDel();
+  };
+  const bindDel = () => view.querySelectorAll(".tt-del").forEach((b) => (b.onclick = () => b.closest(".tt-row").remove()));
+  bindDel();
+  $("#ttSave").onclick = () => {
+    const tt = [...view.querySelectorAll(".tt-row")].map((r) => ({ day: +r.querySelector(".tt-day").value, start: r.querySelector(".tt-start").value, end: r.querySelector(".tt-end").value, course: r.querySelector(".tt-course").value }))
+      .filter((x) => x.start && x.end && toMin(x.end) > toMin(x.start));
+    const pr = prefs.get(); pr.timetable = tt; pr.timetableEdited = true; prefs.set(pr);
+    toast("מערכת השעות נשמרה"); timetable();
+  };
+}
+
 function profile() {
   const p = prefs.get();
   const rows = onboardingQuestions.map((q) => `<div class="item"><span class="muted small">${q.q}</span><b>${esc(p[q.id] || "–")}</b></div>`).join("");
@@ -825,6 +927,7 @@ function profile() {
     <div class="soft"><b>${esc(p.name || "")}</b> · ${esc(p.inst || "")}</div>
     <h2 style="font-size:22px">איך אני לומד/ת</h2><div class="list">${rows}</div>
     <h2 style="font-size:22px">הקורסים</h2><div class="soft">${(p.courses || []).map(esc).join(" · ")}</div>
+    <a class="item" href="#timetable"><span><span class="t">🕘 מערכת השעות</span><br><span class="small muted">${(p.timetable || []).length ? (p.timetable.length + " שיעורים בשבוע · ההקלטות נכנסות לבד לקורס הנכון") : "עוד לא הוגדרה. בלעדיה בוחרים קורס ידנית בכל הקלטה"}</span></span></a>
     <div class="row"><button class="btn ghost" id="redo">לענות מחדש על השאלון</button><a class="btn" href="#feedback">${svg("share")} שליחת משוב</a></div>
     <div class="soft small"><b>פרטיות:</b> בגרסת הבדיקה הכול נשמר רק במכשיר שלך: התשובות, הקורסים וההקלטות. שום דבר לא נשלח לשרת. משוב נשלח רק כשאתם לוחצים "שליחה" ובוחרים למי.</div>
     <a class="item" href="#diag"><span><span class="t">🩺 בדיקת מכשיר</span><br><span class="small muted">בודק מיקרופון, הקלטה, שמירה, עט וחיבור למודל, ומפיק דוח</span></span></a>
@@ -851,7 +954,7 @@ async function routeInner() {
   try { hash = decodeURIComponent(hash); } catch { /* כתובת לא תקינה */ }
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
-  const tab = hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" ? "profile" : hash;
+  const tab = hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
   renderTabs(tab);
   if (hash === "home") await home();
   else if (hash === "record") record();
@@ -868,6 +971,7 @@ async function routeInner() {
   else if (hash === "profile") profile();
   else if (hash === "feedback") feedback();
   else if (hash === "diag") await diag();
+  else if (hash === "timetable") timetable();
   else if (hash === "notebooks") await notebooks();
   else if (hash.startsWith("course-")) await courseFolder(+hash.slice(7));
   else if (hash.startsWith("lesson-")) { closeLesson(); await lessonPage(hash.slice(7)); }

@@ -27,7 +27,9 @@ export function initStudy(ctx) {
     for (const q of pack.quizzes || []) await store.putItem({ ...q, type: "quiz" });
     // קורסים חדשים מ-Moodle נכנסים גם למחברות
     const p = prefs.get();
-    const add = (pack.courses || []).filter((c) => !(p.courses || []).includes(c));
+    const add = (pack.courses || []).filter((c) => !(p.courses || []).includes(c) && !(p.hiddenCourses || []).includes(c));
+    // מערכת השעות מגיעה מהמחשב, כל עוד לא שינית אותה בעצמך באפליקציה
+    if (pack.timetable?.length && !p.timetableEdited) p.timetable = pack.timetable.filter((x) => !(p.hiddenCourses || []).includes(x.course));
     p.courses = [...(p.courses || []), ...add];
     p.lastImport = new Date().toISOString();
     prefs.set(p);

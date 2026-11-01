@@ -311,3 +311,23 @@ body.focus #fullExit { display: grid; background: var(--ink); color: var(--bg); 
   .nb-f { flex: none; border: 1.5px solid var(--line); }
   .cards { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
 }
+
+/* ---------- מחיקה ומערכת שעות ---------- */
+.ncard { position: relative; }
+.card-del, .folder-del { display: none; }
+.nb.editing .card-del { display: grid; position: absolute; top: -8px; right: -8px; z-index: 2; width: 34px; height: 34px; border-radius: 50%; border: 2px solid #fff; background: var(--red); color: #fff; place-items: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+.nb.editing .card-del svg { width: 17px; height: 17px; }
+.nb.editing .ncard .thumb { animation: wiggle .3s ease-in-out infinite alternate; }
+@keyframes wiggle { from { transform: rotate(-.6deg); } to { transform: rotate(.6deg); } }
+.nb.editing .folder-del { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); cursor: pointer; flex: none; }
+.nb.editing .folder-del svg { width: 16px; height: 16px; }
+.nb.editing .nb-f b { display: none; }
+.rec-row { display: flex; gap: 8px; align-items: center; }
+.rec-row .item { flex: 1; min-width: 0; }
+.del-rec { color: var(--red); }
+.tt-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--paper); border: 1.5px solid var(--line); border-radius: 14px; padding: 10px; }
+.tt-row select, .tt-row input { width: auto; min-height: 44px; }
+.tt-row .tt-course { flex: 1; min-width: 160px; }
+.tt-row input[type=time] { direction: ltr; }
+.tt-del { color: var(--red); }
+button.tt-del, button.del-rec { color: var(--red); }
