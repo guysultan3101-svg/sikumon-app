@@ -8,6 +8,7 @@ A Hebrew, iPad-first web app (PWA) for a market test: students record a lesson i
 - `index.html`, `styles.css` – app shell and design
 - `app.js` – screens (onboarding, record, recordings, summary, quiz, feedback, profile)
 - `recorder.js` – recording engine (MediaRecorder, wake lock, interruption handling)
+- `notes.js` – handwriting engine (Apple Pencil pressure, pen/marker/eraser, undo, pages, image pages, export to PNG)
 - `demo-data.js` – sample summary, quiz and onboarding questions
 - `sw.js`, `manifest.webmanifest`, `icons/` – install to home screen
 

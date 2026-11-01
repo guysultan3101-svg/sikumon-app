@@ -1,6 +1,7 @@
 // סיכומון AI – האפליקציה (גרסת בדיקה). ניווט לפי # בכתובת, כל מסך הוא פונקציה שמציירת HTML.
 import { LessonRecorder, store, segmentsOf, support, recoverOrphans } from "./recorder.js";
 import { demoSummary, demoQuiz, onboardingQuestions } from "./demo-data.js";
+import { InkEditor, COLORS, MARKER_COLORS } from "./notes.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const view = $("#view");
@@ -22,13 +23,23 @@ const icon = {
   play: '<path d="M7 5v14l12-7z"/>',
   share: '<path d="M12 3v13M7 8l5-5 5 5"/><path d="M5 14v6h14v-6"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  folder: '<path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  pen: '<path d="M4 20l4-1L19 8a2.1 2.1 0 0 0-3-3L5 16z"/><path d="M14 7l3 3"/>',
+  marker: '<path d="M9 15l-4 5h5l2-2"/><path d="M8 13l7-9 5 4-8 8z"/>',
+  eraser: '<path d="M8 20h12"/><path d="M4 15l9-10 7 7-8 8H8z"/><path d="M9 10l6 6"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
+  hand: '<path d="M7 11V6a1.5 1.5 0 0 1 3 0v4M10 10V4.5a1.5 1.5 0 0 1 3 0V10M13 10V5.5a1.5 1.5 0 0 1 3 0V11M16 11V8.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1a7 7 0 0 1-5-2.5L3.5 15a1.5 1.5 0 0 1 2.3-2L7 14"/>',
+  type: '<path d="M4 7V5h16v2M12 5v14M9 19h6"/>',
 };
 const svg = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon[name]}</svg>`;
 
 const TABS = [
   { hash: "home", label: "בית", icon: "home" },
+  { hash: "notebooks", label: "מחברות", icon: "folder" },
   { hash: "record", label: "הקלטה", icon: "mic", cls: "rec-tab" },
-  { hash: "recordings", label: "ההקלטות", icon: "list" },
   { hash: "summaries", label: "סיכומים", icon: "book" },
   { hash: "profile", label: "פרופיל", icon: "user" },
 ];
@@ -96,14 +107,14 @@ function onboardingCourses(answers) {
 
 async function home() {
   const p = prefs.get();
-  const recs = (await store.listRecordings()).sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, 3);
+  const recent = (await store.listLessons()).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")).slice(0, 3);
   view.innerHTML = `<div class="page">
     <div>
       <p class="eyebrow">${new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}</p>
       <h1 style="font-size:clamp(30px,5vw,44px);margin-top:8px">היי${p.name ? " " + esc(p.name) : ""}</h1>
     </div>
     <a class="card" href="#record" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;gap:16px">
-      <div><h2 style="font-size:24px">מתחיל שיעור?</h2><p class="muted">לחיצה אחת ומתחילים להקליט. הסיכום יגיע אחרי השיעור.</p></div>
+      <div><h2 style="font-size:24px">מתחיל שיעור?</h2><p class="muted">לחיצה אחת ומתחילים להקליט. ההקלטה נכנסת למחברת של השיעור.</p></div>
       <span class="rec-btn" style="width:84px;height:84px;box-shadow:3px 3px 0 var(--ink);flex:none">${svg("mic")}</span>
     </a>
     ${installHint()}
@@ -111,6 +122,7 @@ async function home() {
       <h3>מה בודקים בגרסה הזו?</h3>
       <ol class="steps">
         <li><a href="#record">מקליטים שיעור אמיתי</a> מההתחלה ועד הסוף, ובודקים שההקלטה נשמרה.</li>
+        <li>כותבים סיכום בעצמכם ב<a href="#notebooks">מחברות</a>: בעט (Apple Pencil), באצבע או בהקלדה. לכל קורס יש תיקייה, ולכל שיעור דף משלו.</li>
         <li>עוברים על <a href="#summary">הסיכום לדוגמה</a> ועל <a href="#quiz">המבחן הקצר</a>, ככה ייראו הסיכומים שלך.</li>
         <li><a href="#feedback">שולחים משוב</a>: דקה אחת, וזה עוזר לנו יותר מכל דבר אחר.</li>
       </ol>
@@ -123,8 +135,8 @@ async function home() {
         <a class="item" href="#quiz" style="margin-top:12px"><span><span class="t">5 שאלות על מיקרו</span><br><span class="small muted">בערך 2 דקות</span></span><span class="chip demo">דוגמה</span></a>
       </section>
     </div>
-    <section class="soft"><h3>הקלטות אחרונות</h3>
-      <div class="list" style="margin-top:12px">${recs.length ? recs.map(recItem).join("") : '<p class="muted">עוד אין הקלטות. השיעור הבא שלך הוא הזדמנות טובה לנסות.</p>'}</div>
+    <section class="soft"><div class="row" style="justify-content:space-between"><h3>להמשיך מאיפה שהפסקת</h3><a href="#notebooks" class="small">כל המחברות</a></div>
+      <div class="list" style="margin-top:12px">${recent.length ? recent.map((l) => lessonItem(l, true)).join("") : '<p class="muted">עוד אין שיעורים. פתחו <a href="#notebooks">מחברת</a> או התחילו הקלטה, והשיעור יופיע כאן.</p>'}</div>
     </section>
   </div>`;
   $("#hideInstall") && ($("#hideInstall").onclick = () => {
@@ -214,7 +226,7 @@ function record() {
     <div class="notice"><strong>כדי שההקלטה תחזיק את כל השיעור:</strong>
       <ul class="tips"><li>השאירו את סיכומון פתוח על המסך. אפשר לכתוב במקביל במסך מפוצל.</li><li>לא לנעול את המסך. ${s.wakeLock ? "האפליקציה מנסה להשאיר אותו דלוק לבד." : "כדאי לכבות נעילה אוטומטית בהגדרות."}</li><li>חברו למטען אם השיעור ארוך.</li></ul>
     </div>
-    <p class="small muted">מקליטים רק כשזה מותר לפי מדיניות המרצה והמוסד. ההקלטה נשמרת רק במכשיר שלך.</p>
+    <p class="small muted">ההקלטה נכנסת אוטומטית למחברת של הקורס, לשיעור של היום. מקליטים רק כשזה מותר לפי מדיניות המרצה והמוסד. ההקלטה נשמרת רק במכשיר שלך.</p>
   </div>`;
   $("#recBtn").onclick = onRecClick;
   $("#finishPaused") && ($("#finishPaused").onclick = finish);
@@ -229,17 +241,25 @@ function savedLine() {
   return recorder.running ? `מקליט · ${saved}` : saved;
 }
 
+// מתחיל הקלטה ומשייך אותה לשיעור (של היום בקורס הזה, או לשיעור שפתוח במחברת)
+async function startRecording(course, lessonId = null) {
+  const lesson = lessonId ? await store.getLesson(lessonId) : await lessonForToday(course);
+  const r = new LessonRecorder();
+  bindRecorder(r);
+  await r.start(course, lesson.id);
+  recorder = r; // רק אחרי שהמיקרופון באמת נפתח
+  lesson.recIds = [...(lesson.recIds || []), r.rec.id];
+  await store.saveLesson(lesson);
+  toast("ההקלטה התחילה");
+}
+
 let busy = false;
 async function onRecClick() {
   if (busy) return; // מונע לחיצה כפולה
   busy = true; $("#recBtn").disabled = true;
   try {
     if (!recorder || recorder.rec?.status === "done" || !recorder.rec) {
-      const r = new LessonRecorder();
-      bindRecorder(r);
-      await r.start($("#course").value);
-      recorder = r; // רק אחרי שהמיקרופון באמת נפתח
-      toast("ההקלטה התחילה");
+      await startRecording($("#course").value);
     } else if (recorder.rec.status === "paused") {
       await recorder.resume();
       toast("ההקלטה ממשיכה");
@@ -257,7 +277,7 @@ async function onRecClick() {
   }
 }
 
-async function finish() {
+async function finish(navigate = true) {
   if (busy) return;
   busy = true;
   toast("שומר…");
@@ -265,9 +285,9 @@ async function finish() {
   busy = false;
   recorder = null;
   toast("ההקלטה נשמרה");
-  location.hash = "rec-" + rec.id;
+  if (navigate) location.hash = rec.lessonId ? "lesson-" + rec.lessonId : "rec-" + rec.id;
+  return rec;
 }
-
 function bindRecorder(r) {
   r.addEventListener("interrupted", (e) => { toast(e.detail + ". לחצו 'המשך' כדי להמשיך להקליט."); if (location.hash === "#record") record(); });
 }
@@ -302,7 +322,7 @@ async function recordingDetail(id) {
   const urls = segs.map((s) => URL.createObjectURL(s.blob));
   const ext = r.mime.includes("mp4") ? "m4a" : "webm";
   view.innerHTML = `<div class="page">
-    <a href="#recordings" class="small">→ כל ההקלטות</a>
+    <a href="${r.lessonId ? "#lesson-" + r.lessonId : "#recordings"}" class="small">→ ${r.lessonId ? "חזרה לשיעור" : "כל ההקלטות"}</a>
     <h1 style="font-size:30px">${esc(r.course)}</h1>
     <p class="muted"><bdi>${fmtDate(r.startedAt)}</bdi> · משך <bdi>${fmtTime(r.durationMs || 0)}</bdi> · <bdi>${fmtMB(r.bytes || 0)}</bdi></p>
     ${segs.map((s, i) => `<div class="soft"><div class="row" style="justify-content:space-between"><b>${segs.length > 1 ? "חלק " + (i + 1) + " מתוך " + segs.length : "ההקלטה"}</b></div><audio controls preload="metadata" src="${urls[i]}" style="margin-top:10px"></audio>
@@ -329,6 +349,254 @@ async function recordingDetail(id) {
     if ($("#del").dataset.sure) { await store.deleteRecording(id); toast("ההקלטה נמחקה"); location.hash = "recordings"; }
     else { $("#del").dataset.sure = "1"; $("#del").lastChild.textContent = " לחצו שוב למחיקה"; }
   };
+}
+
+// ----- מחברות: תיקייה לכל קורס, דף לכל שיעור -----
+const FOLDER_COLORS = ["#2563EB", "#6D28D9", "#DB2777", "#16A34A", "#EA580C", "#0891B2", "#CA8A04", "#475569"];
+const todayKey = (d = new Date()) => d.toLocaleDateString("en-CA"); // YYYY-MM-DD לפי השעון המקומי
+const fmtDay = (key) => new Date(key + "T12:00").toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "numeric" });
+const courseIndex = (name) => (prefs.get().courses || []).indexOf(name);
+
+function newLesson(course, date = todayKey()) {
+  return { id: "les-" + Date.now() + Math.random().toString(36).slice(2, 5), course, date, title: "", text: "", pages: [], recIds: [], createdAt: new Date().toISOString() };
+}
+// השיעור של היום בקורס (אם עוד אין, נפתח חדש)
+async function lessonForToday(course, date = todayKey()) {
+  const all = await store.listLessons();
+  const found = all.filter((l) => l.course === course && l.date === date).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  if (found) return found;
+  const l = newLesson(course, date);
+  await store.saveLesson(l);
+  return l;
+}
+const lessonTitle = (l) => l.title || "שיעור " + new Date(l.date + "T12:00").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" });
+
+function lessonItem(l, withCourse = false) {
+  const strokes = (l.pages || []).reduce((a, p) => a + p.strokes.length + (p.image ? 1 : 0), 0);
+  const chips = [strokes ? `<span class="chip">${svg("pen")} כתב יד</span>` : "", l.text?.trim() ? `<span class="chip">${svg("type")} הקלדה</span>` : "", l.recIds?.length ? `<span class="chip">${svg("mic")} ${l.recIds.length > 1 ? l.recIds.length + " הקלטות" : "הקלטה"}</span>` : ""].join("");
+  return `<a class="item" href="#lesson-${l.id}"><span style="min-width:0"><span class="t">${esc(lessonTitle(l))}</span><br><span class="small muted">${withCourse ? esc(l.course) + " · " : ""}${fmtDay(l.date)}</span></span><span class="chips">${chips || '<span class="chip">ריק</span>'}</span></a>`;
+}
+
+async function notebooks() {
+  const p = prefs.get();
+  const lessons = await store.listLessons();
+  const courses = p.courses || [];
+  view.innerHTML = `<div class="page">
+    <h1 style="font-size:32px">המחברות שלי</h1>
+    <p class="muted">תיקייה לכל קורס, ובכל תיקייה דף נפרד לכל שיעור. בדף יש כתב יד, הקלדה וההקלטה של אותו שיעור.</p>
+    <div class="folders">${courses.map((c, i) => {
+      const n = lessons.filter((l) => l.course === c).length;
+      return `<a class="folder" href="#course-${i}" style="--fc:${FOLDER_COLORS[i % FOLDER_COLORS.length]}">${svg("folder")}<b>${esc(c)}</b><span class="small muted">${n ? n + (n === 1 ? " שיעור" : " שיעורים") : "עוד אין שיעורים"}</span></a>`;
+    }).join("")}
+      <button class="folder add" id="addCourse">${svg("plus")}<b>קורס חדש</b></button>
+    </div>
+    <p class="small"><a href="#recordings">כל ההקלטות</a></p>
+  </div>`;
+  $("#addCourse").onclick = () => {
+    const name = (prompt("שם הקורס החדש:") || "").trim();
+    if (!name) return;
+    const pr = prefs.get();
+    if ((pr.courses || []).includes(name)) return toast("הקורס הזה כבר קיים");
+    pr.courses = [...(pr.courses || []), name]; prefs.set(pr);
+    notebooks(); toast("נוספה תיקייה: " + name);
+  };
+}
+
+async function courseFolder(i) {
+  const course = (prefs.get().courses || [])[i];
+  if (!course) { location.hash = "notebooks"; return; }
+  const lessons = (await store.listLessons()).filter((l) => l.course === course).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  view.innerHTML = `<div class="page">
+    <a href="#notebooks" class="small">→ כל המחברות</a>
+    <div class="row" style="justify-content:space-between"><h1 style="font-size:30px;color:${FOLDER_COLORS[i % FOLDER_COLORS.length]}">${esc(course)}</h1>
+      <button class="btn" id="newLesson">${svg("plus")} שיעור חדש</button></div>
+    <div class="list">${lessons.length ? lessons.map((l) => lessonItem(l)).join("") : '<p class="muted">עוד אין שיעורים בקורס הזה. לחצו "שיעור חדש" כדי לפתוח דף ולכתוב.</p>'}</div>
+  </div>`;
+  $("#newLesson").onclick = async () => {
+    const l = newLesson(course);
+    await store.saveLesson(l);
+    location.hash = "lesson-" + l.id;
+  };
+}
+
+// ----- דף השיעור: כתב יד / הקלדה / הקלטות -----
+let editor = null, editingLesson = null, saveTimer = null, lessonTimer = null;
+function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(flushLesson, 700); }
+async function flushLesson() {
+  clearTimeout(saveTimer);
+  if (!editingLesson) return;
+  if (editor) editingLesson.pages = editor.pages;
+  await store.saveLesson(editingLesson);
+}
+function closeLesson() {
+  if (editingLesson) flushLesson();
+  editor?.destroy(); editor = null; editingLesson = null; clearInterval(lessonTimer);
+}
+
+async function lessonPage(id) {
+  const l = await store.getLesson(id);
+  if (!l) { view.innerHTML = '<div class="page"><p>השיעור לא נמצא.</p><a href="#notebooks">חזרה למחברות</a></div>'; return; }
+  editingLesson = l;
+  let mode = "ink";
+  try { mode = localStorage.getItem("sikumon-note-mode") || "ink"; } catch { /* */ }
+  const ci = courseIndex(l.course);
+  const recs = (await Promise.all((l.recIds || []).map((r) => store.getRecording(r)))).filter(Boolean);
+
+  view.innerHTML = `<div class="page lesson">
+    <a href="${ci >= 0 ? "#course-" + ci : "#notebooks"}" class="small">→ ${esc(l.course)}</a>
+    <div class="lesson-head">
+      <input class="title-input" id="ltitle" name="title" autocomplete="off" value="${esc(l.title)}" placeholder="${esc(lessonTitle(l))}" aria-label="שם השיעור">
+      <span class="small muted">${fmtDay(l.date)}</span>
+    </div>
+    <div class="row" style="justify-content:space-between">
+      <div class="seg" role="tablist" aria-label="סוג הכתיבה">
+        <button role="tab" data-mode="ink" aria-selected="${mode === "ink"}">${svg("pen")} כתב יד</button>
+        <button role="tab" data-mode="text" aria-selected="${mode === "text"}">${svg("type")} הקלדה</button>
+      </div>
+      <div class="row" style="gap:8px">
+        <button class="btn ghost small-btn" id="lrec">${svg("mic")} <span>הקלטה</span></button>
+        <button class="btn ghost small-btn" id="lshare">${svg("share")} <span>שיתוף</span></button>
+      </div>
+    </div>
+    <div id="inkArea" ${mode === "ink" ? "" : "hidden"}>
+      <div class="toolbar" role="toolbar" aria-label="כלי כתיבה">
+        <div class="tgroup">
+          <button class="tool" data-tool="pen" aria-label="עט">${svg("pen")}</button>
+          <button class="tool" data-tool="marker" aria-label="מרקר">${svg("marker")}</button>
+          <button class="tool" data-tool="eraser" aria-label="מחק">${svg("eraser")}</button>
+        </div>
+        <div class="tgroup" id="swatches"></div>
+        <div class="tgroup">${[0, 1, 2].map((k) => `<button class="tool size" data-size="${k}" aria-label="עובי ${["דק", "בינוני", "עבה"][k]}"><i style="width:${[4, 7, 11][k]}px;height:${[4, 7, 11][k]}px"></i></button>`).join("")}</div>
+        <div class="tgroup">
+          <button class="tool" id="undo" aria-label="בטל">${svg("undo")}</button>
+          <button class="tool" id="redo" aria-label="בצע שוב">${svg("redo")}</button>
+          <button class="tool" id="penOnly" aria-label="רק עט כותב, האצבע גוללת">${svg("hand")}</button>
+        </div>
+      </div>
+      <div class="sheets" id="sheets"></div>
+      <div class="row" style="justify-content:center;margin-top:14px">
+        <button class="btn ghost" data-add="lines">${svg("plus")} עמוד שורות</button>
+        <button class="btn ghost" data-add="grid">${svg("plus")} עמוד משבצות</button>
+        <label class="btn ghost">${svg("image")} תמונה / שקף<input type="file" id="addImg" accept="image/*" hidden></label>
+      </div>
+    </div>
+    <div id="textArea" ${mode === "text" ? "" : "hidden"}>
+      <textarea id="ltext" name="notes" class="note-text" dir="auto" autocomplete="off" placeholder="מקלידים כאן את הסיכום של השיעור…">${esc(l.text)}</textarea>
+      <p class="small muted">באייפד אפשר לכתוב כאן גם בעט, ו-Scribble יהפוך את זה לטקסט.</p>
+    </div>
+    <section class="soft" id="lrecs">
+      <h3>ההקלטות של השיעור</h3>
+      ${recs.length ? recs.map((r) => `<a class="item" href="#rec-${r.id}" style="margin-top:10px"><span>הקלטה מ-<bdi>${new Date(r.startedAt).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}</bdi></span><span class="small muted"><bdi>${fmtTime(r.durationMs || 0)}</bdi></span></a>`).join("") : '<p class="muted small" style="margin-top:6px">אין הקלטה לשיעור הזה. לחצו "הקלטה" למעלה כדי להקליט בזמן שאתם כותבים.</p>'}
+    </section>
+    <div class="row"><button class="btn danger" id="ldel">${svg("trash")} <span>מחיקת השיעור</span></button></div>
+  </div>`;
+
+  // --- כתב יד ---
+  editor = new InkEditor($("#sheets"), l.pages || []);
+  l.pages = editor.pages;
+  const paintTools = () => {
+    view.querySelectorAll("[data-tool]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.tool === editor.tool));
+    view.querySelectorAll("[data-size]").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.size === editor.size));
+    const list = editor.tool === "marker" ? MARKER_COLORS : COLORS, curC = editor.tool === "marker" ? editor.markerColor : editor.color;
+    $("#swatches").innerHTML = editor.tool === "eraser" ? '<span class="small muted" style="padding:0 6px">נוגעים בקו כדי למחוק אותו</span>' :
+      list.map((c) => `<button class="tool swatch" data-color="${c}" aria-label="צבע" aria-pressed="${c === curC}"><i style="background:${c}"></i></button>`).join("");
+    $("#swatches").querySelectorAll("[data-color]").forEach((b) => (b.onclick = () => {
+      if (editor.tool === "marker") editor.markerColor = b.dataset.color; else editor.color = b.dataset.color;
+      paintTools();
+    }));
+    $("#undo").disabled = !editor.canUndo; $("#redo").disabled = !editor.canRedo;
+    $("#penOnly").setAttribute("aria-pressed", editor.penOnly);
+  };
+  view.querySelectorAll("[data-tool]").forEach((b) => (b.onclick = () => { editor.tool = b.dataset.tool; paintTools(); }));
+  view.querySelectorAll("[data-size]").forEach((b) => (b.onclick = () => { editor.size = +b.dataset.size; paintTools(); }));
+  $("#undo").onclick = () => editor.undo();
+  $("#redo").onclick = () => editor.redo();
+  $("#penOnly").onclick = () => { editor.setPenOnly(!editor.penOnly); toast(editor.penOnly ? "רק העט כותב. האצבע גוללת את הדף." : "עכשיו גם האצבע כותבת."); };
+  editor.addEventListener("change", () => { paintTools(); l.pages = editor.pages; saveSoon(); });
+  editor.addEventListener("penonly", () => { paintTools(); toast("זוהה עט: מעכשיו האצבע גוללת והעט כותב"); });
+  view.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => { editor.addPage(b.dataset.add).scrollIntoView({ behavior: "smooth", block: "start" }); }));
+  $("#addImg").onchange = async (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    try { (await editor.addImagePage(f)).scrollIntoView({ behavior: "smooth", block: "start" }); toast("התמונה נוספה כעמוד. אפשר לכתוב עליה"); }
+    catch { toast("לא הצלחתי לפתוח את התמונה"); }
+    e.target.value = "";
+  };
+  paintTools();
+
+  // --- הקלדה ושם ---
+  const grow = (t) => { t.style.height = "auto"; t.style.height = Math.max(320, t.scrollHeight + 4) + "px"; };
+  $("#ltext").oninput = (e) => { l.text = e.target.value; grow(e.target); saveSoon(); };
+  $("#ltitle").oninput = (e) => { l.title = e.target.value.trim(); saveSoon(); };
+  view.querySelectorAll("[data-mode]").forEach((b) => (b.onclick = () => {
+    mode = b.dataset.mode;
+    try { localStorage.setItem("sikumon-note-mode", mode); } catch { /* */ }
+    view.querySelectorAll("[data-mode]").forEach((x) => x.setAttribute("aria-selected", x === b));
+    $("#inkArea").hidden = mode !== "ink"; $("#textArea").hidden = mode !== "text";
+    if (mode === "ink") editor.layout(); else grow($("#ltext"));
+  }));
+  if (mode === "text") grow($("#ltext"));
+
+  // --- הקלטה מתוך הדף ---
+  const paintRec = () => {
+    const b = $("#lrec"); if (!b) return clearInterval(lessonTimer);
+    const mine = recorder?.rec?.lessonId === l.id;
+    b.classList.toggle("live", !!(mine && recorder.running));
+    b.lastElementChild.textContent = !recorder ? "הקלטה" : !mine ? "מקליט בשיעור אחר" : recorder.running ? "עצירה · " + fmtTime(recorder.elapsedMs) : "המשך הקלטה";
+  };
+  $("#lrec").onclick = async () => {
+    if (busy) return;
+    try {
+      if (!recorder) { busy = true; await startRecording(l.course, l.id); busy = false; l.recIds = (await store.getLesson(l.id)).recIds; }
+      else if (recorder.rec.lessonId !== l.id) { location.hash = "record"; return; }
+      else if (recorder.rec.status === "paused") { busy = true; await recorder.resume(); busy = false; }
+      else { await flushLesson(); await finish(false); route(); return; }
+    } catch (e) {
+      busy = false;
+      toast(e.name === "NotAllowedError" ? "צריך לאשר גישה למיקרופון. באייפון: הגדרות ← Safari ← מיקרופון." : "לא הצלחתי להקליט (" + e.name + ")");
+    }
+    paintRec();
+  };
+  paintRec(); clearInterval(lessonTimer); lessonTimer = setInterval(paintRec, 1000);
+
+  // --- שיתוף: כל העמודים כתמונות + הטקסט ---
+  $("#lshare").onclick = async () => {
+    await flushLesson();
+    const name = `${l.course} - ${lessonTitle(l)}`;
+    const files = [];
+    for (const [i, pg] of editor.pages.entries()) {
+      if (!pg.strokes.length && !pg.image) continue;
+      files.push(new File([await editor.pageToBlob(pg)], `${name} - עמוד ${i + 1}.png`, { type: "image/png" }));
+    }
+    const text = l.text?.trim() ? `${name}\n\n${l.text}` : name;
+    try {
+      if (files.length && navigator.canShare?.({ files })) await navigator.share({ files, title: name, text });
+      else if (navigator.share) await navigator.share({ title: name, text });
+      else if (files.length) files.forEach((f) => { const a = document.createElement("a"); a.href = URL.createObjectURL(f); a.download = f.name; a.click(); });
+      else { await navigator.clipboard.writeText(text); toast("הטקסט הועתק"); }
+    } catch (e) { if (e.name !== "AbortError") toast("השיתוף לא הצליח"); }
+  };
+
+  // --- מחיקה (לחיצה שנייה לאישור) ---
+  $("#ldel").onclick = async () => {
+    const b = $("#ldel");
+    if (!b.dataset.sure) { b.dataset.sure = "1"; b.lastElementChild.textContent = "בטוח? לחצו שוב (ההקלטות יישארו)"; return; }
+    editingLesson = null;
+    await store.deleteLesson(l.id);
+    toast("השיעור נמחק");
+    location.hash = ci >= 0 ? "course-" + ci : "notebooks";
+  };
+}
+
+// הקלטות ישנות (מלפני המחברות) נכנסות לשיעור לפי הקורס והתאריך
+async function migrateRecordings() {
+  for (const r of await store.listRecordings()) {
+    if (r.lessonId) continue;
+    const l = await lessonForToday(r.course, todayKey(new Date(r.startedAt)));
+    l.recIds = [...new Set([...(l.recIds || []), r.id])];
+    await store.saveLesson(l);
+    r.lessonId = l.id;
+    await store.saveRecording(r);
+  }
 }
 
 // ----- סיכומים, סיכום ומבחן -----
@@ -404,7 +672,8 @@ function profile() {
 async function route() {
   const hash = location.hash.slice(1) || "home";
   if (!prefs.get()) return onboarding(0);
-  const tab = hash.startsWith("rec-") ? "recordings" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" ? "profile" : hash;
+  if (!hash.startsWith("lesson-")) closeLesson();
+  const tab = hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" ? "profile" : hash;
   renderTabs(tab);
   if (hash === "home") await home();
   else if (hash === "record") record();
@@ -415,6 +684,9 @@ async function route() {
   else if (hash === "quiz") quiz();
   else if (hash === "profile") profile();
   else if (hash === "feedback") feedback();
+  else if (hash === "notebooks") await notebooks();
+  else if (hash.startsWith("course-")) await courseFolder(+hash.slice(7));
+  else if (hash.startsWith("lesson-")) { closeLesson(); await lessonPage(hash.slice(7)); }
   else await home();
   view.focus({ preventScroll: true });
   window.scrollTo(0, 0);
@@ -423,6 +695,9 @@ window.addEventListener("hashchange", route);
 // אזהרה לפני סגירה באמצע הקלטה
 window.addEventListener("beforeunload", (e) => { if (recorder?.running) { e.preventDefault(); e.returnValue = ""; } });
 // אם האפליקציה נסגרה באמצע הקלטה בפעם הקודמת, מסמנים אותה כנקטעה ואז מציגים
-recoverOrphans().catch(() => {}).finally(route);
+// שמירה לפני יציאה מהאפליקציה (באייפד: מעבר לאפליקציה אחרת)
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushLesson(); });
+window.addEventListener("pagehide", () => flushLesson());
+recoverOrphans().then(migrateRecordings).catch(() => {}).finally(route);
 
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js");

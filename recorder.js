@@ -9,12 +9,16 @@ let dbPromise = null;
 function openDb() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => {
+    const req = indexedDB.open(DB_NAME, 2);
+    req.onupgradeneeded = (e) => {
       const db = req.result;
-      db.createObjectStore("recordings", { keyPath: "id" });
-      const chunks = db.createObjectStore("chunks", { autoIncrement: true });
-      chunks.createIndex("byRec", "recId");
+      if (e.oldVersion < 1) {
+        db.createObjectStore("recordings", { keyPath: "id" });
+        const chunks = db.createObjectStore("chunks", { autoIncrement: true });
+        chunks.createIndex("byRec", "recId");
+      }
+      // גרסה 2: שיעורים (מחברת לכל שיעור: כתב יד, הקלדה והקלטות)
+      if (e.oldVersion < 2) db.createObjectStore("lessons", { keyPath: "id" });
     };
     req.onsuccess = () => {
       const db = req.result;
@@ -41,6 +45,10 @@ export const store = {
   getRecording: (id) => tx("recordings", "readonly", (s) => s.get(id)),
   listRecordings: () => tx("recordings", "readonly", (s) => s.getAll()),
   addChunk: (chunk) => tx("chunks", "readwrite", (s) => s.add(chunk)),
+  saveLesson: (l) => tx("lessons", "readwrite", (s) => s.put({ ...l, updatedAt: new Date().toISOString() })),
+  getLesson: (id) => tx("lessons", "readonly", (s) => s.get(id)),
+  listLessons: () => tx("lessons", "readonly", (s) => s.getAll()),
+  deleteLesson: (id) => tx("lessons", "readwrite", (s) => s.delete(id)),
   async chunksOf(recId) {
     const db = await openDb();
     return new Promise((resolve, reject) => {
@@ -120,12 +128,12 @@ export class LessonRecorder extends EventTarget {
   // הזמן נספר מתחילת הקטע ועד שהוא נעצר או נקטע
   get elapsedMs() { return this.elapsedBefore + (this.segActive ? Date.now() - this.segmentStart : 0); }
 
-  async start(course) {
+  async start(course, lessonId = null) {
     const mime = pickMime();
     this.rec = {
       id: "rec-" + Date.now(), course, startedAt: new Date().toISOString(), endedAt: null,
       mime: mime || "audio/webm", segments: 0, durationMs: 0, bytes: 0, interruptions: [],
-      device: navigator.userAgent, status: "recording",
+      device: navigator.userAgent, status: "recording", lessonId,
     };
     await this._startSegment(); // קודם המיקרופון: אם אין אישור, לא נשמרת הקלטה ריקה
     await store.saveRecording(this.rec);
