@@ -37,7 +37,8 @@ async function tx(store, mode, fn) {
   return new Promise((resolve, reject) => {
     const t = db.transaction(store, mode);
     const result = fn(t.objectStore(store));
-    t.oncomplete = () => resolve(result?.result ?? result);
+    // בקשת קריאה מחזירה את הערך (גם אם הוא ריק), ולא את אובייקט הבקשה עצמו
+    t.oncomplete = () => resolve(result instanceof IDBRequest ? result.result : result);
     t.onerror = () => reject(t.error);
   });
 }

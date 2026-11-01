@@ -69,6 +69,17 @@ const fmtMB = (b) => (b / 1048576).toFixed(1) + " MB";
 const fmtDate = (iso) => new Date(iso).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+// ---------- יומן תקלות (נשמר במכשיר, מוצג ב"בדיקת מכשיר") ----------
+function logError(where, e) {
+  try {
+    const log = JSON.parse(localStorage.getItem("sikumon-errors") || "[]");
+    log.push({ at: new Date().toISOString(), where, msg: String(e?.stack || e?.message || e).slice(0, 400) });
+    localStorage.setItem("sikumon-errors", JSON.stringify(log.slice(-20)));
+  } catch { /* */ }
+}
+window.addEventListener("error", (e) => logError("window", e.error || e.message));
+window.addEventListener("unhandledrejection", (e) => logError("promise", e.reason));
+
 // ---------- מסכים ----------
 function onboarding(step = 0, answers = {}) {
   renderTabs(null);
@@ -649,6 +660,102 @@ function summary() {
   </div>`;
 }
 
+// ----- בדיקת מכשיר: בודק לבד את כל מה שהאפליקציה צריכה, ומפיק דוח לשליחה -----
+async function diag() {
+  const rows = [];
+  view.innerHTML = `<div class="page">
+    <a href="#profile" class="small">→ פרופיל</a>
+    <h1 style="font-size:30px">בדיקת מכשיר</h1>
+    <p class="muted">לחיצה אחת בודקת את כל מה שסיכומון צריך במכשיר הזה. בסוף שולחים את הדוח, וככה אפשר לראות מרחוק מה עובד ומה לא.</p>
+    <div class="row"><button class="btn" id="runDiag">התחלת בדיקה</button></div>
+    <div class="list" id="diagList"></div>
+    <section class="soft" id="penBox" hidden><h3>בדיקת עט / אצבע</h3><p class="small muted">כתבו קו קטן בתוך המסגרת, עם העט ואחר כך עם האצבע.</p>
+      <div id="penPad" class="pen-pad"></div><p class="small" id="penOut">עוד לא נגעת</p></section>
+    <div class="row" id="diagShare" hidden><button class="btn" id="sendDiag">${svg("share")} שליחת הדוח</button><button class="btn ghost" id="copyDiag">העתקה</button></div>
+  </div>`;
+  const list = $("#diagList");
+  const add = (name, ok, detail) => {
+    rows.push({ name, ok, detail });
+    list.insertAdjacentHTML("beforeend", `<div class="item"><span style="min-width:0"><span class="t">${ok === true ? "✅" : ok === false ? "❌" : "⚠️"} ${esc(name)}</span><br><span class="small muted">${esc(detail)}</span></span></div>`);
+  };
+  const pen = { pen: 0, touch: 0, mouse: 0, maxP: 0, minP: 1 };
+  const report = () => {
+    const ua = navigator.userAgent;
+    const dev = /iPad|Macintosh/.test(ua) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : "מחשב";
+    const ios = (ua.match(/OS (\d+)_(\d+)/) || ua.match(/Version\/(\d+)\.(\d+)/) || []).slice(1, 3).join(".");
+    let errs = [];
+    try { errs = JSON.parse(localStorage.getItem("sikumon-errors") || "[]"); } catch { /* */ }
+    return [`דוח בדיקת מכשיר – סיכומון (${new Date().toLocaleString("he-IL")})`, `מכשיר: ${dev}, גרסה ${ios || "?"}, מסך ${screen.width}×${screen.height}`,
+      ...rows.map((r) => `${r.ok === true ? "✅" : r.ok === false ? "❌" : "⚠️"} ${r.name}: ${r.detail}`),
+      `עט: נגיעות עט ${pen.pen}, אצבע ${pen.touch}, לחץ ${pen.pen ? pen.minP.toFixed(2) + "–" + pen.maxP.toFixed(2) : "-"}`,
+      `תקלות אחרונות: ${errs.length ? errs.slice(-5).map((x) => `[${x.at.slice(5, 16)}] ${x.where}: ${x.msg.split("\n")[0]}`).join(" | ") : "אין"}`,
+      `UA: ${ua}`].join("\n");
+  };
+
+  // משטח לבדיקת העט: מזהה עט / אצבע ורגישות ללחץ
+  const pad = $("#penPad");
+  pad.addEventListener("pointerdown", (e) => { e.preventDefault(); pad.setPointerCapture(e.pointerId); });
+  pad.addEventListener("pointermove", (e) => {
+    if (!e.buttons && e.pointerType === "mouse") return;
+    pen[e.pointerType] = (pen[e.pointerType] || 0) + 1;
+    if (e.pointerType === "pen" && e.pressure) { pen.maxP = Math.max(pen.maxP, e.pressure); pen.minP = Math.min(pen.minP, e.pressure); }
+    $("#penOut").textContent = pen.pen ? `✅ עט זוהה. לחץ בין ${pen.minP.toFixed(2)} ל-${pen.maxP.toFixed(2)} ${pen.maxP - pen.minP > 0.15 ? "(רגישות ללחץ עובדת)" : "(נסו ללחוץ חזק ואז חלש)"}` : `זוהתה ${e.pointerType === "touch" ? "אצבע" : "עכבר"}. נסו גם עם העט.`;
+  });
+
+  $("#runDiag").onclick = async () => {
+    $("#runDiag").disabled = true; $("#runDiag").textContent = "בודק…";
+    list.innerHTML = ""; rows.length = 0;
+    const s = support();
+    add("כתובת מאובטחת", s.secure, s.secure ? "https – המיקרופון מותר" : "לא https – המיקרופון ייחסם");
+    add("מותקן כאפליקציה", s.standalone ? true : null, s.standalone ? "נפתח ממסך הבית" : "נפתח בדפדפן. מומלץ: שיתוף ← הוסף למסך הבית");
+    // אחסון
+    try {
+      const id = "diag-" + Date.now();
+      await store.putItem({ id, type: "diag" }); const back = await store.getItem(id); await store.deleteItem(id);
+      const est = await navigator.storage?.estimate?.();
+      const persisted = await navigator.storage?.persisted?.();
+      add("שמירה במכשיר", !!back, `${back ? "כתיבה וקריאה עובדות" : "לא נקרא בחזרה"}${est ? ` · בשימוש ${fmtMB(est.usage || 0)} מתוך ${fmtMB(est.quota || 0)}` : ""} · ${persisted ? "מוגן ממחיקה אוטומטית" : "לא מוגן ממחיקה (נשמר עדיין)"}`);
+    } catch (e) { add("שמירה במכשיר", false, e.message); }
+    // מיקרופון והקלטה של 4 שניות
+    if (!s.mic || !s.recorder) add("מיקרופון והקלטה", false, "הדפדפן לא תומך בהקלטה");
+    else if (recorder) add("מיקרופון והקלטה", null, "יש הקלטה פעילה – מדלגים כדי לא להפריע לה");
+    else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mr = new MediaRecorder(stream, s.mime ? { mimeType: s.mime } : undefined);
+        const parts = [];
+        mr.ondataavailable = (e) => e.data.size && parts.push(e.data);
+        const stopped = new Promise((r) => (mr.onstop = r));
+        mr.start(1000); await new Promise((r) => setTimeout(r, 4000)); mr.stop(); await stopped;
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(parts, { type: mr.mimeType });
+        const dur = await new Promise((res) => { const a = new Audio(); a.preload = "metadata"; a.onloadedmetadata = () => res(a.duration); a.onerror = () => res(NaN); a.src = URL.createObjectURL(blob); setTimeout(() => res(NaN), 4000); });
+        add("מיקרופון והקלטה", blob.size > 1000, `${parts.length} חתיכות, ${(blob.size / 1024).toFixed(0)} KB, ${mr.mimeType || "?"}${isFinite(dur) ? `, ${dur.toFixed(1)} שניות` : ""}`);
+      } catch (e) { add("מיקרופון והקלטה", false, e.name === "NotAllowedError" ? "אין אישור למיקרופון (הגדרות ← Safari ← מיקרופון)" : e.name + ": " + e.message); }
+    }
+    // מסך דלוק
+    try { const w = await navigator.wakeLock.request("screen"); await w.release(); add("השארת המסך דלוק", true, "עובד – המסך לא ייכבה בזמן הקלטה"); }
+    catch (e) { add("השארת המסך דלוק", null, "לא נתמך כאן. בזמן שיעור: הגדרות ← תצוגה ← נעילה אוטומטית ← אף פעם"); }
+    // חיבור למודל דרך המחשב
+    if (!study.getCode()) add("חיבור למודל", null, "עוד לא הוזן קוד צימוד (סיכומים ← חיבור אוטומטי)");
+    else {
+      try { const r = await study.syncNow(); const p = prefs.get(); add("חיבור למודל", true, `התקבל עדכון מהמחשב: ${r.summaries} סיכומים, ${r.quizzes} מבחנים${p.lastSyncPack ? ` · נוצר ${new Date(p.lastSyncPack).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}` : ""}`); }
+      catch (e) { add("חיבור למודל", false, e.message); }
+    }
+    // מה יש במכשיר
+    const [recs, lessons, items] = await Promise.all([store.listRecordings(), store.listLessons(), store.listItems()]);
+    add("תוכן באפליקציה", true, `${recs.length} הקלטות, ${lessons.length} שיעורים במחברות, ${items.filter((x) => x.type === "summary").length} סיכומים, ${items.filter((x) => x.type === "quiz").length} מבחנים`);
+    $("#penBox").hidden = false; $("#diagShare").hidden = false;
+    $("#runDiag").disabled = false; $("#runDiag").textContent = "בדיקה חוזרת";
+  };
+  $("#sendDiag").onclick = async () => {
+    const text = report();
+    try { if (navigator.share) { await navigator.share({ title: "דוח בדיקת מכשיר – סיכומון", text }); return; } } catch (e) { if (e.name === "AbortError") return; }
+    try { await navigator.clipboard.writeText(text); toast("הדוח הועתק"); } catch { toast("לא הצלחתי לשתף. צלמו מסך"); }
+  };
+  $("#copyDiag").onclick = async () => { try { await navigator.clipboard.writeText(report()); toast("הדוח הועתק. הדביקו אותו לקלוד"); } catch { toast("לא הצלחתי להעתיק"); } };
+}
+
 function profile() {
   const p = prefs.get();
   const rows = onboardingQuestions.map((q) => `<div class="item"><span class="muted small">${q.q}</span><b>${esc(p[q.id] || "–")}</b></div>`).join("");
@@ -660,7 +767,8 @@ function profile() {
     <h2 style="font-size:22px">הקורסים</h2><div class="soft">${(p.courses || []).map(esc).join(" · ")}</div>
     <div class="row"><button class="btn ghost" id="redo">לענות מחדש על השאלון</button><a class="btn" href="#feedback">${svg("share")} שליחת משוב</a></div>
     <div class="soft small"><b>פרטיות:</b> בגרסת הבדיקה הכול נשמר רק במכשיר שלך: התשובות, הקורסים וההקלטות. שום דבר לא נשלח לשרת. משוב נשלח רק כשאתם לוחצים "שליחה" ובוחרים למי.</div>
-    <div class="soft small"><b>בדיקת מכשיר:</b> מיקרופון ${s.mic ? "✓" : "✗"} · הקלטה ${s.recorder ? "✓" : "✗"} (${esc(s.mime || "לא ידוע")}) · מסך דלוק ${s.wakeLock ? "✓" : "✗"} · מותקן כאפליקציה ${s.standalone ? "✓" : "✗"}</div>
+    <a class="item" href="#diag"><span><span class="t">🩺 בדיקת מכשיר</span><br><span class="small muted">בודק מיקרופון, הקלטה, שמירה, עט וחיבור למודל, ומפיק דוח</span></span></a>
+    <div class="soft small" hidden><b>בדיקת מכשיר:</b> מיקרופון ${s.mic ? "✓" : "✗"} · הקלטה ${s.recorder ? "✓" : "✗"} (${esc(s.mime || "לא ידוע")}) · מסך דלוק ${s.wakeLock ? "✓" : "✗"} · מותקן כאפליקציה ${s.standalone ? "✓" : "✗"}</div>
     ${!s.standalone ? '<p class="notice"><b>להתקנה באייפד/אייפון:</b> ב-Safari לוחצים על כפתור השיתוף ובוחרים "הוסף למסך הבית".</p>' : ""}
   </div>`;
   $("#redo").onclick = () => onboarding(0);
@@ -668,11 +776,22 @@ function profile() {
 
 // ---------- ניתוב ----------
 async function route() {
+  try { await routeInner(); }
+  catch (e) {
+    // במקום מסך ריק: הודעה ברורה, כפתור רענון, ופרטים לדוח תקלה
+    logError("route " + location.hash, e);
+    view.innerHTML = `<div class="page"><h1 style="font-size:28px">משהו השתבש במסך הזה</h1>
+      <p class="muted">הנתונים שלך שמורים. אפשר לנסות שוב, ואם זה חוזר – שלחו לנו את הפרטים מ"בדיקת מכשיר" בפרופיל.</p>
+      <div class="row"><button class="btn" onclick="location.reload()">רענון</button><a class="btn ghost" href="#home">למסך הבית</a></div>
+      <pre class="small muted" style="white-space:pre-wrap;direction:ltr;text-align:left">${esc(e?.message || e)}</pre></div>`;
+  }
+}
+async function routeInner() {
   let hash = location.hash.slice(1) || "home";
   try { hash = decodeURIComponent(hash); } catch { /* כתובת לא תקינה */ }
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
-  const tab = hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" ? "profile" : hash;
+  const tab = hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" ? "profile" : hash;
   renderTabs(tab);
   if (hash === "home") await home();
   else if (hash === "record") record();
@@ -688,6 +807,7 @@ async function route() {
   else if (hash.startsWith("quiz-")) await study.quizById(hash.slice(5));
   else if (hash === "profile") profile();
   else if (hash === "feedback") feedback();
+  else if (hash === "diag") await diag();
   else if (hash === "notebooks") await notebooks();
   else if (hash.startsWith("course-")) await courseFolder(+hash.slice(7));
   else if (hash.startsWith("lesson-")) { closeLesson(); await lessonPage(hash.slice(7)); }

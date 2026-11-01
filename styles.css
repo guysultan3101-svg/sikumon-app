@@ -275,3 +275,5 @@ body.focus #fullExit { display: grid; background: var(--ink); color: var(--bg); 
 .msec { border-top: 1.5px dashed var(--line); padding-top: 8px; margin-top: 8px; }
 .msec summary { min-height: 40px; }
 .pair-cta { border: 2px dashed var(--blue); }
+
+.pen-pad { height: 140px; border: 2px dashed var(--line); border-radius: 14px; background: var(--paper); touch-action: none; margin-top: 8px; }
