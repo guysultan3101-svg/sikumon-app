@@ -271,3 +271,7 @@ body.focus #fullExit { display: grid; background: var(--ink); color: var(--bg); 
   .side .hide-phone { display: none; }
   .show-phone { display: grid; }
 }
+.chip.new { background: var(--pink); color: #fff; font-weight: 700; }
+.msec { border-top: 1.5px dashed var(--line); padding-top: 8px; margin-top: 8px; }
+.msec summary { min-height: 40px; }
+.pair-cta { border: 2px dashed var(--blue); }

@@ -114,6 +114,7 @@ function onboardingCourses(answers) {
 async function home() {
   const p = prefs.get();
   const items = await store.listItems();
+  const news = await study.moodleNew();
   const lastSum = items.filter((x) => x.type === "summary" && x.kind !== "formulas").sort((a, b) => b.date.localeCompare(a.date))[0];
   const quizCount = items.filter((x) => x.type === "quiz").length;
   const recent = (await store.listLessons()).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")).slice(0, 3);
@@ -126,6 +127,8 @@ async function home() {
       <div><h2 style="font-size:24px">מתחיל שיעור?</h2><p class="muted">לחיצה אחת ומתחילים להקליט. ההקלטה נכנסת למחברת של השיעור.</p></div>
       <span class="rec-btn" style="width:84px;height:84px;box-shadow:3px 3px 0 var(--ink);flex:none">${svg("mic")}</span>
     </a>
+    ${news && news.length ? `<section class="soft"><div class="row" style="justify-content:space-between"><h3>חדש במודל <span class="chip new">${news.length}</span></h3><a class="small" href="#notebooks">לפי קורסים</a></div><div class="list" style="margin-top:10px">${news.slice(0, 5).map((it) => study.moodleItem(it, true)).join("")}</div></section>` : ""}
+    ${study.getCode() ? "" : `<a class="item pair-cta" href="#summaries"><span><span class="t">🔗 חיבור אוטומטי למודל</span><br><span class="small muted">קוד אחד מהמחשב, ומאז הכול נכנס לבד</span></span></a>`}
     ${installHint()}
     <section class="soft">
       <h3>מה בודקים בגרסה הזו?</h3>
@@ -390,12 +393,14 @@ async function notebooks() {
   const p = prefs.get();
   const lessons = await store.listLessons();
   const courses = p.courses || [];
+  const newBy = {};
+  for (const it of (await study.moodleNew()) || []) newBy[it.course] = (newBy[it.course] || 0) + 1;
   view.innerHTML = `<div class="page">
     <h1 style="font-size:32px">המחברות שלי</h1>
     <p class="muted">תיקייה לכל קורס, ובכל תיקייה דף נפרד לכל שיעור. בדף יש כתב יד, הקלדה וההקלטה של אותו שיעור.</p>
     <div class="folders">${courses.map((c, i) => {
       const n = lessons.filter((l) => l.course === c).length;
-      return `<a class="folder" href="#course-${i}" style="--fc:${FOLDER_COLORS[i % FOLDER_COLORS.length]}">${svg("folder")}<b>${esc(c)}</b><span class="small muted">${n ? n + (n === 1 ? " שיעור" : " שיעורים") : "עוד אין שיעורים"}</span></a>`;
+      return `<a class="folder" href="#course-${i}" style="--fc:${FOLDER_COLORS[i % FOLDER_COLORS.length]}">${svg("folder")}<b>${esc(c)}</b><span class="small muted">${n ? n + (n === 1 ? " שיעור" : " שיעורים") : "עוד אין שיעורים"}</span>${newBy[c] ? `<span class="chip new" style="justify-self:start">${newBy[c]} חדשים במודל</span>` : ""}</a>`;
     }).join("")}
       <button class="folder add" id="addCourse">${svg("plus")}<b>קורס חדש</b></button>
     </div>
@@ -420,6 +425,7 @@ async function courseFolder(i) {
     <div class="row" style="justify-content:space-between"><h1 style="font-size:30px;color:${FOLDER_COLORS[i % FOLDER_COLORS.length]}">${esc(course)}</h1>
       <button class="btn" id="newLesson">${svg("plus")} שיעור חדש</button></div>
     <div class="list">${lessons.length ? lessons.map((l) => lessonItem(l)).join("") : '<p class="muted">עוד אין שיעורים בקורס הזה. לחצו "שיעור חדש" כדי לפתוח דף ולכתוב.</p>'}</div>
+    ${study.moodleSection(await study.moodleCourse(course))}
   </div>`;
   $("#newLesson").onclick = async () => {
     const l = newLesson(course);
@@ -698,5 +704,16 @@ window.addEventListener("beforeunload", (e) => { if (recorder?.running) { e.prev
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushLesson(); });
 window.addEventListener("pagehide", () => flushLesson());
 recoverOrphans().then(migrateRecordings).catch(() => {}).finally(route);
+let lastAutoSync = 0;
+async function autoSync() {
+  if (!study.getCode() || Date.now() - lastAutoSync < 10 * 60e3 || editingLesson || recorder?.running) return;
+  lastAutoSync = Date.now();
+  try {
+    const r = await study.syncNow();
+    if (r?.fresh && ["#home", "#summaries", "#quizzes", "#notebooks", ""].includes(location.hash)) { route(); toast("עודכן מהמודל"); }
+  } catch { /* בלי אינטרנט – ננסה בפעם הבאה */ }
+}
+setTimeout(autoSync, 1500);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js");

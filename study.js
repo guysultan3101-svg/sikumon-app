@@ -18,8 +18,12 @@ export function initStudy(ctx) {
   async function importPack(file) {
     let pack;
     try { pack = JSON.parse(await file.text()); } catch { throw new Error("הקובץ לא נקרא. בחרו את 'סיכומון - החומר שלי.json'."); }
+    return applyPack(pack);
+  }
+  async function applyPack(pack) {
     if (pack?.type !== "sikumon-pack") throw new Error("זה לא קובץ של סיכומון.");
     for (const s of pack.summaries || []) await store.putItem({ ...s, type: "summary" });
+    if (pack.moodle) await store.putItem({ id: "moodle-feed", type: "moodle", courses: pack.moodle, at: pack.createdAt });
     for (const q of pack.quizzes || []) await store.putItem({ ...q, type: "quiz" });
     // קורסים חדשים מ-Moodle נכנסים גם למחברות
     const p = prefs.get();
@@ -29,6 +33,66 @@ export function initStudy(ctx) {
     prefs.set(p);
     return { summaries: (pack.summaries || []).length, quizzes: (pack.quizzes || []).length, courses: add.length };
   }
+  // ---------- סנכרון אוטומטי מהמחשב (מודל + סיכומים + מבחנים) ----------
+  // המחשב מעלה קובץ נעול; כאן מורידים אותו ופותחים עם קוד הצימוד. בלי הקוד הקובץ לא קריא.
+  const SYNC_BASE = "https://guysultan3101-svg.github.io/sikumon-sync/";
+  const normCode = (c) => String(c || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const getCode = () => { try { return localStorage.getItem("sikumon-sync-code") || ""; } catch { return ""; } };
+  const b64 = (x) => Uint8Array.from(atob(x), (ch) => ch.charCodeAt(0));
+  async function syncFileName(code) {
+    const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("sikumon-sync:" + normCode(code)));
+    return [...new Uint8Array(h)].map((x) => x.toString(16).padStart(2, "0")).join("").slice(0, 20) + ".json";
+  }
+  async function decrypt(code, f) {
+    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(normCode(code)), "PBKDF2", false, ["deriveKey"]);
+    const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: b64(f.salt), iterations: f.iter, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+    return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64(f.iv) }, key, b64(f.data))));
+  }
+  let syncing = null;
+  async function syncNow(code = getCode(), { quiet = true } = {}) {
+    if (!code) return null;
+    if (syncing) return syncing;
+    syncing = (async () => {
+      const res = await fetch(SYNC_BASE + (await syncFileName(code)) + "?t=" + Date.now(), { cache: "no-store" });
+      if (res.status === 404) throw new Error("לא נמצא עדכון לקוד הזה. בדקו שהקוד הוקלד נכון.");
+      if (!res.ok) throw new Error("אין חיבור לאינטרנט כרגע.");
+      let pack;
+      try { pack = await decrypt(code, await res.json()); } catch { throw new Error("הקוד לא מתאים. בדקו שהוקלד נכון."); }
+      const p0 = prefs.get();
+      const fresh = !p0.lastSync || pack.createdAt !== p0.lastSyncPack;
+      const r = await applyPack(pack);
+      const p = prefs.get(); p.lastSync = new Date().toISOString(); p.lastSyncPack = pack.createdAt; prefs.set(p);
+      if (fresh && !quiet) toast(`עודכן מהמודל: ${r.summaries} סיכומים, ${r.quizzes} מבחנים`);
+      return { ...r, fresh };
+    })();
+    try { return await syncing; } finally { syncing = null; }
+  }
+  // מסך הצימוד: מקלידים פעם אחת את הקוד מהמחשב
+  function pairCard() {
+    const code = getCode();
+    const p = prefs.get();
+    if (code) return `<div class="soft small row" style="justify-content:space-between"><span>🔗 <b>מחובר למודל דרך המחשב.</b> ${p.lastSync ? `עודכן <bdi>${new Date(p.lastSync).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</bdi>` : ""}</span><button class="btn ghost small-btn" id="syncBtn">רענון</button></div>`;
+    return `<section class="card pair"><h3>🔗 חיבור אוטומטי למודל</h3>
+      <p class="small muted">מקלידים פעם אחת את קוד הצימוד מהמחשב. מאותו רגע, כל מה שחדש במודל, כל סיכום וכל מבחן נכנסים לאפליקציה לבד.</p>
+      <div class="row" style="margin-top:10px"><input type="text" id="pairCode" name="pairCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX" style="flex:1;min-width:180px;direction:ltr;text-align:center;font-family:var(--font-mono);letter-spacing:.1em"><button class="btn" id="pairGo">חיבור</button></div></section>`;
+  }
+  function bindPair(after) {
+    $("#syncBtn") && ($("#syncBtn").onclick = async () => {
+      try { const r = await syncNow(getCode(), { quiet: false }); if (r && !r.fresh) toast("הכול מעודכן"); after(); } catch (e) { toast(e.message); }
+    });
+    $("#pairGo") && ($("#pairGo").onclick = async () => {
+      const code = $("#pairCode").value;
+      if (normCode(code).length !== 12) { toast("הקוד צריך להיות 12 תווים, כמו XXXX-XXXX-XXXX"); return; }
+      $("#pairGo").disabled = true; $("#pairGo").textContent = "מתחבר…";
+      try {
+        await syncNow(code);
+        try { localStorage.setItem("sikumon-sync-code", normCode(code)); } catch { /* */ }
+        toast("מחובר! הסיכומים, המבחנים והמודל נכנסו לאפליקציה");
+        after();
+      } catch (e) { toast(e.message); $("#pairGo").disabled = false; $("#pairGo").textContent = "חיבור"; }
+    });
+  }
+
   function importButton(label = "ייבוא מ-Drive") {
     return `<label class="btn ghost">${svg("download")} ${label}<input type="file" class="packInput" accept=".json,application/json" hidden></label>`;
   }
@@ -49,15 +113,17 @@ export function initStudy(ctx) {
     const items = (await lib("summary")).sort((a, b) => (a.kind === "formulas") - (b.kind === "formulas") || b.date.localeCompare(a.date));
     const groups = byCourse(items);
     view.innerHTML = `<div class="page">
-      <div class="row" style="justify-content:space-between"><h1 style="font-size:32px">הסיכומים שלי</h1>${importButton(items.length ? "עדכון מ-Drive" : "ייבוא מ-Drive")}</div>
-      ${items.length ? "" : `<div class="notice"><b>איך מכניסים את הסיכומים שכבר יש לך?</b>
-        <ol class="steps"><li>לוחצים "ייבוא מ-Drive".</li><li>בוחרים את הקובץ <b>סיכומון - החומר שלי.json</b> מהתיקייה "לימודים - אריאל" ב-Google Drive.</li><li>כל הסיכומים, דפי הנוסחאות והמבחנים נכנסים לאפליקציה, מסודרים לפי הקורסים שלך במודל.</li></ol></div>`}
+      <h1 style="font-size:32px">הסיכומים שלי</h1>
+      ${pairCard()}
+      ${items.length || getCode() ? "" : `<details class="soft small"><summary>אין קוד? ייבוא ידני מ-Drive</summary><div class="notice" style="margin-top:8px"><b>איך מכניסים את הסיכומים שכבר יש לך?</b>
+        <ol class="steps"><li>לוחצים "ייבוא מ-Drive".</li><li>בוחרים את הקובץ <b>סיכומון - החומר שלי.json</b> מהתיקייה "לימודים - אריאל" ב-Google Drive.</li><li>כל הסיכומים, דפי הנוסחאות והמבחנים נכנסים לאפליקציה, מסודרים לפי הקורסים שלך במודל.</li></ol>${importButton()}</div></details>`}
       ${groups.map(([course, list]) => `<section class="soft"><h2 style="font-size:20px">${esc(course)}</h2><div class="list" style="margin-top:10px">${list.map((s) =>
         `<a class="item" href="#sum-${esc(s.id)}"><span style="min-width:0"><span class="t">${escT(s.title)}</span><br><span class="small muted">${s.kind === "formulas" ? "דף נוסחאות" : "סיכום"} · <bdi>${fmtDay(s.date)}</bdi></span></span>${s.kind === "formulas" ? '<span class="chip">📐 נוסחאות</span>' : ""}</a>`).join("")}</div></section>`).join("")}
       ${items.length ? "" : `<section class="soft"><h3>סיכום לדוגמה</h3><a class="item" href="#summary" style="margin-top:10px"><span><span class="t">מבוא לכלכלה מיקרו</span><br><span class="small muted">ככה נראה סיכום אוטומטי</span></span><span class="chip demo">דוגמה</span></a></section>`}
-      ${prefs.get().lastImport ? `<p class="small muted">עודכן לאחרונה: <bdi>${new Date(prefs.get().lastImport).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</bdi>. בגרסה המלאה הסיכומים יגיעו מ-Moodle לבד, בלי ייבוא.</p>` : ""}
+
     </div>`;
     bindImport(summaries);
+    bindPair(summaries);
   }
 
   async function summaryPage(id) {
@@ -197,5 +263,26 @@ export function initStudy(ctx) {
     };
   }
 
-  return { summaries, summaryPage, quizzes, quizById, mixQuiz, quizEditor, importPack };
+  const TYPE_ICON = { resource: "📄", folder: "📁", url: "🔗", assign: "📝", quiz: "✅", forum: "💬", lti: "🎥", page: "📃", zoom: "🎥" };
+  const isNew = (it) => it.firstSeen && it.firstSeen !== "baseline" && Date.now() - new Date(it.firstSeen) < 7 * 864e5;
+  async function moodleCourse(course) {
+    const feed = await store.getItem("moodle-feed");
+    return feed?.courses.find((c) => c.course === course) || null;
+  }
+  async function moodleNew() {
+    const feed = await store.getItem("moodle-feed");
+    if (!feed) return null;
+    return feed.courses.flatMap((c) => c.sections.flatMap((s) => s.items.filter(isNew).map((it) => ({ ...it, course: c.course }))))
+      .sort((a, b) => b.firstSeen.localeCompare(a.firstSeen));
+  }
+  const moodleItem = (it, withCourse = false) => `<a class="item" href="${esc(it.url)}" target="_blank" rel="noopener"><span style="min-width:0"><span class="t">${TYPE_ICON[it.type] || "•"} ${esc(it.name)}</span>${withCourse || it.dates ? `<br><span class="small muted">${withCourse ? esc(it.course) : ""}${withCourse && it.dates ? " · " : ""}${esc(it.dates)}</span>` : ""}</span>${isNew(it) ? '<span class="chip new">חדש</span>' : ""}</a>`;
+  function moodleSection(mc) {
+    if (!mc) return "";
+    const newCount = mc.sections.reduce((a, s) => a + s.items.filter(isNew).length, 0);
+    return `<section class="soft"><div class="row" style="justify-content:space-between"><h2 style="font-size:20px">מהמודל ${newCount ? `<span class="chip new">${newCount} חדשים</span>` : ""}</h2><a class="small" href="${esc(mc.url)}" target="_blank" rel="noopener">פתיחה במודל</a></div>
+      ${mc.sections.map((s) => `<details class="msec" ${s.items.some(isNew) ? "open" : ""}><summary><b>${esc(s.title || "כללי")}</b> <span class="small muted">(${s.items.length})</span></summary><div class="list" style="margin-top:8px">${s.items.map((it) => moodleItem(it)).join("")}</div></details>`).join("")}
+      <p class="small muted" style="margin-top:8px">עודכן <bdi>${new Date(mc.updated).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</bdi>. הקישורים נפתחים במודל.</p></section>`;
+  }
+
+  return { syncNow, getCode, pairCard, bindPair, moodleCourse, moodleNew, moodleItem, moodleSection, isNew, summaries, summaryPage, quizzes, quizById, mixQuiz, quizEditor, importPack };
 }
