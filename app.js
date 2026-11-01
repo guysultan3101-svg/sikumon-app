@@ -2,6 +2,7 @@
 import { LessonRecorder, store, segmentsOf, support, recoverOrphans } from "./recorder.js";
 import { demoSummary, demoQuiz, onboardingQuestions } from "./demo-data.js";
 import { InkEditor, COLORS, MARKER_COLORS } from "./notes.js";
+import { initStudy } from "./study.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const view = $("#view");
@@ -33,6 +34,10 @@ const icon = {
   image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
   hand: '<path d="M7 11V6a1.5 1.5 0 0 1 3 0v4M10 10V4.5a1.5 1.5 0 0 1 3 0V10M13 10V5.5a1.5 1.5 0 0 1 3 0V11M16 11V8.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1a7 7 0 0 1-5-2.5L3.5 15a1.5 1.5 0 0 1 2.3-2L7 14"/>',
   type: '<path d="M4 7V5h16v2M12 5v14M9 19h6"/>',
+  check: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 12l3 3 5-6"/>',
+  download: '<path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/>',
+  expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  shrink: '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
 };
 const svg = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon[name]}</svg>`;
 
@@ -41,7 +46,8 @@ const TABS = [
   { hash: "notebooks", label: "מחברות", icon: "folder" },
   { hash: "record", label: "הקלטה", icon: "mic", cls: "rec-tab" },
   { hash: "summaries", label: "סיכומים", icon: "book" },
-  { hash: "profile", label: "פרופיל", icon: "user" },
+  { hash: "quizzes", label: "מבחנים", icon: "check" },
+  { hash: "profile", label: "פרופיל", icon: "user", cls: "hide-phone" },
 ];
 function renderTabs(active) {
   // בשאלון הפתיחה אין תפריט
@@ -107,11 +113,14 @@ function onboardingCourses(answers) {
 
 async function home() {
   const p = prefs.get();
+  const items = await store.listItems();
+  const lastSum = items.filter((x) => x.type === "summary" && x.kind !== "formulas").sort((a, b) => b.date.localeCompare(a.date))[0];
+  const quizCount = items.filter((x) => x.type === "quiz").length;
   const recent = (await store.listLessons()).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")).slice(0, 3);
   view.innerHTML = `<div class="page">
     <div>
       <p class="eyebrow">${new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}</p>
-      <h1 style="font-size:clamp(30px,5vw,44px);margin-top:8px">היי${p.name ? " " + esc(p.name) : ""}</h1>
+      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}</h1><a href="#profile" class="tool show-phone" aria-label="פרופיל">${svg("user")}</a></div>
     </div>
     <a class="card" href="#record" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;gap:16px">
       <div><h2 style="font-size:24px">מתחיל שיעור?</h2><p class="muted">לחיצה אחת ומתחילים להקליט. ההקלטה נכנסת למחברת של השיעור.</p></div>
@@ -123,16 +132,16 @@ async function home() {
       <ol class="steps">
         <li><a href="#record">מקליטים שיעור אמיתי</a> מההתחלה ועד הסוף, ובודקים שההקלטה נשמרה.</li>
         <li>כותבים סיכום בעצמכם ב<a href="#notebooks">מחברות</a>: בעט (Apple Pencil), באצבע או בהקלדה. לכל קורס יש תיקייה, ולכל שיעור דף משלו.</li>
-        <li>עוברים על <a href="#summary">הסיכום לדוגמה</a> ועל <a href="#quiz">המבחן הקצר</a>, ככה ייראו הסיכומים שלך.</li>
+        <li>עוברים על <a href="#summaries">הסיכומים</a> ועושים <a href="#quizzes">מבחן</a>. אפשר גם לכתוב מבחן בעצמכם.</li>
         <li><a href="#feedback">שולחים משוב</a>: דקה אחת, וזה עוזר לנו יותר מכל דבר אחר.</li>
       </ol>
     </section>
     <div class="grid2">
       <section class="soft"><h3>הסיכום האחרון</h3>
-        <a class="item" href="#summary" style="margin-top:12px"><span><span class="t">${demoSummary.course}</span><br><span class="small muted">${demoSummary.title}</span></span><span class="chip demo">דוגמה</span></a>
+        ${lastSum ? `<a class="item" href="#sum-${esc(lastSum.id)}" style="margin-top:12px"><span style="min-width:0"><span class="t">${esc(lastSum.course)}</span><br><span class="small muted">${esc(lastSum.title)}</span></span></a>` : `<a class="item" href="#summaries" style="margin-top:12px"><span><span class="t">ייבוא הסיכומים שלך</span><br><span class="small muted">מ-Drive, לפי הקורסים במודל</span></span>${svg("download")}</a>`}
       </section>
-      <section class="soft"><h3>מבחן קצר מחכה לך</h3>
-        <a class="item" href="#quiz" style="margin-top:12px"><span><span class="t">5 שאלות על מיקרו</span><br><span class="small muted">בערך 2 דקות</span></span><span class="chip demo">דוגמה</span></a>
+      <section class="soft"><h3>המבחנים שלי</h3>
+        <a class="item" href="#quizzes" style="margin-top:12px"><span><span class="t">${quizCount ? quizCount + " מבחנים מחכים לך" : "5 שאלות על מיקרו"}</span><br><span class="small muted">${quizCount ? "על כל סיכום, וגם מבחנים שתכתוב בעצמך" : "בערך 2 דקות"}</span></span>${quizCount ? "" : '<span class="chip demo">דוגמה</span>'}</a>
       </section>
     </div>
     <section class="soft"><div class="row" style="justify-content:space-between"><h3>להמשיך מאיפה שהפסקת</h3><a href="#notebooks" class="small">כל המחברות</a></div>
@@ -429,6 +438,8 @@ async function flushLesson() {
   await store.saveLesson(editingLesson);
 }
 function closeLesson() {
+  document.body.classList.remove("focus");
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
   if (editingLesson) flushLesson();
   editor?.destroy(); editor = null; editingLesson = null; clearInterval(lessonTimer);
 }
@@ -456,6 +467,7 @@ async function lessonPage(id) {
       <div class="row" style="gap:8px">
         <button class="btn ghost small-btn" id="lrec">${svg("mic")} <span>הקלטה</span></button>
         <button class="btn ghost small-btn" id="lshare">${svg("share")} <span>שיתוף</span></button>
+        <button class="btn small-btn" id="lfull">${svg("expand")} <span>מסך מלא</span></button>
       </div>
     </div>
     <div id="inkArea" ${mode === "ink" ? "" : "hidden"}>
@@ -471,6 +483,7 @@ async function lessonPage(id) {
           <button class="tool" id="undo" aria-label="בטל">${svg("undo")}</button>
           <button class="tool" id="redo" aria-label="בצע שוב">${svg("redo")}</button>
           <button class="tool" id="penOnly" aria-label="רק עט כותב, האצבע גוללת">${svg("hand")}</button>
+          <button class="tool" id="fullExit" aria-label="יציאה ממסך מלא">${svg("shrink")}</button>
         </div>
       </div>
       <div class="sheets" id="sheets"></div>
@@ -522,6 +535,22 @@ async function lessonPage(id) {
     e.target.value = "";
   };
   paintTools();
+
+  // --- מסך מלא: רק הדף וסרגל הכלים, בלי תפריטים ---
+  const setFull = async (on) => {
+    document.body.classList.toggle("focus", on);
+    try {
+      const el = document.documentElement;
+      if (on && !document.fullscreenElement) await (el.requestFullscreen?.() || el.webkitRequestFullscreen?.());
+      if (!on && (document.fullscreenElement || document.webkitFullscreenElement)) await (document.exitFullscreen?.() || document.webkitExitFullscreen?.());
+    } catch { /* באייפון אין מסך מלא של הדפדפן – מסתירים רק את התפריטים */ }
+    if (on && mode !== "ink") view.querySelector('[data-mode="ink"]').click();
+    setTimeout(() => editor?.layout(), 250);
+    window.scrollTo(0, 0);
+  };
+  $("#lfull").onclick = () => setFull(true);
+  $("#fullExit").onclick = () => setFull(false);
+  document.onfullscreenchange = () => { if (!document.fullscreenElement && document.body.classList.contains("focus")) setFull(false); };
 
   // --- הקלדה ושם ---
   const grow = (t) => { t.style.height = "auto"; t.style.height = Math.max(320, t.scrollHeight + 4) + "px"; };
@@ -600,18 +629,6 @@ async function migrateRecordings() {
 }
 
 // ----- סיכומים, סיכום ומבחן -----
-function summaries() {
-  const p = prefs.get();
-  view.innerHTML = `<div class="page">
-    <h1 style="font-size:32px">הסיכומים שלי</h1>
-    <div class="list">
-      <a class="item" href="#summary"><span><span class="t">${demoSummary.course}</span><br><span class="small muted">${demoSummary.title}</span></span><span class="chip demo">דוגמה</span></a>
-    </div>
-    <h2 style="font-size:22px">הקורסים שלי</h2>
-    <div class="grid3">${(p.courses || []).map((c) => `<div class="soft"><b>${esc(c)}</b><p class="small muted">הסיכומים יופיעו כאן אחרי ההקלטה הראשונה</p></div>`).join("")}</div>
-  </div>`;
-}
-
 function summary() {
   const s = demoSummary;
   view.innerHTML = `<div class="page summary">
@@ -624,31 +641,6 @@ function summary() {
     ${s.mathFormat ? `<section class="card"><h2 style="margin-top:0">דף הנוסחאות</h2><div class="list" style="margin-top:10px">${s.formulas.map((f) => `<div><div class="small"><b>${f.name}</b> ${f.today ? '<span class="star">⭐ השיעור</span>' : ""}</div><div class="formula">${f.f}</div></div>`).join("")}</div></section>` : ""}
     <a class="btn" href="#quiz">למבחן הקצר על השיעור</a>
   </div>`;
-}
-
-function quiz(i = 0, score = 0, picked = null) {
-  const qs = demoQuiz.questions;
-  if (i >= qs.length) {
-    view.innerHTML = `<div class="page" style="text-align:center;justify-items:center">
-      <p class="eyebrow">סיימת</p><h1 style="font-size:48px">${score} / ${qs.length}</h1>
-      <p class="muted">${score === qs.length ? "מושלם! החומר יושב טוב." : score >= qs.length - 2 ? "יפה מאוד. כדאי לעבור שוב על השאלות שטעית בהן." : "שווה לחזור על הסיכום ולנסות שוב."}</p>
-      <div class="row" style="justify-content:center"><button class="btn" id="again">שוב</button><a class="btn ghost" href="#summary">חזרה לסיכום</a></div></div>`;
-    $("#again").onclick = () => quiz();
-    return;
-  }
-  const q = qs[i];
-  view.innerHTML = `<div class="page">
-    <div class="progress" aria-hidden="true"><i style="width:${(i / qs.length) * 100}%"></i></div>
-    <div class="row" style="justify-content:space-between"><p class="eyebrow">שאלה ${i + 1} מתוך ${qs.length}</p><span class="chip demo">דוגמה</span></div>
-    <h2 style="font-size:26px">${q.q}</h2>
-    <div class="options">${q.options.map((o, k) => {
-      const cls = picked === null ? "" : k === q.a ? "correct" : k === picked ? "wrong" : "";
-      return `<button class="opt ${cls}" data-k="${k}" ${picked !== null ? "disabled" : ""}>${o}</button>`;
-    }).join("")}</div>
-    ${picked !== null ? `<p class="notice">${picked === q.a ? "נכון! " : "לא בדיוק. "}${q.why}</p><div class="row"><button class="btn" id="next">${i + 1 < qs.length ? "לשאלה הבאה" : "לתוצאה"}</button></div>` : ""}
-  </div>`;
-  view.querySelectorAll(".opt").forEach((b) => (b.onclick = () => quiz(i, score + (+b.dataset.k === q.a ? 1 : 0), +b.dataset.k)));
-  $("#next") && ($("#next").onclick = () => quiz(i + 1, score));
 }
 
 function profile() {
@@ -670,18 +662,24 @@ function profile() {
 
 // ---------- ניתוב ----------
 async function route() {
-  const hash = location.hash.slice(1) || "home";
+  let hash = location.hash.slice(1) || "home";
+  try { hash = decodeURIComponent(hash); } catch { /* כתובת לא תקינה */ }
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
-  const tab = hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" ? "profile" : hash;
+  const tab = hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" ? "profile" : hash;
   renderTabs(tab);
   if (hash === "home") await home();
   else if (hash === "record") record();
   else if (hash === "recordings") await recordings();
   else if (hash.startsWith("rec-")) await recordingDetail(hash.slice(4));
-  else if (hash === "summaries") summaries();
+  else if (hash === "summaries") await study.summaries();
   else if (hash === "summary") summary();
-  else if (hash === "quiz") quiz();
+  else if (hash.startsWith("sum-")) await study.summaryPage(hash.slice(4));
+  else if (hash === "quizzes") await study.quizzes();
+  else if (hash === "quiz-new") study.quizEditor();
+  else if (hash.startsWith("quiz-mix-")) await study.mixQuiz(+hash.slice(9));
+  else if (hash === "quiz") await study.quizById("demo");
+  else if (hash.startsWith("quiz-")) await study.quizById(hash.slice(5));
   else if (hash === "profile") profile();
   else if (hash === "feedback") feedback();
   else if (hash === "notebooks") await notebooks();
@@ -691,6 +689,7 @@ async function route() {
   view.focus({ preventScroll: true });
   window.scrollTo(0, 0);
 }
+const study = initStudy({ view, $, esc, svg, toast, prefs, store, demoQuiz });
 window.addEventListener("hashchange", route);
 // אזהרה לפני סגירה באמצע הקלטה
 window.addEventListener("beforeunload", (e) => { if (recorder?.running) { e.preventDefault(); e.returnValue = ""; } });

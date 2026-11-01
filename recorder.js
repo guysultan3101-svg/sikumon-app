@@ -9,7 +9,7 @@ let dbPromise = null;
 function openDb() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 2);
+    const req = indexedDB.open(DB_NAME, 3);
     req.onupgradeneeded = (e) => {
       const db = req.result;
       if (e.oldVersion < 1) {
@@ -19,6 +19,8 @@ function openDb() {
       }
       // גרסה 2: שיעורים (מחברת לכל שיעור: כתב יד, הקלדה והקלטות)
       if (e.oldVersion < 2) db.createObjectStore("lessons", { keyPath: "id" });
+      // גרסה 3: ספרייה (סיכומים ומבחנים) והיסטוריית מבחנים
+      if (e.oldVersion < 3) { db.createObjectStore("library", { keyPath: "id" }); db.createObjectStore("attempts", { keyPath: "id" }); }
     };
     req.onsuccess = () => {
       const db = req.result;
@@ -49,6 +51,12 @@ export const store = {
   getLesson: (id) => tx("lessons", "readonly", (s) => s.get(id)),
   listLessons: () => tx("lessons", "readonly", (s) => s.getAll()),
   deleteLesson: (id) => tx("lessons", "readwrite", (s) => s.delete(id)),
+  putItem: (it) => tx("library", "readwrite", (s) => s.put(it)),
+  getItem: (id) => tx("library", "readonly", (s) => s.get(id)),
+  listItems: () => tx("library", "readonly", (s) => s.getAll()),
+  deleteItem: (id) => tx("library", "readwrite", (s) => s.delete(id)),
+  addAttempt: (a) => tx("attempts", "readwrite", (s) => s.put(a)),
+  listAttempts: () => tx("attempts", "readonly", (s) => s.getAll()),
   async chunksOf(recId) {
     const db = await openDb();
     return new Promise((resolve, reject) => {
