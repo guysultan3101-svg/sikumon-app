@@ -197,6 +197,7 @@ export function initStudy(ctx) {
   function runQuiz(quiz, i = 0, score = 0, picked = null, wrong = []) {
     const qs = quiz.questions;
     if (i >= qs.length) {
+      ctx.onQuizDone?.();
       store.addAttempt({ id: "att-" + Date.now(), quizId: quiz.id, title: quiz.title, course: quiz.course, at: new Date().toISOString(), score, total: qs.length, wrong });
       const pct = score / qs.length;
       view.innerHTML = `<div class="page" style="text-align:center;justify-items:center">

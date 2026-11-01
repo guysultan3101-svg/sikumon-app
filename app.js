@@ -4,6 +4,7 @@ import { demoSummary, demoQuiz, onboardingQuestions } from "./demo-data.js";
 import { InkEditor, COLORS, MARKER_COLORS, pdfToPages, makeThumb } from "./notes.js";
 import { initStudy } from "./study.js";
 import { initExtras } from "./extras.js";
+import { initPractice } from "./practice.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const view = $("#view");
@@ -33,6 +34,13 @@ const icon = {
   redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
+  line: '<path d="M4 20 20 4"/><path d="M8 20l-4-4M20 8l-4-4"/>',
+  rect: '<rect x="4" y="6" width="16" height="12" rx="1"/>',
+  ellipse: '<ellipse cx="12" cy="12" rx="9" ry="6.5"/>',
+  arrow: '<path d="M5 19 19 5M10 5h9v9"/>',
+  lasso: '<path d="M12 4c5 0 9 2.5 9 6s-4 6-9 6-9-2.5-9-6 4-6 9-6z" stroke-dasharray="3 3"/><path d="M7 15c-2 2-1 5 2 5"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  split: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   hand: '<path d="M7 11V6a1.5 1.5 0 0 1 3 0v4M10 10V4.5a1.5 1.5 0 0 1 3 0V10M13 10V5.5a1.5 1.5 0 0 1 3 0V11M16 11V8.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1a7 7 0 0 1-5-2.5L3.5 15a1.5 1.5 0 0 1 2.3-2L7 14"/>',
   type: '<path d="M4 7V5h16v2M12 5v14M9 19h6"/>',
@@ -131,13 +139,14 @@ async function home() {
   const nowSlot = currentSlot();
   const next = (await extras.upcoming()).slice(0, 3);
   const hasMarks = (await store.listRecordings()).some((r) => (r.marks || []).length);
+  const gaps = await practice.missing();
   const lastSum = items.filter((x) => x.type === "summary" && x.kind !== "formulas").sort((a, b) => b.date.localeCompare(a.date))[0];
   const quizCount = items.filter((x) => x.type === "quiz").length;
   const recent = (await store.listLessons()).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")).slice(0, 3);
   view.innerHTML = `<div class="page">
     <div>
       <p class="eyebrow">${new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}</p>
-      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}</h1><a href="#profile" class="tool show-phone" aria-label="פרופיל">${svg("user")}</a></div>
+      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}${(p.streak || 0) > 1 && p.streakDay >= new Date(Date.now() - 864e5).toLocaleDateString("en-CA") ? ` <span class="streak">🔥 ${p.streak}</span>` : ""}</h1><a href="#profile" class="tool show-phone" aria-label="פרופיל">${svg("user")}</a></div>
     </div>
     <a class="card" href="#record" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;gap:16px">
       <div><h2 style="font-size:24px">${nowSlot ? "עכשיו: " + esc(nowSlot.course) : "מתחיל שיעור?"}</h2><p class="muted">${nowSlot ? `<bdi>${nowSlot.start}–${nowSlot.end}</bdi> · לחיצה אחת, וההקלטה נכנסת ישר למחברת של הקורס.` : "לחיצה אחת ומתחילים להקליט. ההקלטה נכנסת למחברת של השיעור."}</p></div>
@@ -145,6 +154,7 @@ async function home() {
     </a>
     ${news && news.length ? `<section class="soft"><div class="row" style="justify-content:space-between"><h3>חדש במודל <span class="chip new">${news.length}</span></h3><a class="small" href="#notebooks">לפי קורסים</a></div><div class="list" style="margin-top:10px">${news.slice(0, 5).map((it) => study.moodleItem(it, true)).join("")}</div></section>` : ""}
     ${next.length ? `<section class="soft"><div class="row" style="justify-content:space-between"><h3>⏳ הבא בתור</h3><a class="small" href="#deadlines">לוח מבחנים</a></div><div class="list" style="margin-top:10px">${next.map((x) => `<a class="item" href="#deadlines"><span style="min-width:0"><span class="t">${x.kind === "exam" ? "📝" : "📌"} ${esc(x.title)}</span><br><span class="small muted">${esc(x.course)}</span></span>${extras.chip(x)}</a>`).join("")}</div></section>` : ""}
+    ${gaps.length ? `<a class="item" href="#missing"><span style="min-width:0"><span class="t">📋 להשלים: ${gaps.length} דברים</span><br><span class="small muted">${esc(gaps[0].text)}</span></span></a>` : ""}
     ${hasMarks ? `<a class="item" href="#reels"><span><span class="t">🎬 הרגעים החשובים מהשיעורים</span><br><span class="small muted">קטע של דקה סביב כל ⭐ שסימנת</span></span></a>` : ""}
     ${study.getCode() ? "" : `<a class="item pair-cta" href="#summaries"><span><span class="t">🔗 חיבור אוטומטי למודל</span><br><span class="small muted">קוד אחד מהמחשב, ומאז הכול נכנס לבד</span></span></a>`}
     ${installHint()}
@@ -637,7 +647,9 @@ async function flushLesson(withThumb = false) {
   }
   await store.saveLesson(l);
 }
+function closeSplit() { document.body.classList.remove("split"); $("#splitPane")?.remove(); setTimeout(() => editor?.layout(), 200); }
 function closeLesson() {
+  closeSplit();
   document.body.classList.remove("focus");
   if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
   if (editingLesson) flushLesson(true);
@@ -668,6 +680,7 @@ async function lessonPage(id) {
         <button class="btn ghost small-btn" id="lrec">${svg("mic")} <span>הקלטה</span></button>
         <button class="btn ghost small-btn" id="lstar" hidden>⭐ <span></span></button>
         <button class="btn ghost small-btn" id="lshare">${svg("share")} <span>שיתוף</span></button>
+        <button class="btn ghost small-btn" id="lsplit">${svg("split")} <span>מסך מפוצל</span></button>
         <button class="btn small-btn" id="lfull">${svg("expand")} <span>מסך מלא</span></button>
       </div>
     </div>
@@ -677,6 +690,17 @@ async function lessonPage(id) {
           <button class="tool" data-tool="pen" aria-label="עט">${svg("pen")}</button>
           <button class="tool" data-tool="marker" aria-label="מרקר">${svg("marker")}</button>
           <button class="tool" data-tool="eraser" aria-label="מחק">${svg("eraser")}</button>
+          <button class="tool" data-tool="lasso" aria-label="לאסו: סימון והזזה">${svg("lasso")}</button>
+        </div>
+        <div class="tgroup">
+          <button class="tool" data-tool="line" aria-label="קו ישר (סרגל)">${svg("line")}</button>
+          <button class="tool" data-tool="rect" aria-label="מלבן">${svg("rect")}</button>
+          <button class="tool" data-tool="ellipse" aria-label="עיגול">${svg("ellipse")}</button>
+          <button class="tool" data-tool="arrow" aria-label="חץ">${svg("arrow")}</button>
+        </div>
+        <div class="tgroup" id="selBox" hidden><button class="tool sel-del" id="selDel" aria-label="מחיקת הבחירה">${svg("trash")}</button></div>
+        <div class="tgroup">
+          <label class="tool" aria-label="צילום הלוח">${svg("camera")}<input type="file" id="camIn" accept="image/*" capture="environment" hidden></label>
         </div>
         <div class="tgroup" id="swatches"></div>
         <div class="tgroup">${[0, 1, 2].map((k) => `<button class="tool size" data-size="${k}" aria-label="עובי ${["דק", "בינוני", "עבה"][k]}"><i style="width:${[4, 7, 11][k]}px;height:${[4, 7, 11][k]}px"></i></button>`).join("")}</div>
@@ -712,7 +736,7 @@ async function lessonPage(id) {
     view.querySelectorAll("[data-tool]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.tool === editor.tool));
     view.querySelectorAll("[data-size]").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.size === editor.size));
     const list = editor.tool === "marker" ? MARKER_COLORS : COLORS, curC = editor.tool === "marker" ? editor.markerColor : editor.color;
-    $("#swatches").innerHTML = editor.tool === "eraser" ? '<span class="small muted" style="padding:0 6px">נוגעים בקו כדי למחוק אותו</span>' :
+    $("#swatches").innerHTML = editor.tool === "lasso" ? '<span class="small muted" style="padding:0 6px">מקיפים כדי לסמן</span>' : editor.tool === "eraser" ? '<span class="small muted" style="padding:0 6px">נוגעים בקו כדי למחוק אותו</span>' :
       list.map((c) => `<button class="tool swatch" data-color="${c}" aria-label="צבע" aria-pressed="${c === curC}"><i style="background:${c}"></i></button>`).join("");
     $("#swatches").querySelectorAll("[data-color]").forEach((b) => (b.onclick = () => {
       if (editor.tool === "marker") editor.markerColor = b.dataset.color; else editor.color = b.dataset.color;
@@ -721,7 +745,20 @@ async function lessonPage(id) {
     $("#undo").disabled = !editor.canUndo; $("#redo").disabled = !editor.canRedo;
     $("#penOnly").setAttribute("aria-pressed", editor.penOnly);
   };
-  view.querySelectorAll("[data-tool]").forEach((b) => (b.onclick = () => { editor.tool = b.dataset.tool; paintTools(); }));
+  view.querySelectorAll("[data-tool]").forEach((b) => (b.onclick = () => {
+    editor.tool = b.dataset.tool;
+    if (editor.tool !== "lasso") editor.clearSelection();
+    if (editor.tool === "lasso") toast("מקיפים בעט את מה שרוצים לסמן, ואז גוררים או מוחקים");
+    paintTools();
+  }));
+  editor.addEventListener("selection", () => { $("#selBox").hidden = !editor.sel; });
+  $("#selDel").onclick = () => editor.deleteSelection();
+  // צילום הלוח: התמונה נכנסת כעמוד חדש שאפשר לכתוב עליו
+  $("#camIn").onchange = async (e) => {
+    const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
+    try { (await editor.addImagePage(f)).scrollIntoView({ behavior: "smooth", block: "start" }); toast("📷 הלוח נוסף כעמוד. אפשר לכתוב עליו"); }
+    catch { toast("לא הצלחתי לפתוח את התמונה"); }
+  };
   view.querySelectorAll("[data-size]").forEach((b) => (b.onclick = () => { editor.size = +b.dataset.size; paintTools(); }));
   $("#undo").onclick = () => editor.undo();
   $("#redo").onclick = () => editor.redo();
@@ -750,6 +787,16 @@ async function lessonPage(id) {
     window.scrollTo(0, 0);
   };
   $("#lfull").onclick = () => setFull(true);
+  $("#lsplit").onclick = async () => {
+    if (document.body.classList.contains("split")) { closeSplit(); return; }
+    const sums = (await store.listItems()).filter((x) => x.type === "summary").sort((a, b) => (b.course === l.course) - (a.course === l.course) || (a.kind === "formulas") - (b.kind === "formulas") || b.date.localeCompare(a.date));
+    if (!sums.length) { toast("עוד אין סיכומים להציג לצד המחברת"); return; }
+    document.body.classList.add("split");
+    document.body.insertAdjacentHTML("beforeend", `<aside class="split-pane" id="splitPane"><div class="row" style="justify-content:space-between;gap:8px"><select id="splitSel" name="splitSel" style="flex:1">${sums.map((x) => `<option value="${esc(x.id)}">${x.kind === "formulas" ? "📐 " : ""}${esc(x.course)} – ${esc(x.title)}</option>`).join("")}</select><button class="tool" id="splitX" aria-label="סגירת המסך המפוצל">✕</button></div><article class="md-body" id="splitBody"></article></aside>`);
+    const show = () => { const it = sums.find((x) => x.id === $("#splitSel").value); $("#splitBody").innerHTML = it?.html || ""; };
+    $("#splitSel").onchange = show; $("#splitX").onclick = closeSplit; show();
+    setTimeout(() => editor?.layout(), 200);
+  };
   $("#fullExit").onclick = () => setFull(false);
   document.onfullscreenchange = () => { if (!document.fullscreenElement && document.body.classList.contains("focus")) setFull(false); };
 
@@ -1008,7 +1055,7 @@ async function routeInner() {
   try { hash = decodeURIComponent(hash); } catch { /* כתובת לא תקינה */ }
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
-  const tab = hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
+  const tab = hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash.startsWith("cards") || hash === "progress" ? "quizzes" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
   renderTabs(tab);
   if (hash === "home") await home();
   else if (hash === "record") record();
@@ -1023,7 +1070,10 @@ async function routeInner() {
   }
   else if (hash === "summary") summary();
   else if (hash.startsWith("sum-")) await study.summaryPage(hash.slice(4));
-  else if (hash === "quizzes") await study.quizzes();
+  else if (hash === "quizzes") {
+    await study.quizzes();
+    view.querySelector(".page > .row")?.insertAdjacentHTML("afterend", `<div class="grid2"><a class="card" href="#cards"><h3>🃏 כרטיסיות זיכרון</h3><p class="small muted">חזרה מרווחת מכל המבחנים ודפי הנוסחאות</p></a><a class="card" href="#progress"><h3>📈 ההתקדמות שלי</h3><p class="small muted">ציונים לאורך זמן, ובמה כדאי לחזור</p></a></div>`);
+  }
   else if (hash === "quiz-new") study.quizEditor();
   else if (hash.startsWith("quiz-mix-")) await study.mixQuiz(+hash.slice(9));
   else if (hash === "quiz") await study.quizById("demo");
@@ -1033,6 +1083,10 @@ async function routeInner() {
   else if (hash === "diag") await diag();
   else if (hash === "timetable") timetable();
   else if (hash === "deadlines") await extras.deadlinesScreen();
+  else if (hash === "cards") await practice.cardsScreen();
+  else if (hash.startsWith("cards-")) await practice.cardsScreen(hash.slice(6));
+  else if (hash === "missing") await practice.missingScreen();
+  else if (hash === "progress") await practice.progressScreen();
   else if (hash === "exam-focus") await extras.examFocus();
   else if (hash === "reels") await extras.reels();
   else if (hash.startsWith("reels-")) await extras.reels(hash.slice(6));
@@ -1043,7 +1097,10 @@ async function routeInner() {
   view.focus({ preventScroll: true });
   window.scrollTo(0, 0);
 }
-const study = initStudy({ view, $, esc, svg, toast, prefs, store, demoQuiz });
+const studyCtx = { view, $, esc, svg, toast, prefs, store, demoQuiz };
+const study = initStudy(studyCtx);
+const practice = initPractice({ view, $, esc, svg, toast, prefs, store });
+studyCtx.onQuizDone = () => practice.bumpStreak();
 const extras = initExtras({ view, $, esc, svg, toast, prefs, store, segmentsOf, fmtTime });
 window.addEventListener("hashchange", route);
 // אזהרה לפני סגירה באמצע הקלטה

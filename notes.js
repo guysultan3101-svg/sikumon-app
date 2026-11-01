@@ -9,7 +9,53 @@ export const TOOLS = {
   pen: { alpha: 1, width: 3, pressure: true },
   marker: { alpha: 0.45, width: 22, pressure: false },
   eraser: {},
+  line: { alpha: 1, width: 3, shape: true },
+  rect: { alpha: 1, width: 3, shape: true },
+  ellipse: { alpha: 1, width: 3, shape: true },
+  arrow: { alpha: 1, width: 3, shape: true },
+  lasso: {},
 };
+
+// צורה מוכנה: נקודות צפופות לאורך קווים ישרים (ככה גם המחק "תופס" אותה בכל מקום)
+function dense(path, step = 8) {
+  const out = [];
+  for (let i = 0; i < path.length - 1; i++) {
+    const [x0, y0] = path[i], [x1, y1] = path[i + 1];
+    const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / step));
+    for (let k = 0; k < n; k++) out.push(x0 + ((x1 - x0) * k) / n, y0 + ((y1 - y0) * k) / n, 0.5);
+  }
+  const [lx, ly] = path[path.length - 1];
+  out.push(lx, ly, 0.5);
+  return out;
+}
+function makeShape(c) {
+  const { x0, y0, x1, y1 } = c;
+  let path;
+  if (c.shape === "line") path = [[x0, y0], [x1, y1]];
+  else if (c.shape === "rect") path = [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
+  else if (c.shape === "ellipse") {
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, rx = Math.abs(x1 - x0) / 2, ry = Math.abs(y1 - y0) / 2;
+    path = Array.from({ length: 49 }, (_, k) => [cx + rx * Math.cos((k / 48) * 2 * Math.PI), cy + ry * Math.sin((k / 48) * 2 * Math.PI)]);
+  } else {
+    const a = Math.atan2(y1 - y0, x1 - x0), h = 22 + c.width * 2;
+    const h1 = [x1 - h * Math.cos(a - 0.45), y1 - h * Math.sin(a - 0.45)], h2 = [x1 - h * Math.cos(a + 0.45), y1 - h * Math.sin(a + 0.45)];
+    path = [[x0, y0], [x1, y1], h1, [x1, y1], h2];
+  }
+  return { tool: c.shape, color: c.color, alpha: 1, width: c.width, pressure: false, poly: true, points: dense(path) };
+}
+const inPoly = (x, y, poly) => {
+  let inside = false;
+  for (let i = 0, j = poly.length - 2; i < poly.length; j = i, i += 2) {
+    const xi = poly[i], yi = poly[i + 1], xj = poly[j], yj = poly[j + 1];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+};
+function bbox(strokes) {
+  let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
+  for (const st of strokes) for (let k = 0; k < st.points.length; k += 3) { a = Math.min(a, st.points[k]); b = Math.min(b, st.points[k + 1]); c = Math.max(c, st.points[k]); d = Math.max(d, st.points[k + 1]); }
+  return { x: a - 12, y: b - 12, w: c - a + 24, h: d - b + 24 };
+}
 export const COLORS = ["#0F172A", "#2563EB", "#DC2626", "#16A34A"];
 export const MARKER_COLORS = ["#FDE047", "#86EFAC", "#F9A8D4", "#93C5FD"];
 
@@ -24,6 +70,12 @@ function drawStroke(ctx, st) {
   ctx.globalAlpha = st.alpha;
   ctx.strokeStyle = st.color; ctx.fillStyle = st.color;
   ctx.lineCap = "round"; ctx.lineJoin = "round";
+  if (st.poly) {
+    ctx.lineWidth = st.width;
+    ctx.beginPath(); ctx.moveTo(pts[0], pts[1]);
+    for (let i = 3; i < pts.length; i += 3) ctx.lineTo(pts[i], pts[i + 1]);
+    ctx.stroke(); ctx.restore(); return;
+  }
   if (!st.pressure) {
     // מרקר / עט בלי לחץ: מסלול אחד חלק
     ctx.lineWidth = st.width;
@@ -127,8 +179,16 @@ export class InkEditor extends EventTarget {
       raf = 0;
       const ctx = c.getContext("2d");
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, c.width, c.height);
-      if (cur) { ctx.setTransform(v.scale, 0, 0, v.scale, 0, 0); drawStroke(ctx, cur); }
+      ctx.setTransform(v.scale, 0, 0, v.scale, 0, 0);
+      if (cur?.shape) drawStroke(ctx, makeShape(cur));
+      else if (cur?.lasso) { ctx.setLineDash([10, 8]); ctx.strokeStyle = "#2563EB"; ctx.lineWidth = 2.5; ctx.beginPath(); cur.pts.forEach((q, k) => (k % 2 ? 0 : k ? ctx.lineTo(q, cur.pts[k + 1]) : ctx.moveTo(q, cur.pts[1]))); ctx.stroke(); ctx.setLineDash([]); }
+      else if (cur && !cur.erasing && !cur.moving) drawStroke(ctx, cur);
+      if (this.sel?.v === v && this.sel.strokes.length) {
+        const b = bbox(this.sel.strokes); this.sel.box = b;
+        ctx.setLineDash([8, 6]); ctx.strokeStyle = "#2563EB"; ctx.lineWidth = 2; ctx.strokeRect(b.x, b.y, b.w, b.h); ctx.setLineDash([]);
+      }
     };
+    v.paintLive = paintLive;
 
     c.addEventListener("pointerdown", (e) => {
       if (e.pointerType === "pen" && !this.penOnly) { this.setPenOnly(true); }
@@ -139,7 +199,16 @@ export class InkEditor extends EventTarget {
       c.setPointerCapture(e.pointerId);
       const [x, y] = toPage(e);
       if (this.tool === "eraser") { cur = { erasing: true, removed: [] }; this._eraseAt(v, x, y, cur); return; }
+      if (this.tool === "lasso") {
+        const b = this.sel?.v === v && this.sel.box;
+        // לחיצה בתוך הבחירה = גרירה; בחוץ = לאסו חדש
+        if (b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) cur = { moving: true, lx: x, ly: y, dx: 0, dy: 0 };
+        else { this.clearSelection(); cur = { lasso: true, pts: [x, y] }; }
+        if (!raf) raf = requestAnimationFrame(paintLive);
+        return;
+      }
       const t = TOOLS[this.tool];
+      if (t.shape) { cur = { shape: this.tool, x0: x, y0: y, x1: x, y1: y, color: this.color, width: t.width * [0.6, 1, 1.8][this.size] }; if (!raf) raf = requestAnimationFrame(paintLive); return; }
       cur = {
         tool: this.tool, color: this.tool === "marker" ? this.markerColor : this.color, alpha: t.alpha,
         width: t.width * [0.6, 1, 1.8][this.size], pressure: t.pressure && e.pointerType === "pen",
@@ -155,6 +224,12 @@ export class InkEditor extends EventTarget {
       for (const ev of evs.length ? evs : [e]) {
         const [x, y] = toPage(ev);
         if (cur.erasing) { this._eraseAt(v, x, y, cur); continue; }
+        if (cur.shape) { cur.x1 = x; cur.y1 = y; continue; }
+        if (cur.lasso) { cur.pts.push(x, y); continue; }
+        if (cur.moving) {
+          const dx = x - cur.lx, dy = y - cur.ly; cur.lx = x; cur.ly = y; cur.dx += dx; cur.dy += dy;
+          this._translate(this.sel.strokes, dx, dy); this._redraw(v); continue;
+        }
         const n = cur.points.length;
         if (Math.hypot(x - cur.points[n - 3], y - cur.points[n - 2]) < 1.2) continue; // מסננים רעידות
         cur.points.push(Math.round(x * 10) / 10, Math.round(y * 10) / 10, Math.round(pressureOf(ev) * 100) / 100);
@@ -167,6 +242,15 @@ export class InkEditor extends EventTarget {
       if (!cur) return;
       if (cur.erasing) {
         if (cur.removed.length) this._push({ type: "erase", page: v.page.id, removed: cur.removed });
+      } else if (cur.lasso) {
+        const strokes = v.page.strokes.filter((st) => { for (let k = 0; k < st.points.length; k += 3) if (inPoly(st.points[k], st.points[k + 1], cur.pts)) return true; return false; });
+        this.sel = strokes.length ? { v, strokes } : null;
+        this.dispatchEvent(new Event("selection"));
+      } else if (cur.moving) {
+        if (cur.dx || cur.dy) this._push({ type: "move", page: v.page.id, strokes: [...this.sel.strokes], dx: cur.dx, dy: cur.dy });
+      } else if (cur.shape) {
+        const st = makeShape(cur);
+        if (Math.hypot(cur.x1 - cur.x0, cur.y1 - cur.y0) > 6) { v.page.strokes.push(st); drawStroke(v.base.getContext("2d"), st); this._push({ type: "add", page: v.page.id, stroke: st }); }
       } else {
         v.page.strokes.push(cur);
         drawStroke(v.base.getContext("2d"), cur);
@@ -196,6 +280,17 @@ export class InkEditor extends EventTarget {
     if (hit) this._redraw(v);
   }
 
+  _translate(strokes, dx, dy) { for (const st of strokes) for (let k = 0; k < st.points.length; k += 3) { st.points[k] += dx; st.points[k + 1] += dy; } }
+  clearSelection() { const v = this.sel?.v; this.sel = null; v?.paintLive?.(); this.dispatchEvent(new Event("selection")); }
+  deleteSelection() {
+    if (!this.sel) return;
+    const { v, strokes } = this.sel;
+    const removed = strokes.map((st) => ({ i: v.page.strokes.indexOf(st), stroke: st })).sort((a, b) => b.i - a.i);
+    removed.forEach(({ i }) => v.page.strokes.splice(i, 1));
+    this._push({ type: "erase", page: v.page.id, removed });
+    this.clearSelection(); this._redraw(v);
+  }
+
   // ---------- בטל / בצע שוב ----------
   _push(action) { this.undoStack.push(action); this.redoStack = []; this._changed(); }
   _view(pageId) { return this.views.find((v) => v.page.id === pageId); }
@@ -216,6 +311,7 @@ export class InkEditor extends EventTarget {
     const v = this._view(a.page); if (!v) return;
     const s = v.page.strokes;
     if (a.type === "add") { if (reverse) s.splice(s.lastIndexOf(a.stroke), 1); else s.push(a.stroke); }
+    if (a.type === "move") this._translate(a.strokes, reverse ? -a.dx : a.dx, reverse ? -a.dy : a.dy);
     if (a.type === "erase") {
       if (reverse) [...a.removed].reverse().forEach(({ i, stroke }) => s.splice(i, 0, stroke));
       else a.removed.forEach(({ stroke }) => s.splice(s.indexOf(stroke), 1));
