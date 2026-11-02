@@ -89,6 +89,8 @@ export function initStudy(ctx) {
     const code = getCode();
     const p = prefs.get();
     if (code) return `<div class="soft small row" style="justify-content:space-between"><span>🔗 <b>מחובר למודל דרך המחשב.</b> ${p.lastSync ? `עודכן <bdi>${new Date(p.lastSync).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</bdi>` : ""}</span><button class="btn ghost small-btn" id="syncBtn">רענון</button></div>`;
+    // קוד צימוד מהמחשב – רק דרך הקישור המיוחד (#summaries?pair). לבודקים זה מבלבל
+    if (!/pair/.test(location.href)) return "";
     return `<details class="soft small"><summary>יש לך קוד צימוד מהמחשב?</summary><section class="pair" style="margin-top:8px"><h3>🔗 חיבור בקוד צימוד</h3>
       <p class="small muted">מקלידים פעם אחת את קוד הצימוד מהמחשב. מאותו רגע, כל מה שחדש במודל, כל סיכום וכל מבחן נכנסים לאפליקציה לבד.</p>
       <div class="row" style="margin-top:10px"><input type="text" id="pairCode" name="pairCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX" style="flex:1;min-width:180px;direction:ltr;text-align:center;font-family:var(--font-mono);letter-spacing:.1em"><button class="btn" id="pairGo">חיבור</button></div></section></details>`;
@@ -164,7 +166,7 @@ export function initStudy(ctx) {
     const attempts = (await store.listAttempts()).sort((a, b) => b.at.localeCompare(a.at));
     const stats = (id) => { const a = attempts.filter((x) => x.quizId === id); return a.length ? { n: a.length, last: a[0], best: Math.max(...a.map((x) => x.score / x.total)) } : null; };
     const courses = byCourse(qs).map(([c]) => c);
-    const list = qs.length ? qs : [{ ...demoQuiz, id: "demo", title: "מיקרו – שאלות לדוגמה", course: "דוגמה", demo: true }];
+    const list = qs;
     view.innerHTML = `<div class="page">
       <div class="row" style="justify-content:space-between"><h1 style="font-size:32px">המבחנים שלי</h1><a class="btn" href="#quiz-new">${svg("plus")} מבחן חדש</a></div>
       ${courses.length ? `<section class="card"><h3>חזרה למבחן</h3><p class="small muted">שאלות מעורבבות מכל המבחנים של הקורס, כמו במבחן אמיתי.</p>
@@ -178,7 +180,7 @@ export function initStudy(ctx) {
       <section class="soft"><h2 style="font-size:20px">היסטוריה</h2>
         ${attempts.length ? `<div class="list" style="margin-top:10px">${attempts.slice(0, 30).map((a) => `<div class="item"><span style="min-width:0"><span class="t">${escT(a.title)}</span><br><span class="small muted">${esc(a.course)} · <bdi>${new Date(a.at).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</bdi></span></span><b class="score ${a.score === a.total ? "full" : ""}"><bdi>${a.score}/${a.total}</bdi></b></div>`).join("")}</div>` : '<p class="muted small" style="margin-top:6px">עוד לא עשית מבחנים. כל מבחן שתעשה יישמר כאן, עם הציון והתאריך.</p>'}
       </section>
-      ${qs.length ? "" : `<p class="small muted">המבחנים על הסיכומים שלך נכנסים יחד עם הסיכומים, ב"ייבוא מ-Drive" במסך הסיכומים.</p>`}
+      ${qs.length ? "" : `<section class="soft"><h3>עוד אין מבחנים</h3><p class="small muted">מבחן קצר נוצר לבד עם כל סיכום. העלו מצגת של שיעור כדי להתחיל.</p><a class="btn" href="#upload" style="margin-top:8px">📄 העלאת מצגת</a></section>`}
     </div>`;
     $("#mixGo") && ($("#mixGo").onclick = () => { location.hash = "quiz-mix-" + $("#mixCourse").value; });
     view.querySelectorAll(".del-quiz").forEach((b) => (b.onclick = async () => {

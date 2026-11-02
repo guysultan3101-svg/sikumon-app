@@ -2,8 +2,19 @@
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, "$1<em>$2</em>").replace(/`([^`]+)`/g, "<code>$1</code>");
 
+// נוסחאות שה-AI כותב בפורמט LaTeX ($...$, \times) -> טקסט פשוט וקריא
+export function cleanMath(s) {
+  return String(s || "")
+    .replace(/\$\$([^$]+)\$\$/g, "$1").replace(/\$([^$\n]+)\$/g, "$1")
+    .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, "($1)/($2)").replace(/\\sqrt\{([^}]*)\}/g, "√($1)").replace(/\\text\{([^}]*)\}/g, "$1")
+    .replace(/\\times/g, "×").replace(/\\cdot/g, "·").replace(/\\div/g, "÷").replace(/\\pm/g, "±")
+    .replace(/\\(leq|le)\b/g, "≤").replace(/\\(geq|ge)\b/g, "≥").replace(/\\neq/g, "≠").replace(/\\approx/g, "≈")
+    .replace(/\\Delta/g, "Δ").replace(/\\alpha/g, "α").replace(/\\beta/g, "β").replace(/\\sigma/g, "σ").replace(/\\mu/g, "μ").replace(/\\sum/g, "Σ")
+    .replace(/\\%/g, "%").replace(/\\(left|right)/g, "").replace(/\\,/g, " ");
+}
+
 export function mdToHtml(md) {
-  const lines = String(md || "").replace(/\r/g, "").split("\n");
+  const lines = cleanMath(md).replace(/\r/g, "").split("\n");
   const out = [];
   let list = null;
   const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };

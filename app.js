@@ -135,7 +135,7 @@ function onboardingCourses(answers) {
   view.innerHTML = `<div class="page">
     <p class="eyebrow">כמעט סיימנו</p>
     <h2 style="font-size:28px">אילו קורסים יש לך בסמסטר?</h2>
-    <p class="muted">שורה לכל קורס. אפשר לשנות אחר כך בפרופיל. (בגרסה הבאה זה יגיע לבד מה-Moodle שלך.)</p>
+    <p class="muted">שורה לכל קורס. אפשר לשנות אחר כך בהגדרות ← לימודים.</p>
     <textarea id="courses" name="courses" rows="7" autocomplete="off" placeholder="מבוא לכלכלה מיקרו&#10;מתמטיקה לכלכלנים א&#10;יסודות החשבונאות"></textarea>
     <div class="row"><button class="btn" id="done">סיום</button></div>
   </div>`;
@@ -143,7 +143,8 @@ function onboardingCourses(answers) {
     const courses = $("#courses").value.split("\n").map((s) => s.trim()).filter(Boolean);
     prefs.set({ ...answers, courses: courses.length ? courses : ["קורס כללי"], createdAt: new Date().toISOString() });
     social.pushPrefs(); api.track("onboarding_done");
-    location.hash = "home";
+    // אם הכתובת כבר #home – אין "מעבר", אז מציירים את הבית ידנית
+    if (location.hash === "#home") route(); else location.hash = "home";
     toast("מעולה! הפרופיל נשמר");
   };
 }
@@ -187,10 +188,10 @@ async function home() {
     </section>
     <div class="grid2">
       <section class="soft"><h3>הסיכום האחרון</h3>
-        ${lastSum ? `<a class="item" href="#sum-${esc(lastSum.id)}" style="margin-top:12px"><span style="min-width:0"><span class="t">${esc(lastSum.course)}</span><br><span class="small muted">${esc(lastSum.title)}</span></span></a>` : `<a class="item" href="#summaries" style="margin-top:12px"><span><span class="t">ייבוא הסיכומים שלך</span><br><span class="small muted">מ-Drive, לפי הקורסים במודל</span></span>${svg("download")}</a>`}
+        ${lastSum ? `<a class="item" href="#sum-${esc(lastSum.id)}" style="margin-top:12px"><span style="min-width:0"><span class="t">${esc(lastSum.course)}</span><br><span class="small muted">${esc(lastSum.title)}</span></span></a>` : `<a class="item" href="#upload" style="margin-top:12px"><span><span class="t">📄 הסיכום הראשון שלך</span><br><span class="small muted">מעלים מצגת או PDF של שיעור</span></span></a>`}
       </section>
       <section class="soft"><h3>המבחנים שלי</h3>
-        <a class="item" href="#quizzes" style="margin-top:12px"><span><span class="t">${quizCount ? quizCount + " מבחנים מחכים לך" : "5 שאלות על מיקרו"}</span><br><span class="small muted">${quizCount ? "על כל סיכום, וגם מבחנים שתכתוב בעצמך" : "בערך 2 דקות"}</span></span>${quizCount ? "" : '<span class="chip demo">דוגמה</span>'}</a>
+        <a class="item" href="${quizCount ? "#quizzes" : "#upload"}" style="margin-top:12px"><span><span class="t">${quizCount ? quizCount + " מבחנים מחכים לך" : "עוד אין מבחנים"}</span><br><span class="small muted">${quizCount ? "על כל סיכום, וגם מבחנים שתכתוב בעצמך" : "מבחן קצר נוצר לבד עם כל סיכום"}</span></span></a>
       </section>
     </div>
     <section class="soft"><div class="row" style="justify-content:space-between"><h3>להמשיך מאיפה שהפסקת</h3><a href="#notebooks" class="small">כל המחברות</a></div>
@@ -1196,7 +1197,7 @@ async function routeInner() {
     view.querySelector(".page h1")?.insertAdjacentHTML("afterend", `<div class="grid2">
       <a class="card" href="#upload"><h3>📄 סיכום ממצגת / PDF</h3><p class="small muted">מעלים קובץ של שיעור, ומקבלים סיכום לפי איך שאת/ה לומד/ת</p></a>
       <a class="card star-card" href="#exam-focus"><h3>⭐ מה יהיה במבחן</h3><p class="small muted">כל מה שהמרצים אמרו שחשוב, מכל הסיכומים</p></a>
-      <a class="card" href="#podcasts"><h3>🎧 פודקאסטים</h3><p class="small muted">${pods.length ? pods.length + " פרקים קצרים על השיעורים – נועה ואיתי מסבירים" : "פרק קצר יופיע לכל סיכום חדש"}</p></a>
+      ${pods.length ? `<a class="card" href="#podcasts"><h3>🎧 פודקאסטים</h3><p class="small muted">${pods.length} פרקים קצרים על השיעורים – נועה ואיתי מסבירים</p></a>` : ""}
       <a class="card" href="#missed-lesson"><h3>🙋 פספסתי שיעור</h3><p class="small muted">מבקשים מהחברים בקורס סיכום, תמונה של הלוח או הקלטה</p></a>
       <a class="card" href="#deadlines"><h3>⏳ לוח מבחנים והגשות</h3><p class="small muted">${nx ? esc(nx.title) + " · " + extras.inDays(extras.daysTo(nx.when)) : "הוסיפו את תאריכי המבחנים"}</p></a></div>`);
     if (pods.length) {
@@ -1406,7 +1407,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "22";
+const APP_VERSION = "23";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
