@@ -1,6 +1,6 @@
 // Service worker: שומר את קבצי האפליקציה במכשיר, כדי שתיפתח מהר וגם בלי אינטרנט
-const CACHE = "sikumon-v21";
-const FILES = ["./", "index.html", "styles.css", "app.js", "recorder.js", "demo-data.js", "notes.js", "study.js", "extras.js", "practice.js", "planner.js", "ai.js", "tools.js", "social.js", "settings.js", "assistant.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
+const CACHE = "sikumon-v22";
+const FILES = ["./", "index.html", "styles.css", "app.js", "recorder.js", "demo-data.js", "notes.js", "study.js", "extras.js", "practice.js", "planner.js", "ai.js", "tools.js", "social.js", "settings.js", "assistant.js", "api.js", "md.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)));

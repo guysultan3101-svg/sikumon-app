@@ -103,12 +103,13 @@ export function initPlanner(ctx) {
       if (!x.done && d >= 0 && d <= 2) add({ id: `dl-${x.id}-${d}`, icon: "📌", title: `${x.name} – ${d === 0 ? "היום" : d === 1 ? "מחר" : "בעוד יומיים"}`, body: `${x.course} · עד <bdi>${x.due.slice(11, 16)}</bdi>`, link: x.url, ext: true });
     }
     // סיכומים חדשים (בפעם הראשונה – רק זוכרים מה כבר קיים)
-    const sums = (await store.listItems()).filter((x) => x.type === "summary");
-    if (box.seenSummaries === null) box.seenSummaries = sums.map((s) => s.id);
+    // (סיכומים שלי מהשרת מקבלים התראה מהשרת עצמו – לא כופלים)
+    const sums = (await store.listItems()).filter((x) => x.type === "summary" && !(x.server && !x.from));
+    if (!Array.isArray(box.seenSummaries)) box.seenSummaries = sums.map((s) => s.id);
     for (const s of sums.filter((s) => !box.seenSummaries.includes(s.id))) { add({ id: "sum-" + s.id, icon: s.kind === "formulas" ? "📐" : "📄", title: `${s.kind === "formulas" ? "דף נוסחאות עודכן" : "סיכום חדש"}: ${s.course}`, body: s.title, link: "#sum-" + s.id }); box.seenSummaries.push(s.id); }
     // חדש במודל
     const news = (await ctx.study.moodleNew()) || [];
-    if (box.seenMoodle === null) box.seenMoodle = news.map((n) => n.url);
+    if (!Array.isArray(box.seenMoodle)) box.seenMoodle = news.map((n) => n.url);
     for (const n of news.filter((n) => !box.seenMoodle.includes(n.url))) { add({ id: "md-" + n.url, icon: "🆕", title: `חדש במודל: ${n.course}`, body: n.name, link: n.url, ext: true }); box.seenMoodle.push(n.url); }
     // הודעות מסוכני הענן (למשל ☀️ הודעת הבוקר) שהגיעו עם העדכון מהמחשב
     for (const m of (await store.getItem("pack-messages"))?.items || []) add({ id: "pm-" + m.id, icon: m.icon || "☀️", title: m.title, body: esc(m.summary || ""), link: "#msg-" + encodeURIComponent(m.id) });

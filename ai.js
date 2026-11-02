@@ -3,6 +3,8 @@
 // ChatGPT (מפתח של OpenAI) או Claude (מפתח של Anthropic).
 // המפתחות נשמרים רק במכשיר של המשתמש, והבקשות יוצאות ישירות מהמכשיר לספק. אנחנו לא משלמים ולא רואים את המפתח.
 
+import * as api from "./api.js";
+
 const SDK_URL = "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.3.0/+esm";
 const MODEL = "claude-opus-5-5";
 const KEY = "sikumon-ai-key";
@@ -26,26 +28,16 @@ export const setKeyOf = (p, k) => ls.set(PROVIDERS[p].key, k);
 export const modelOf = (p) => ls.get("sikumon-ai-model-" + p);
 export const setModelOf = (p, m) => ls.set("sikumon-ai-model-" + p, m);
 
-// ---------- העוזר המובנה של סיכומון: דרך השרת שלנו (Grok כרגע), 5 שאלות ביום לבודק ----------
-// הכתובת והמפתח הציבורי (anon) של Supabase. אלה לא סודות; מפתח ה-AI עצמו נמצא רק בשרת.
-const SERVER = { url: "", anon: "" };
-export const builtIn = () => !!SERVER.url;
-// מזהה אקראי של המכשיר (בשלב הבדיקות אין חשבונות אמיתיים)
-export function testerId() {
-  let id = ls.get("sikumon-tester-id");
-  if (!id) { id = crypto.randomUUID(); ls.set("sikumon-tester-id", id); }
-  return id;
+// ---------- העוזר המובנה של סיכומון: דרך השרת שלנו (Gemini חינמי), 5 שאלות ביום למשתמש ----------
+// מפתח ה-AI נמצא רק בשרת; המשתמש מזוהה לפי ההתחברות שלו לאפליקציה.
+export const builtIn = () => !!api.user();
+const callServer = (payload, signal) => api.askStream(payload, signal);
+// בפתיחה: כמה שאלות כבר נוצלו היום (מהשרת)
+export async function loadQuota() {
+  if (!api.user()) return;
+  const q = await api.quotaToday().catch(() => null); if (!q) return;
+  const cur = quota(); ls.set("sikumon-quota", JSON.stringify({ day: new Date().toLocaleDateString("en-CA"), used: q.ask || 0, limit: cur.limit || 5 }));
 }
-const myName = () => { try { return JSON.parse(localStorage.getItem("sikumon-social-demo") || "{}").me?.username || ""; } catch { return ""; } };
-async function callServer(payload, signal) {
-  return fetch(`${SERVER.url}/functions/v1/ask`, {
-    method: "POST", signal,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVER.anon}`, apikey: SERVER.anon },
-    body: JSON.stringify({ tester: testerId(), username: myName(), ...payload }),
-  });
-}
-// בכל פתיחה: "הבודק היה פה" (כדי לדעת מי לא השתמש ב-AI בכלל)
-export function pingSeen() { if (SERVER.url) callServer({ action: "seen" }).catch(() => {}); }
 // כמה שאלות נשארו היום (מתעדכן אחרי כל שאלה)
 export const quota = () => { try { const q = JSON.parse(ls.get("sikumon-quota") || "null"); const today = new Date().toLocaleDateString("en-CA"); return q && q.day === today ? q : { day: today, used: 0, limit: 5 }; } catch { return { used: 0, limit: 5 }; } };
 const saveQuota = (res) => { const u = res.headers.get("x-quota-used"), l = res.headers.get("x-quota-limit"); if (u !== null && l !== null) ls.set("sikumon-quota", JSON.stringify({ day: new Date().toLocaleDateString("en-CA"), used: +u, limit: +l })); };

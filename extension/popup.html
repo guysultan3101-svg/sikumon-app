@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>המחבר של סיכומון</title>
+<style>
+  body { width: 340px; margin: 0; padding: 16px; font: 15px/1.5 "Segoe UI", Arial, sans-serif; color: #0F172A; background: #F7F9FE; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p { margin: 6px 0; }
+  .muted { color: #475569; font-size: 13px; }
+  label { display: grid; gap: 4px; margin: 8px 0; font-size: 14px; }
+  input, select { font: inherit; padding: 8px 10px; border: 1.5px solid #D5DEF2; border-radius: 10px; background: #fff; }
+  button { font: inherit; font-weight: 700; padding: 10px 14px; border: 2px solid #0F172A; border-radius: 12px; background: #2563EB; color: #fff; cursor: pointer; width: 100%; margin-top: 8px; }
+  button.ghost { background: #fff; color: #0F172A; }
+  .box { background: #fff; border: 1.5px solid #D5DEF2; border-radius: 14px; padding: 12px; margin-top: 10px; }
+  .err { color: #DC2626; }
+  a { color: #2563EB; }
+</style>
+</head>
+<body>
+  <h1>📚 המחבר של סיכומון</h1>
+  <p class="muted">כל קובץ חדש במודל שלך – מסוכם לבד ומגיע לאפליקציה.</p>
+
+  <section id="loginBox" class="box" hidden>
+    <b>התחברות לסיכומון</b>
+    <label>מייל<input id="email" type="email" dir="ltr" autocomplete="email"></label>
+    <label>סיסמה<input id="pass" type="password" autocomplete="current-password"></label>
+    <button id="loginBtn">התחברות</button>
+    <p class="muted">אותו מייל וסיסמה כמו באפליקציה.</p>
+  </section>
+
+  <section id="mainBox" hidden>
+    <div class="box">
+      <p>מחובר/ת: <b id="who" dir="ltr"></b></p>
+      <label>המודל שלך<select id="moodle"></select></label>
+      <label id="otherBox" hidden>כתובת המודל (מה שמופיע בשורת הכתובת)<input id="otherUrl" dir="ltr" placeholder="https://moodle.bgu.ac.il"></label>
+      <button class="ghost" id="saveMoodle">שמירה</button>
+    </div>
+    <div class="box">
+      <p id="state">עוד לא נבדק</p>
+      <p class="err" id="error"></p>
+      <p class="muted" id="last"></p>
+      <button id="syncBtn">🔄 בדיקה עכשיו</button>
+      <button class="ghost" id="openMoodle">פתיחת המודל (להתחברות)</button>
+    </div>
+    <p class="muted">🔒 התוסף לא רואה את הסיסמה שלך למודל. הוא בודק כל 3 שעות, כשכרום פתוח.</p>
+    <button class="ghost" id="logoutBtn">התנתקות</button>
+  </section>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

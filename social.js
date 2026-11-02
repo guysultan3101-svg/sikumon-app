@@ -1,173 +1,232 @@
-// 👥 השכבה החברתית – עיצוב לדוגמה בלבד. כל המשתמשים והפוסטים כאן מדומים ונשמרים רק במכשיר.
-// כשנחבר שרת (Supabase), אותם מסכים יעבדו מול חשבונות אמיתיים: הרשמה, חברים באישור הדדי, פיד, פרופיל.
+// 👥 השכבה החברתית – אמיתית, מול השרת (api.js): הרשמה וכניסה, חברים באישור הדדי, "אותה כיתה"
+// (שיתוף סיכומים בין חברים באישור של שניהם), הודעות (ראשי + בקשות), פספסתי שיעור, פיד, פרופיל.
+// בנוסף: מסנכרן לאפליקציה את הסיכומים מהשרת (שלי + של חברים מאותה כיתה) ואת ההתראות.
+import { mdToHtml } from "./md.js";
 
 export function initSocial(ctx) {
-  const { view, $, esc, toast, store } = ctx;
-  const KEY = "sikumon-social-demo";
-  const today = new Date();
-  const mmdd = (d) => `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-  // ---------- משתמשים מדומים ----------
-  const USERS = {
-    noa_k: { name: "נועה כהן", uni: "אריאל", degree: "כלכלה ומנהל, שנה א", bday: mmdd(today), bio: "מסכמת מיקרו וסטטיסטיקה. מכורה לקפה ☕", ig: "https://instagram.com/", li: "", color: "#DB2777" },
-    "itay.levi": { name: "איתי לוי", uni: "אריאל", degree: "כלכלה ומנהל, שנה א", bday: "03-14", bio: "מילואימניק 🎖️ משלים פערים ביחד איתכם", ig: "", li: "https://linkedin.com/", color: "#2563EB" },
-    maya_b: { name: "מאיה ברק", uni: "אריאל", degree: "כלכלה ומנהל, שנה א", bday: mmdd(new Date(Date.now() + 2 * 864e5)), bio: "דפי נוסחאות זה האהבה שלי", ig: "https://instagram.com/", li: "", color: "#16A34A" },
-    daniel_r: { name: "דניאל רוזן", uni: "אריאל", degree: "כלכלה ומנהל, שנה ב", bday: "07-02", bio: "עובד 30 שעות בשבוע ולומד בלילות", ig: "", li: "https://linkedin.com/", color: "#6D28D9" },
-    yoni_m: { name: "יוני מזרחי", uni: "אריאל", degree: "כלכלה ומנהל, שנה א", bday: "", bio: "", ig: "", li: "", color: "#0891B2" },
-    "shira.g": { name: "שירה גבאי", uni: "בן-גוריון", degree: "הנדסת תעשייה וניהול", bday: "11-20", bio: "", ig: "https://instagram.com/", li: "https://linkedin.com/", color: "#EA580C" },
-  };
-  const POSTS = [
-    { id: "p1", by: "noa_k", course: "מבוא לכלכלה מיקרו", title: "סיכום שיעור 4 – גמישות הביקוש", text: "כל הנוסחאות של הגמישות + 3 דוגמאות מהשיעור. המרצה אמר שזה בטוח במבחן ⭐", when: "לפני שעה", vis: "course", likes: 23, comments: [["maya_b", "הצלת אותי, לא הייתי בשיעור 🙏"], ["daniel_r", "אפשר גם את התרגול?"]] },
-    { id: "ad1", sponsored: true, by: "מכללה לתארים מתקדמים", title: "יום פתוח – תואר שני בכלכלה", text: "הרשמה מוקדמת לסטודנטים בשנה א־ב, כולל מלגות למילואימניקים.", cta: "לפרטים" },
-    { id: "p2", by: "maya_b", course: "סטטיסטיקה א", title: "דף נוסחאות – סטטיסטיקה תיאורית", text: "ממוצע, חציון, סטיית תקן, ואיך לזכור מתי מחלקים ב-n-1.", when: "לפני 3 שעות", vis: "friends", likes: 41, comments: [["noa_k", "שומרת 🔖"]] },
-    { id: "p3", by: "itay.levi", course: "יסודות החשבונאות", title: "חזרתי ממילואים – מה פספסתי?", text: "מי שהיה בשיעורים 2–3, אשמח לסיכום. מחזיר בפודקאסט 🎧", when: "אתמול", vis: "course", likes: 12, comments: [["noa_k", "שלחתי לך בפרטי ❤️"]], ask: true },
-    { id: "p4", by: "shira.g", course: "מבוא לסטטיסטיקה", title: "טיפ למבחן: לקרוא את השאלה פעמיים", text: "50% מהטעויות שלי בבוחן היו כי לא קראתי עד הסוף.", when: "לפני יומיים", vis: "public", likes: 87, comments: [] },
-  ];
-  const STORIES = [
-    ["noa_k", "2 שעות מיקרו 🔥"], ["maya_b", "סיימתי בוחן 92"], ["itay.levi", "חזרתי ממילואים"], ["daniel_r", "לומד עכשיו 📚"],
-  ];
-  const VIS = { friends: "👥 חברים", course: "🎓 כל הקורס", public: "🌍 כולם" };
-
-  // ---------- המצב שלי (במכשיר) ----------
-  const get = () => { try { return JSON.parse(localStorage.getItem(KEY) || "null") || {}; } catch { return {}; } };
-  const set = (v) => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch { /* מצב פרטי */ } };
-  const st = () => {
-    const s = get();
-    s.friends ??= ["noa_k", "maya_b", "itay.levi"];
-    s.incoming ??= ["daniel_r"];
-    s.pending ??= [];
-    s.liked ??= {}; s.saved ??= {}; s.myPosts ??= []; s.sent ??= [];
-    // שיחות: מחברים -> "ראשי"; ממי שאינו חבר -> "בקשות" עד שמאשרים
-    s.threads ??= {
-      noa_k: [{ from: "noa_k", text: "היי! ראית שהמרצה העלה את המצגת של שיעור 5?", at: Date.now() - 36e5 }],
-      maya_b: [{ from: "maya_b", text: "מחר לומדים ביחד לבוחן? 📚", at: Date.now() - 864e5 }],
-      yoni_m: [{ from: "yoni_m", text: "היי, אני מהקורס במיקרו. אפשר את הסיכום של שיעור 3?", at: Date.now() - 2 * 36e5 }],
-    };
-    s.accepted ??= [];
-    s.read ??= {};
-    s.blocked ??= [];
-    return s;
-  };
-  const user = (id) => USERS[id] || (get().me?.username === id ? { ...get().me, color: "#0F172A" } : null);
-  const avatar = (id, big = false) => {
-    const u = user(id) || { name: "?" , color: "#475569" };
-    return `<span class="av${big ? " big" : ""}" style="background:${u.color}" aria-hidden="true">${esc((u.name || id)[0])}</span>`;
-  };
-  // קישור לאינסטגרם/לינקדאין: רק https ורק לאתרים האלה
+  const { view, $, esc, toast, prefs, store, api } = ctx;
+  const VIS = { friends: "👥 חברים", course: "🎓 כל מי שלומד את הקורס", public: "🌍 כולם" };
+  const UNIS = ["אוניברסיטת אריאל", "אוניברסיטת בן־גוריון", "אוניברסיטת בר־אילן", "אחר"];
+  const COLORS = ["#DB2777", "#2563EB", "#16A34A", "#6D28D9", "#EA580C", "#0891B2", "#CA8A04", "#475569"];
+  const color = (id = "") => COLORS[[...id].reduce((n, c) => n + c.charCodeAt(0), 0) % COLORS.length];
+  const people = new Map(); // מטמון פרופילים לפי id
+  const meId = () => api.user()?.id;
+  const nameOf = (id) => people.get(id)?.full_name || "משתמש/ת";
+  const unameOf = (id) => people.get(id)?.username || "";
+  const avatar = (id, big = false) => `<span class="av${big ? " big" : ""}" style="background:${color(id)}" aria-hidden="true">${esc((people.get(id)?.full_name || "?")[0])}</span>`;
+  const when = (t) => new Date(t).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
+  const myCourses = () => prefs.get()?.courses || api.profile()?.courses || [];
   const safeLink = (url, host) => { try { const u = new URL(url); return u.protocol === "https:" && (u.hostname === host || u.hostname.endsWith("." + host)) ? u.href : ""; } catch { return ""; } };
-
-  const DEMO = `<p class="notice">🧪 <b>עיצוב לדוגמה.</b> המשתמשים והפוסטים כאן מדומים, ושום דבר לא נשלח לאף אחד. ככה זה ייראה כשנחבר שרת.</p>`;
   const subnav = (cur) => `<nav class="snav" aria-label="חברים">${[["social", "📰 פיד"], ["social-friends", "👥 חברים"], ["messages", "💬 הודעות"]].map(([h, l]) => `<a href="#${h}" ${cur === h ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</nav>`;
-  const needMe = () => {
-    if (get().me) return false;
-    view.innerHTML = `<div class="page">${DEMO}<section class="card" style="display:grid;gap:12px"><h1 style="font-size:28px">👥 חברים ושיתוף</h1>
-      <p>שולחים סיכום לחבר שפספס, רואים מה כל הקורס מסכם, ומבקשים עזרה כשלא הייתם בשיעור.</p>
-      <p class="muted small">צריך חשבון כדי שחברים יוכלו למצוא אתכם.</p><a class="btn" href="#signup">יצירת חשבון (דוגמה)</a></section></div>`;
-    return true;
-  };
+  const busy = (msg = "טוען…") => { view.innerHTML = `<div class="page"><p class="muted">${msg}</p></div>`; };
+  const fail = (e) => { view.innerHTML = `<div class="page"><p class="notice alert">${esc(e.message || e)}</p><button class="btn" onclick="location.reload()">לנסות שוב</button></div>`; };
+  async function remember(ids) { const need = [...new Set(ids)].filter((x) => x && !people.has(x)); if (need.length) (await api.profiles(need)).forEach((p) => people.set(p.id, p)); }
 
-  // ---------- הרשמה ----------
-  function signup() {
+  // ---------- מצב החברים ----------
+  async function graph() {
+    const [fr, sh] = await Promise.all([api.friendships(), api.shares()]);
+    const me = meId();
+    await remember([...fr.flatMap((f) => [f.requester, f.addressee]), ...sh.flatMap((s) => [s.owner, s.friend])]);
+    const other = (f) => (f.requester === me ? f.addressee : f.requester);
+    return {
+      fr, sh, other,
+      friends: fr.filter((f) => f.status === "accepted"),
+      incoming: fr.filter((f) => f.status === "pending" && f.addressee === me),
+      outgoing: fr.filter((f) => f.status === "pending" && f.requester === me),
+      iShare: (id) => sh.filter((s) => s.owner === me && s.friend === id).map((s) => s.course),
+      theyShare: (id) => sh.filter((s) => s.owner === id && s.friend === me).map((s) => s.course),
+    };
+  }
+
+  // ---------- הרשמה / כניסה ----------
+  function signup(mode = "signup") {
+    const isUp = mode === "signup";
     view.innerHTML = `<div class="page" style="max-width:560px">
       <p class="eyebrow">ברוכים הבאים לסיכומון</p>
-      <h1 style="font-size:30px">יצירת חשבון</h1>
-      <p class="muted">כדי להיכנס פותחים פרופיל. ככה חברים מהקורס יוכלו למצוא אתכם ולשלוח לכם סיכומים.</p>
-      ${DEMO}
-      <button class="btn ghost" id="sgGoogle" type="button"><b style="color:#4285F4">G</b> המשך עם Google</button>
-      <p class="muted small" style="text-align:center">או</p>
+      <h1 style="font-size:30px">${isUp ? "יצירת חשבון" : "כניסה לחשבון"}</h1>
+      ${isUp ? '<p class="muted">פותחים פרופיל, וממלאים שאלון קצר על איך שאת/ה לומד/ת. ככה הסיכומים מותאמים בדיוק אלייך, וחברים מהקורס יכולים למצוא אותך.</p>' : ""}
       <form id="sgForm" class="card" style="display:grid;gap:12px" novalidate>
-        <label>שם משתמש (ייחודי – ככה חברים ימצאו אתכם)<input id="sgUser" required pattern="[a-z0-9_.]{3,20}" autocomplete="username" dir="ltr" placeholder="guy_s"></label>
+        ${isUp ? `<label>שם משתמש (ייחודי – ככה חברים ימצאו אותך)<input id="sgUser" required autocomplete="username" dir="ltr" placeholder="guy_s" autocapitalize="none"></label>
         <span class="small muted" id="sgUserHint">אותיות באנגלית, מספרים, _ ונקודה</span>
         <label>שם מלא<input id="sgName" required autocomplete="name"></label>
-        <label>מייל של האוניברסיטה<input id="sgMail" type="email" required dir="ltr" autocomplete="email" placeholder="name@msmail.ariel.ac.il"></label>
-        <span class="small muted">רק סטודנטים אמיתיים נכנסים: נשלח קוד אימות למייל הזה.</span>
-        <label>סיסמה<input id="sgPass" type="password" required minlength="8" autocomplete="new-password"></label>
-        <label>יום הולדת (לא חובה – חברים יקבלו תזכורת)<input id="sgBday" type="date"></label>
-        <label class="row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="sgRes" style="width:auto;margin-top:6px"><span>🎖️ אני משרת/ת מילואים פעיל/ה – <b>20% הנחה</b></span></label>
-        <div id="sgResInfo" class="soft small" hidden>
-          <b>איך זה עובד:</b> ההנחה מתחילה מיד. בתוך 30 יום מעלים אישור "משרת מילואים פעיל" (מאתר המילואים או מהיחידה).
-          <br>🔒 <b>הפרטיות שלכם:</b> מסתירים את מספר תעודת הזהות לפני ההעלאה. בודקים את האישור ומוחקים אותו. אצלנו נשמר רק "מאומת עד תאריך X".
-          <br>אם לא יגיע אישור, מהחודש הבא המחיר חוזר לרגיל, בלי חיוב רטרואקטיבי.
-        </div>
-        <label class="row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="sgTerms" required style="width:auto;margin-top:6px"><span class="small">קראתי ואני מסכים/ה לתנאים ולמדיניות הפרטיות. משתפים רק סיכומים שכתבתי בעצמי, לא קבצים של מרצים.</span></label>
-        <label class="row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="sgAds" style="width:auto;margin-top:6px"><span class="small">אשמח לקבל הצעות מותאמות לסטודנטים (קורסים, תארים, משרות). לא חובה.</span></label>
-        <button class="btn" type="submit">יצירת חשבון</button>
-      </form></div>`;
-    $("#sgRes").onchange = () => ($("#sgResInfo").hidden = !$("#sgRes").checked);
-    $("#sgUser").oninput = () => {
-      const v = $("#sgUser").value.trim().toLowerCase();
-      $("#sgUserHint").textContent = !v ? "אותיות באנגלית, מספרים, _ ונקודה" : !/^[a-z0-9_.]{3,20}$/.test(v) ? "3–20 תווים: אותיות באנגלית, מספרים, _ ונקודה" : USERS[v] ? "❌ השם הזה תפוס" : "✅ פנוי";
-    };
-    $("#sgGoogle").onclick = () => { toast("בגרסה האמיתית: חלון של Google, ואז בוחרים שם משתמש ומאמתים מייל אוניברסיטה"); };
-    $("#sgForm").onsubmit = (e) => {
+        <label>מוסד לימודים<select id="sgUni">${UNIS.map((u) => `<option>${u}</option>`).join("")}</select></label>
+        <label>תואר ושנה<input id="sgDeg" placeholder="למשל: כלכלה ומנהל, שנה א"></label>` : ""}
+        <label>מייל ${isUp ? "של האוניברסיטה" : ""}<input id="sgMail" type="email" required dir="ltr" autocomplete="email" placeholder="name@msmail.ariel.ac.il"></label>
+        <label>סיסמה<input id="sgPass" type="password" required minlength="8" autocomplete="${isUp ? "new-password" : "current-password"}"></label>
+        ${isUp ? `<label>יום הולדת (לא חובה – חברים יקבלו תזכורת)<input id="sgBday" type="date"></label>
+        <label class="row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="sgTerms" style="width:auto;margin-top:6px"><span class="small">זו <b>גרסת בדיקה</b>. אני מסכים/ה ל<a href="#legal-terms" target="_blank">תנאי השימוש</a> ול<a href="#legal-privacy" target="_blank">מדיניות הפרטיות</a>: הפרופיל, החברים, ההודעות והסיכומים נשמרים בשרת מאובטח באירופה. משתפים רק סיכומים שלי, לא קבצים של מרצים.</span></label>` : ""}
+        <button class="btn" type="submit" id="sgGo">${isUp ? "יצירת חשבון" : "כניסה"}</button>
+        ${isUp ? "" : '<button class="btn ghost" type="button" id="sgReset">שכחתי סיסמה</button>'}
+      </form>
+      <p style="text-align:center"><a href="#" id="sgSwitch">${isUp ? "כבר יש לי חשבון – כניסה" : "אין לי חשבון – הרשמה"}</a></p></div>`;
+    $("#sgSwitch").onclick = (e) => { e.preventDefault(); signup(isUp ? "login" : "signup"); };
+    if (isUp) {
+      let t;
+      $("#sgUser").oninput = () => {
+        const v = $("#sgUser").value.trim().toLowerCase(); clearTimeout(t);
+        if (!/^[a-z0-9_.]{3,20}$/.test(v)) { $("#sgUserHint").textContent = v ? "3–20 תווים: אותיות באנגלית, מספרים, _ ונקודה" : "אותיות באנגלית, מספרים, _ ונקודה"; return; }
+        t = setTimeout(async () => { $("#sgUserHint").textContent = (await api.usernameFree(v)) ? "✅ פנוי" : "❌ השם הזה תפוס"; }, 400);
+      };
+    } else {
+      $("#sgReset").onclick = async () => { const m = $("#sgMail").value.trim(); if (!m) return toast("כתבו קודם את המייל"); try { await api.resetPassword(m); toast("שלחנו קישור לאיפוס למייל"); } catch (e) { toast(e.message); } };
+    }
+    $("#sgForm").onsubmit = async (e) => {
       e.preventDefault();
-      const u = $("#sgUser").value.trim().toLowerCase(), mail = $("#sgMail").value.trim();
-      if (!/^[a-z0-9_.]{3,20}$/.test(u) || USERS[u]) return toast("בחרו שם משתמש פנוי");
-      if (!$("#sgName").value.trim()) return toast("חסר שם מלא");
-      if (!/@[^@]+\.ac\.il$/i.test(mail)) return toast("צריך מייל של מוסד אקדמי (נגמר ב-ac.il)");
-      if ($("#sgPass").value.length < 8) return toast("סיסמה של 8 תווים לפחות");
-      if (!$("#sgTerms").checked) return toast("צריך לאשר את התנאים");
-      const s = st();
-      // בדוגמה לא שומרים סיסמה בכלל
-      s.me = { username: u, name: $("#sgName").value.trim(), uni: "אריאל", degree: "כלכלה ומנהל, שנה א", bio: "", ig: "", li: "", bday: $("#sgBday").value.slice(5) || "", ads: $("#sgAds").checked };
-      if ($("#sgRes").checked) s.reservist = { since: new Date().toISOString().slice(0, 10), verified: false };
-      set(s);
-      toast("החשבון נוצר (דוגמה) 🎉");
-      if (location.hash === "#home") dispatchEvent(new HashChangeEvent("hashchange")); else location.hash = "#home";
+      const mail = $("#sgMail").value.trim(), pass = $("#sgPass").value;
+      try {
+        $("#sgGo").disabled = true;
+        if (isUp) {
+          const u = $("#sgUser").value.trim().toLowerCase(), name = $("#sgName").value.trim();
+          if (!/^[a-z0-9_.]{3,20}$/.test(u)) throw new Error("בחרו שם משתמש תקין");
+          if (!name) throw new Error("חסר שם מלא");
+          if (!/@[^@]+\.ac\.il$/i.test(mail)) throw new Error("צריך מייל של מוסד אקדמי (נגמר ב-ac.il)");
+          if (pass.length < 8) throw new Error("סיסמה של 8 תווים לפחות");
+          if (!$("#sgTerms").checked) throw new Error("צריך לאשר את התנאים");
+          if (!(await api.usernameFree(u))) throw new Error("שם המשתמש תפוס");
+          await api.signUp({ email: mail, password: pass, username: u, full_name: name, uni: $("#sgUni").value, degree: $("#sgDeg").value.trim(), birthday: $("#sgBday").value });
+          // השאלון מתחיל מאפס במכשיר הזה
+          try { localStorage.removeItem("sikumon-prefs"); } catch { /* */ }
+          toast("החשבון נוצר 🎉 עכשיו כמה שאלות קצרות");
+        } else {
+          await api.signIn(mail, pass);
+          restorePrefs();
+          toast("ברוך/ה השב/ה 👋");
+        }
+        api.track(isUp ? "signup" : "login");
+        if (location.hash === "#home") dispatchEvent(new HashChangeEvent("hashchange")); else location.hash = "#home";
+      } catch (err) { toast(err.message); $("#sgGo").disabled = false; }
     };
+  }
+  // כניסה ממכשיר חדש: מחזירים את התשובות לשאלון ואת הקורסים מהשרת
+  function restorePrefs() {
+    const p = api.profile(); if (!p || prefs.get()) return;
+    if (!p.learn || !Object.keys(p.learn).length) return;
+    prefs.set({ ...p.learn, name: p.full_name.split(" ")[0], inst: p.uni, courses: p.courses?.length ? p.courses : ["קורס כללי"], createdAt: p.created_at });
+  }
+  // השאלון והקורסים נשמרים גם בשרת (בשביל הסיכומים האישיים)
+  async function pushPrefs() {
+    const p = prefs.get(); if (!p || !api.user()) return;
+    const learn = Object.fromEntries(["style", "length", "tone", "hard", "quiz"].filter((k) => p[k]).map((k) => [k, p[k]]));
+    try { await api.updateMe({ learn, courses: (p.courses || []).slice(0, 40) }); } catch { /* ננסה בפעם הבאה */ }
+  }
+
+  // ---------- סנכרון: סיכומים מהשרת -> הספרייה במכשיר ----------
+  async function syncSummaries() {
+    if (!api.user()) return 0;
+    const rows = await api.summaries();
+    await remember(rows.map((r) => r.owner));
+    const mine = meId();
+    const local = await store.listItems();
+    const keep = new Set();
+    let fresh = 0;
+    for (const r of rows) {
+      const id = "srv-" + r.id; keep.add(id);
+      const from = r.owner === mine ? "" : nameOf(r.owner);
+      if (!local.some((x) => x.id === id)) fresh++;
+      await store.putItem({ id, type: "summary", course: r.course || "כללי", title: r.title, date: r.created_at.slice(0, 10), html: mdToHtml(r.md), from, server: true, source: r.source });
+      if (Array.isArray(r.quiz) && r.quiz.length) {
+        const qid = "srvq-" + r.id; keep.add(qid);
+        await store.putItem({ id: qid, type: "quiz", summaryId: id, course: r.course || "כללי", title: r.title, questions: r.quiz.filter((q) => q?.q && Array.isArray(q.options)), from });
+      }
+    }
+    // מה שנמחק בשרת (או ששיתוף בוטל) – יורד גם מהמכשיר
+    for (const x of local) if ((x.id.startsWith("srv-") || x.id.startsWith("srvq-")) && !keep.has(x.id)) await store.deleteItem(x.id);
+    return fresh;
+  }
+
+  // ---------- סנכרון: התראות מהשרת -> תיבת ההודעות (🔔) ----------
+  const NOTE = {
+    friend_request: (n) => ({ icon: "👋", title: `${nameOf(n.actor)} שלח/ה לך בקשת חברות`, body: "לאישור בלשונית החברים", link: "#social-friends" }),
+    friend_accepted: (n) => ({ icon: "🤝", title: `${nameOf(n.actor)} אישר/ה את בקשת החברות`, body: "אפשר לשתף סיכומים מאותה כיתה", link: "#u-" + unameOf(n.actor) }),
+    message: (n) => ({ icon: "💬", title: `הודעה מ${nameOf(n.actor)}`, body: esc(n.data?.preview || ""), link: "#dm-" + unameOf(n.actor) }),
+    course_share: (n) => ({ icon: "🎓", title: `${nameOf(n.actor)} משתף/ת איתך סיכומים ב${n.data?.course || ""}`, body: "שתפו גם אתם בחזרה כדי לראות אותם", link: "#share-" + unameOf(n.actor) }),
+    summary_ready: (n) => ({ icon: "📚", title: `סיכום חדש: ${n.data?.title || ""}`, body: esc(n.data?.course || ""), link: "#sum-srv-" + n.data?.id }),
+    missed: (n) => ({ icon: "🙋", title: `${nameOf(n.actor)} פספס/ה שיעור ב${n.data?.course || ""}`, body: `מ-${n.data?.date || ""}. אפשר לשלוח לו/לה הודעה או לשתף סיכומים`, link: "#dm-" + unameOf(n.actor) }),
+    comment: (n) => ({ icon: "💬", title: `${nameOf(n.actor)} הגיב/ה על "${n.data?.title || ""}"`, body: "", link: "#social" }),
+    like: (n) => ({ icon: "❤️", title: `${nameOf(n.actor)} אהב/ה את "${n.data?.title || ""}"`, body: "", link: "#social" }),
+  };
+  async function syncNotifications() {
+    if (!api.user()) return [];
+    const list = await api.notifications();
+    await remember(list.map((n) => n.actor));
+    const box = (await store.getItem("inbox")) || { id: "inbox", type: "inbox", items: [] };
+    const fresh = [], readBack = [];
+    for (const n of list) {
+      const id = "sn-" + n.id, f = NOTE[n.kind]; if (!f) continue;
+      const ex = box.items.find((x) => x.id === id);
+      if (ex) { if (ex.read && !n.read_at) readBack.push(n.id); continue; }
+      const item = { id, ...f(n), at: n.created_at, read: !!n.read_at };
+      box.items.unshift(item); if (!item.read) fresh.push(item);
+    }
+    box.items.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    await store.putItem(box);
+    api.markNotifications(readBack).catch(() => {});
+    return fresh;
+  }
+  // מספרים לתגים: בקשות חברות ממתינות, הודעות שלא נקראו
+  async function counts() {
+    if (!api.user()) return { requests: 0, unread: 0 };
+    const [fr, ms] = await Promise.all([api.friendships(), api.messages()]);
+    return { requests: fr.filter((f) => f.status === "pending" && f.addressee === meId()).length, unread: new Set(ms.filter((m) => m.recipient === meId() && !m.read_at).map((m) => m.sender)).size };
   }
 
   // ---------- פיד ----------
-  function postCard(p, s) {
-    if (p.sponsored) return `<article class="post sponsored"><div class="post-h"><span class="av" style="background:#475569">📢</span><span><b>${esc(p.by)}</b><br><span class="small muted">תוכן ממומן</span></span></div>
-      <h3>${esc(p.title)}</h3><p>${esc(p.text)}</p><button class="btn ghost" type="button" data-ad>${esc(p.cta)}</button></article>`;
-    const u = user(p.by) || { name: p.by };
-    const liked = !!s.liked[p.id], saved = !!s.saved[p.id];
+  function postCard(p, d) {
+    const liked = d.likes.some((l) => l.post === p.id && l.user_id === meId());
+    const nLikes = d.likes.filter((l) => l.post === p.id).length;
+    const saved = d.saves.has(p.id), cmts = d.comments.filter((c) => c.post === p.id), mine = p.author === meId();
     return `<article class="post" data-post="${esc(p.id)}">
-      <div class="post-h">${avatar(p.by)}<span style="min-width:0;flex:1"><a href="#u-${encodeURIComponent(p.by)}"><b>${esc(u.name)}</b></a> <span class="small muted">@${esc(p.by)}</span><br><span class="small muted">${esc(p.course)} · ${esc(p.when)} · ${VIS[p.vis] || ""}</span></span></div>
-      <h3>${p.ask ? "🙋 " : "📄 "}${esc(p.title)}</h3><p>${esc(p.text)}</p>
-      <div class="post-a"><button type="button" data-like aria-pressed="${liked}">${liked ? "❤️" : "🤍"} <bdi>${p.likes + (liked ? 1 : 0)}</bdi></button>
-        <button type="button" data-cmt>💬 <bdi>${p.comments.length}</bdi></button>
-        <button type="button" data-save aria-pressed="${saved}">${saved ? "🔖 נשמר" : "🔖 שמירה"}</button>
-        <button type="button" data-send>📤 שליחה לחבר</button></div>
-      <div class="post-c" hidden>${p.comments.map(([by, t]) => `<p class="small"><b>${esc(user(by)?.name || by)}:</b> ${esc(t)}</p>`).join("")}
-        <form class="row" data-cform><input placeholder="תגובה…" aria-label="תגובה" style="flex:1"><button class="btn ghost" type="submit">שליחה</button></form></div>
+      <div class="post-h">${avatar(p.author)}<span style="min-width:0;flex:1"><a href="#u-${esc(unameOf(p.author))}"><b>${esc(nameOf(p.author))}</b></a> <span class="small muted" dir="ltr">@${esc(unameOf(p.author))}</span><br><span class="small muted">${esc(p.course)}${p.course ? " · " : ""}${when(p.created_at)} · ${VIS[p.visibility]}</span></span>
+        ${mine ? '<button class="tool" type="button" data-del aria-label="מחיקה">🗑️</button>' : '<button class="tool" type="button" data-rep aria-label="דיווח">⚠️</button>'}</div>
+      <h3>📄 ${esc(p.title)}</h3>${p.body ? `<p>${esc(p.body)}</p>` : ""}
+      ${p.md ? `<details><summary class="small"><b>לקריאת הסיכום</b></summary><div class="md-body" style="margin-top:8px">${mdToHtml(p.md)}</div></details>` : ""}
+      <div class="post-a"><button type="button" data-like aria-pressed="${liked}">${liked ? "❤️" : "🤍"} <bdi>${nLikes}</bdi></button>
+        <button type="button" data-cmt>💬 <bdi>${cmts.length}</bdi></button>
+        <button type="button" data-save aria-pressed="${saved}">${saved ? "🔖 נשמר" : "🔖 שמירה"}</button></div>
+      <div class="post-c" hidden>${cmts.map((c) => `<p class="small"><b>${esc(nameOf(c.author))}:</b> ${esc(c.body)}</p>`).join("")}
+        <form class="row" data-cform><input placeholder="תגובה…" aria-label="תגובה" maxlength="500" style="flex:1"><button class="btn ghost" type="submit">שליחה</button></form></div>
     </article>`;
   }
-  async function feed() {
-    if (needMe()) return;
-    const s = st();
-    const bdays = s.friends.filter((f) => USERS[f]?.bday === mmdd(today));
-    const soon = s.friends.filter((f) => { const b = USERS[f]?.bday; if (!b) return false; const d = new Date(today.getFullYear(), +b.slice(0, 2) - 1, +b.slice(3)); const n = (d - today) / 864e5; return n > 0 && n <= 7; });
-    const posts = [...s.myPosts, ...POSTS];
-    view.innerHTML = `<div class="page">${DEMO}${subnav("social")}
-      ${bdays.map((f) => `<div class="bday"><span>🎂 היום יום ההולדת של <b>${esc(USERS[f].name)}</b>!</span> <button class="btn ghost" type="button" data-bday="${esc(f)}">שליחת ברכה</button></div>`).join("")}
-      ${soon.length ? `<p class="small muted">🎈 בשבוע הקרוב: ${soon.map((f) => esc(USERS[f].name)).join(", ")}</p>` : ""}
-      <div class="stories" aria-label="מה החברים לומדים היום">${STORIES.map(([id, t]) => `<a class="story" href="#u-${encodeURIComponent(id)}">${avatar(id, true)}<span class="small">${esc(t)}</span></a>`).join("")}</div>
-      <button class="btn" type="button" id="newPost">➕ שיתוף סיכום</button>
-      <div class="feed">${posts.map((p) => postCard(p, s)).join("")}</div></div>`;
-    bindFeed(posts);
-    $("#newPost").onclick = publishModal;
-    view.querySelectorAll("[data-bday]").forEach((b) => (b.onclick = () => { b.disabled = true; b.textContent = "✓ נשלחה ברכה 🎉"; }));
+  async function feedData(filter) {
+    let ps = await api.posts();
+    if (filter) ps = ps.filter(filter);
+    const ids = ps.map((p) => p.id);
+    const [likes, sv, comments] = await Promise.all([api.likes(ids), api.saves(), api.comments(ids)]);
+    await remember([...ps.map((p) => p.author), ...comments.map((c) => c.author)]);
+    return { ps, likes, saves: new Set(sv.map((s) => s.post)), comments };
   }
-  function bindFeed(posts) {
-    view.querySelectorAll("[data-ad]").forEach((b) => (b.onclick = () => toast("פרסומת לדוגמה. המפרסם לא מקבל שום פרט עליכם")));
-    view.querySelectorAll("[data-post]").forEach((el) => {
-      const p = posts.find((x) => x.id === el.dataset.post);
-      const flip = (k) => { const s = st(); s[k][p.id] = !s[k][p.id]; set(s); el.outerHTML = postCard(p, s); bindFeed(posts); };
-      el.querySelector("[data-like]").onclick = () => flip("liked");
-      el.querySelector("[data-save]").onclick = () => flip("saved");
-      el.querySelector("[data-cmt]").onclick = () => { const c = el.querySelector(".post-c"); c.hidden = !c.hidden; };
-      el.querySelector("[data-send]").onclick = () => sendModal(p.title);
-      el.querySelector("[data-cform]").onsubmit = (e) => {
-        e.preventDefault(); const v = e.target.querySelector("input").value.trim(); if (!v) return;
-        p.comments.push([get().me.username, v]); const s = st(); set(s); el.outerHTML = postCard(p, s); bindFeed(posts);
-        view.querySelector(`[data-post="${p.id}"] .post-c`).hidden = false;
-      };
+  function renderPosts(el, d, again) {
+    el.innerHTML = d.ps.map((p) => postCard(p, d)).join("") || '<p class="muted">עוד אין כאן פוסטים. שתפו סיכום ראשון 🙂</p>';
+    el.querySelectorAll("[data-post]").forEach((a) => {
+      const id = a.dataset.post, p = d.ps.find((x) => x.id === id);
+      const run = async (fn) => { try { await fn(); again(); } catch (e) { toast(e.message); } };
+      a.querySelector("[data-like]").onclick = () => run(() => api.like(id, !d.likes.some((l) => l.post === id && l.user_id === meId())));
+      a.querySelector("[data-save]").onclick = () => run(() => api.save(id, !d.saves.has(id)));
+      a.querySelector("[data-cmt]").onclick = () => { const c = a.querySelector(".post-c"); c.hidden = !c.hidden; };
+      a.querySelector("[data-cform]").onsubmit = (e) => { e.preventDefault(); const v = e.target.querySelector("input").value.trim(); if (v) run(() => api.comment(id, v)); };
+      const del = a.querySelector("[data-del]"), rep = a.querySelector("[data-rep]");
+      if (del) del.onclick = () => { if (confirm("למחוק את הפוסט?")) run(() => api.deletePost(id)); };
+      if (rep) rep.onclick = () => run(async () => { await api.report({ post: id, target: p.author, reason: "דיווח מהפיד" }); toast("תודה, הדיווח נשלח לבדיקה"); });
     });
   }
+  async function feed() {
+    busy();
+    try {
+      const [d, bd] = await Promise.all([feedData(), api.birthdays()]);
+      const today = new Date().toLocaleDateString("en-CA").slice(5);
+      const midnight = new Date(new Date().toDateString());
+      const soon = bd.filter((b) => { const n = (new Date(midnight.getFullYear() + "-" + b.birthday.slice(5) + "T00:00") - midnight) / 864e5; return n > 0 && n <= 7; });
+      view.innerHTML = `<div class="page">${subnav("social")}
+        ${bd.filter((b) => b.birthday.slice(5) === today).map((b) => `<div class="bday"><span>🎂 היום יום ההולדת של <b>${esc(b.full_name)}</b>!</span><a class="btn ghost" href="#dm-${esc(b.username)}">שליחת ברכה</a></div>`).join("")}
+        ${soon.length ? `<p class="small muted">🎈 ימי הולדת בשבוע הקרוב: ${soon.map((b) => esc(b.full_name)).join(", ")}</p>` : ""}
+        <button class="btn" type="button" id="newPost">➕ שיתוף סיכום</button>
+        <div class="feed" id="feed"></div></div>`;
+      renderPosts($("#feed"), d, feed);
+      $("#newPost").onclick = publishModal;
+    } catch (e) { fail(e); }
+  }
 
-  // ---------- חלונות: פרסום ושליחה ----------
+  // ---------- חלונות ----------
   function modal(html) {
     document.getElementById("socModal")?.remove();
     document.body.insertAdjacentHTML("beforeend", `<div class="modal" id="socModal" role="dialog"><div class="card">${html}</div></div>`);
@@ -175,212 +234,270 @@ export function initSocial(ctx) {
     m.onclick = (e) => { if (e.target === m || e.target.closest("[data-x]")) m.remove(); };
     return m;
   }
-  async function mySummaries() { return (await store.listItems()).filter((x) => x.type === "summary" && x.kind !== "formulas").sort((a, b) => (b.date || "").localeCompare(a.date || "")); }
+  async function mySummaries() { return (await store.listItems()).filter((x) => x.type === "summary" && x.kind !== "formulas" && !x.from).sort((a, b) => (b.date || "").localeCompare(a.date || "")); }
   async function publishModal() {
     const sums = await mySummaries();
+    const def = prefs.get()?.privacy?.posts || "friends";
     const m = modal(`<h2>שיתוף סיכום</h2>
-      <label>איזה סיכום?<select id="pbSum">${sums.map((x) => `<option value="${esc(x.id)}">${esc(x.course || "")} – ${esc(x.title)}</option>`).join("") || "<option>עוד אין סיכומים</option>"}</select></label>
-      <label>כמה מילים (לא חובה)<input id="pbTxt" placeholder="למשל: המרצה אמר שזה במבחן"></label>
-      <fieldset class="vis"><legend>מי יראה?</legend>${Object.entries(VIS).map(([k, l], i) => `<label><input type="radio" name="vis" value="${k}" ${i === 0 ? "checked" : ""}> ${l}</label>`).join("")}</fieldset>
-      <label class="row small" style="gap:8px;align-items:flex-start"><input type="checkbox" id="pbOwn" style="width:auto;margin-top:5px">זה סיכום שכתבתי בעצמי (לא מצגת או מבחן של המרצה)</label>
-      <div class="row"><button class="btn" id="pbGo" type="button">פרסום</button><button class="btn ghost" data-x type="button">ביטול</button></div>`);
-    $("#pbGo", m).onclick = () => {
-      if (!$("#pbOwn", m).checked) return toast("אפשר לשתף רק סיכומים שכתבתם בעצמכם");
-      const sm = sums.find((x) => x.id === $("#pbSum", m).value); if (!sm) return toast("אין סיכום לשתף");
-      const s = st();
-      s.myPosts.unshift({ id: "mine-" + Date.now(), by: s.me.username, course: sm.course || "", title: sm.title, text: $("#pbTxt", m).value.trim(), when: "עכשיו", vis: $('input[name="vis"]:checked', m).value, likes: 0, comments: [] });
-      set(s); m.remove(); toast("פורסם (רק אצלך – זו דוגמה)"); feed();
+      ${sums.length ? `<label>איזה סיכום?<select id="pbSum">${sums.map((x) => `<option value="${esc(x.id)}">${esc(x.course || "")} – ${esc(x.title)}</option>`).join("")}</select></label>` : '<p class="notice">עוד אין לך סיכומים. העלו מצגת בלשונית "סיכומים" ותקבלו סיכום אישי.</p>'}
+      <label>כמה מילים (לא חובה)<input id="pbTxt" maxlength="300" placeholder="למשל: המרצה אמר שזה במבחן"></label>
+      <fieldset class="vis"><legend>מי יראה?</legend>${Object.entries(VIS).map(([k, l]) => `<label><input type="radio" name="vis" value="${k}" ${k === def ? "checked" : ""}> ${l}</label>`).join("")}</fieldset>
+      <label class="row small" style="gap:8px;align-items:flex-start"><input type="checkbox" id="pbOwn" style="width:auto;margin-top:5px">זה סיכום שלי (לא מצגת או מבחן של המרצה)</label>
+      <div class="row"><button class="btn" id="pbGo" type="button" ${sums.length ? "" : "disabled"}>פרסום</button><button class="btn ghost" data-x type="button">ביטול</button></div>`);
+    $("#pbGo", m).onclick = async () => {
+      if (!$("#pbOwn", m).checked) return toast("אפשר לשתף רק סיכומים שלכם");
+      const sm = sums.find((x) => x.id === $("#pbSum", m).value); if (!sm) return;
+      const md = htmlToMd(sm.html).slice(0, 20000);
+      try {
+        await api.addPost({ course: sm.course || "", title: sm.title.slice(0, 200), body: $("#pbTxt", m).value.trim(), md, visibility: $('input[name="vis"]:checked', m).value });
+        m.remove(); toast("פורסם ✓"); api.track("post"); feed();
+      } catch (e) { toast(e.message); }
     };
   }
-  async function sendModal(title = "") {
-    const s = st(); const sums = await mySummaries();
-    const m = modal(`<h2>📤 שליחה לחבר</h2>
-      ${title ? `<p class="muted">${esc(title)}</p>` : `<label>איזה סיכום?<select id="sdSum">${sums.map((x) => `<option>${esc(x.title)}</option>`).join("")}</select></label>`}
-      <fieldset class="vis"><legend>למי?</legend>${s.friends.map((f) => `<label><input type="checkbox" value="${esc(f)}"> ${avatar(f)} ${esc(USERS[f]?.name || f)}</label>`).join("") || "<p class='muted small'>עוד אין חברים</p>"}</fieldset>
-      <label>הודעה<input id="sdMsg" value="ראיתי שפספסת, הנה הסיכום 🙂"></label>
-      <div class="row"><button class="btn" id="sdGo" type="button">שליחה</button><button class="btn ghost" data-x type="button">ביטול</button></div>`);
-    $("#sdGo", m).onclick = () => {
-      const to = [...m.querySelectorAll("fieldset input:checked")].map((i) => i.value);
-      if (!to.length) return toast("בחרו לפחות חבר אחד");
-      s.sent.push({ to, title: title || $("#sdSum", m)?.value, at: Date.now() }); set(s);
-      m.remove(); toast(`נשלח ל-${to.map((f) => USERS[f]?.name || f).join(", ")} (דוגמה)`);
+  // HTML של סיכום -> Markdown פשוט (לפוסט)
+  function htmlToMd(html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const out = [];
+    doc.body.querySelectorAll("h1,h2,h3,h4,p,li,tr,blockquote").forEach((el) => {
+      if (el.closest("li") && el.tagName !== "LI") return;
+      const t = el.textContent.trim(); if (!t) return;
+      if (/^H\d$/.test(el.tagName)) out.push("## " + t);
+      else if (el.tagName === "LI") out.push("- " + t);
+      else if (el.tagName === "TR") out.push("| " + [...el.children].map((c) => c.textContent.trim()).join(" | ") + " |");
+      else out.push(t);
+    });
+    return out.join("\n");
+  }
+
+  // ---------- "אותה כיתה": בוחרים אילו קורסים לשתף עם חבר ----------
+  async function shareModal(friendId, g0) {
+    const g = g0 || (await graph());
+    const mine = g.iShare(friendId), theirs = g.theyShare(friendId);
+    // הקורסים שלי + שמות הקורסים מהמודל שיש לי בהם סיכומים (השמות במודל לפעמים שונים ממה שהוקלד)
+    const sumCourses = (await mySummaries()).map((x) => x.course).filter(Boolean);
+    const courses = [...new Set([...myCourses(), ...sumCourses, ...mine])];
+    const m = modal(`<h2>🎓 אותה כיתה עם ${esc(nameOf(friendId))}</h2>
+      <p class="small">מסמנים קורסים שלומדים ביחד. הסיכומים שלך בקורסים האלה יופיעו אצל ${esc(nameOf(friendId))}, <b>רק אם גם הוא/היא ישתף/תשתף איתך</b>. אפשר לבטל בכל רגע.</p>
+      ${theirs.length ? `<p class="notice small">✅ ${esc(nameOf(friendId))} כבר משתף/ת איתך: <b>${theirs.map(esc).join(", ")}</b></p>` : `<p class="small muted">${esc(nameOf(friendId))} עוד לא שיתף/ה איתך קורסים.</p>`}
+      <fieldset class="vis"><legend>הקורסים שלי לשתף</legend>${courses.map((c) => `<label><input type="checkbox" value="${esc(c)}" ${mine.includes(c) ? "checked" : ""}> ${esc(c)}</label>`).join("") || '<p class="small muted">אין לך קורסים ברשימה (הגדרות ← לימודים)</p>'}</fieldset>
+      <div class="row"><button class="btn" id="shGo" type="button">שמירה</button><button class="btn ghost" data-x type="button">אחר כך</button></div>`);
+    $("#shGo", m).onclick = async () => {
+      const want = [...m.querySelectorAll("fieldset input:checked")].map((i) => i.value);
+      try {
+        for (const c of want.filter((c) => !mine.includes(c))) await api.share(friendId, c);
+        for (const c of mine.filter((c) => !want.includes(c))) await api.unshare(friendId, c);
+        m.remove(); toast(want.length ? "השיתוף נשמר ✓" : "השיתוף בוטל"); api.track("share");
+        syncSummaries().catch(() => {});
+        if (location.hash === "#social-friends") friends();
+      } catch (e) { toast(e.message); }
     };
   }
 
-  // ---------- חברים: חיפוש לפי שם משתמש, בקשה, אישור הדדי ----------
-  function friends() {
-    if (needMe()) return;
-    const s = st();
-    const row = (id, btns) => `<div class="item">${avatar(id)}<a href="#u-${encodeURIComponent(id)}" style="flex:1;min-width:0;color:inherit;text-decoration:none"><span class="t">${esc(USERS[id]?.name || id)}</span><br><span class="small muted">@${esc(id)} · ${esc(USERS[id]?.uni || "")}</span></a>${btns}</div>`;
-    view.innerHTML = `<div class="page">${DEMO}${subnav("social-friends")}
-      <section class="soft" style="display:grid;gap:10px"><h3>הוספת חבר</h3>
-        <form class="row" id="frForm"><input id="frQ" dir="ltr" placeholder="שם משתמש, למשל shira.g" aria-label="שם משתמש" style="flex:1"><button class="btn" type="submit">שליחת בקשה</button></form>
-        <p class="small muted">החבר צריך לאשר. רק אחרי אישור של שניכם אתם רואים זה את זה כ"חברים". השם שלך: <b dir="ltr">@${esc(s.me.username)}</b> <button class="btn ghost" type="button" id="frShare" style="min-height:32px;padding:2px 10px">שיתוף קישור</button></p>
-      </section>
-      ${s.incoming.length ? `<section style="display:grid;gap:8px"><h3>בקשות חדשות (${s.incoming.length})</h3>${s.incoming.map((id) => row(id, `<button class="btn" data-ok="${esc(id)}" type="button">אישור</button><button class="btn ghost" data-no="${esc(id)}" type="button">לא עכשיו</button>`)).join("")}</section>` : ""}
-      ${s.pending.length ? `<section style="display:grid;gap:8px"><h3>ממתינים לאישור</h3>${s.pending.map((id) => row(id, '<span class="chip">⏳ נשלחה</span>')).join("")}</section>` : ""}
-      <section style="display:grid;gap:8px"><h3>החברים שלי (${s.friends.length})</h3>${s.friends.map((id) => row(id, `<a class="btn ghost" href="#dm-${encodeURIComponent(id)}" aria-label="הודעה">💬</a><button class="btn ghost" data-snd="${esc(id)}" type="button" aria-label="שליחת סיכום">📤</button>`)).join("")}</section></div>`;
-    $("#frForm").onsubmit = (e) => {
-      e.preventDefault();
-      const id = $("#frQ").value.trim().replace(/^@/, "").toLowerCase();
-      if (!USERS[id]) return toast("לא מצאנו משתמש כזה (בדוגמה נסו: shira.g או daniel_r)");
-      if (s.friends.includes(id) || s.pending.includes(id)) return toast("כבר חברים או שהבקשה כבר נשלחה");
-      s.pending.push(id); set(s); friends();
-      // בדוגמה: החבר "מאשר" אחרי כמה שניות
-      setTimeout(() => { const t = st(); t.pending = t.pending.filter((x) => x !== id); if (!t.friends.includes(id)) t.friends.push(id); set(t); toast(`🎉 ${USERS[id].name} אישר/ה את הבקשה`); if (location.hash === "#social-friends") friends(); }, 4000);
-    };
-    $("#frShare").onclick = () => { const t = `הוסיפו אותי בסיכומון: @${s.me.username}`; navigator.share ? navigator.share({ text: t }).catch(() => {}) : (navigator.clipboard?.writeText(t), toast("הועתק")); };
-    view.querySelectorAll("[data-ok]").forEach((b) => (b.onclick = () => { s.incoming = s.incoming.filter((x) => x !== b.dataset.ok); s.friends.push(b.dataset.ok); set(s); toast("אתם חברים עכשיו 🙌"); friends(); }));
-    view.querySelectorAll("[data-no]").forEach((b) => (b.onclick = () => { s.incoming = s.incoming.filter((x) => x !== b.dataset.no); set(s); friends(); }));
-    view.querySelectorAll("[data-snd]").forEach((b) => (b.onclick = () => sendModal()));
+  // ---------- חברים ----------
+  async function friends() {
+    busy();
+    try {
+      const g = await graph();
+      const row = (id, btns, sub = "") => `<div class="item">${avatar(id)}<a href="#u-${esc(unameOf(id))}" style="flex:1;min-width:0;color:inherit;text-decoration:none"><span class="t">${esc(nameOf(id))}</span><br><span class="small muted"><span dir="ltr">@${esc(unameOf(id))}</span>${sub}</span></a>${btns}</div>`;
+      const shareSub = (id) => { const a = g.iShare(id).length, b = g.theyShare(id).length; return a && b ? " · 🎓 אותה כיתה" : b ? " · 🎓 משתף/ת איתך – שתפו בחזרה" : a ? " · 🎓 מחכה שגם הוא/היא ישתף" : ""; };
+      view.innerHTML = `<div class="page">${subnav("social-friends")}
+        <section class="soft" style="display:grid;gap:10px"><h3>הוספת חבר/ה</h3>
+          <form class="row" id="frForm"><input id="frQ" dir="ltr" placeholder="שם משתמש" aria-label="שם משתמש" autocapitalize="none" style="flex:1"><button class="btn" type="submit">שליחת בקשה</button></form>
+          <p class="small muted">החבר/ה צריך/ה לאשר. השם שלך: <b dir="ltr">@${esc(api.profile()?.username || "")}</b> <button class="btn ghost" type="button" id="frShare" style="min-height:32px;padding:2px 10px">שיתוף השם</button></p>
+        </section>
+        ${g.incoming.length ? `<section style="display:grid;gap:8px"><h3>בקשות חדשות (${g.incoming.length})</h3>${g.incoming.map((f) => row(f.requester, `<button class="btn" data-ok="${f.id}" data-who="${f.requester}" type="button">אישור</button><button class="btn ghost" data-no="${f.id}" type="button">לא עכשיו</button>`)).join("")}</section>` : ""}
+        ${g.outgoing.length ? `<section style="display:grid;gap:8px"><h3>ממתינים לאישור</h3>${g.outgoing.map((f) => row(f.addressee, `<button class="btn ghost" data-no="${f.id}" type="button">ביטול</button>`)).join("")}</section>` : ""}
+        <section style="display:grid;gap:8px"><h3>החברים שלי (${g.friends.length})</h3>${g.friends.map((f) => { const id = g.other(f); return row(id, `<button class="btn ghost" data-share="${id}" type="button" aria-label="אותה כיתה">🎓</button><a class="btn ghost" href="#dm-${esc(unameOf(id))}" aria-label="הודעה">💬</a>`, shareSub(id)); }).join("") || '<p class="muted small">עוד אין חברים. הוסיפו לפי שם משתמש 👆</p>'}</section></div>`;
+      $("#frForm").onsubmit = async (e) => {
+        e.preventDefault();
+        const u = $("#frQ").value.trim().replace(/^@/, "").toLowerCase(); if (!u) return;
+        try {
+          const p = await api.findUser(u);
+          if (!p) return toast("לא מצאנו משתמש בשם הזה");
+          if (p.id === meId()) return toast("זה את/ה 🙂");
+          if (g.fr.some((f) => g.other(f) === p.id)) return toast("כבר חברים או שיש בקשה פתוחה");
+          await api.requestFriend(p.id); people.set(p.id, p);
+          toast(`הבקשה נשלחה ל${p.full_name}`); api.track("friend_request"); friends();
+        } catch (err) { toast(err.message); }
+      };
+      $("#frShare").onclick = () => { const t = `הוסיפו אותי בסיכומון: @${api.profile()?.username}\n${location.origin + location.pathname}`; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else { navigator.clipboard?.writeText(t); toast("הועתק"); } };
+      view.querySelectorAll("[data-ok]").forEach((b) => (b.onclick = async () => {
+        try { await api.acceptFriend(+b.dataset.ok); toast("אתם חברים עכשיו 🙌"); await friends(); shareModal(b.dataset.who); } catch (e) { toast(e.message); }
+      }));
+      view.querySelectorAll("[data-no]").forEach((b) => (b.onclick = async () => { try { await api.removeFriend(+b.dataset.no); friends(); } catch (e) { toast(e.message); } }));
+      view.querySelectorAll("[data-share]").forEach((b) => (b.onclick = () => shareModal(b.dataset.share, g)));
+    } catch (e) { fail(e); }
+  }
+
+  // ---------- הודעות ----------
+  async function threads() {
+    const [ms, acc, bl, g] = await Promise.all([api.messages(), api.chatAccepts(), api.blocks(), graph()]);
+    const me = meId(), blocked = new Set(bl.map((b) => b.blocked)), accepted = new Set(acc.map((a) => a.other));
+    const friendIds = new Set(g.friends.map(g.other));
+    const by = new Map();
+    for (const m of ms) { const o = m.sender === me ? m.recipient : m.sender; if (!blocked.has(o)) { if (!by.has(o)) by.set(o, []); by.get(o).push(m); } }
+    await remember([...by.keys()]);
+    const isReq = (o) => !friendIds.has(o) && !accepted.has(o) && (by.get(o) || []).every((m) => m.sender === o);
+    return { by, isReq, friendIds };
+  }
+  async function messages(box = "main") {
+    busy();
+    try {
+      const t = await threads(), me = meId();
+      const all = [...t.by.entries()].sort((a, b) => b[1].at(-1).created_at.localeCompare(a[1].at(-1).created_at));
+      const reqs = all.filter(([o]) => t.isReq(o)), main = all.filter(([o]) => !t.isReq(o));
+      const list = box === "req" ? reqs : main;
+      view.innerHTML = `<div class="page" style="max-width:720px">${subnav("messages")}
+        <div class="row"><a class="btn ${box === "req" ? "ghost" : ""}" href="#messages">ראשי</a><a class="btn ${box === "req" ? "" : "ghost"}" href="#messages-req">בקשות${reqs.length ? ` (${reqs.length})` : ""}</a></div>
+        ${box === "req" ? '<p class="small muted">הודעות ממי שאינו חבר שלך. הוא לא יודע שקראת עד שתאשר/י.</p>' : ""}
+        <div class="list">${list.map(([o, ms]) => { const m = ms.at(-1), un = ms.some((x) => x.recipient === me && !x.read_at); return `<a class="item" href="#dm-${esc(unameOf(o))}">${avatar(o)}<span style="flex:1;min-width:0"><span class="t">${esc(nameOf(o))}</span>${un ? ' <span class="chip new">חדש</span>' : ""}<br><span class="small muted" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.sender === me ? "את/ה: " : ""}${esc(m.body)}</span></span><span class="small muted">${when(m.created_at)}</span></a>`; }).join("") || '<p class="muted">אין כאן הודעות</p>'}</div>
+        ${box === "req" ? "" : `<section class="soft"><h3>הודעה חדשה לחבר/ה</h3><div class="stories" style="margin-top:8px">${[...t.friendIds].map((id) => `<a class="story" href="#dm-${esc(unameOf(id))}">${avatar(id)}<span class="small">${esc(nameOf(id).split(" ")[0])}</span></a>`).join("") || '<p class="small muted">עוד אין חברים</p>'}</div><p class="small muted">אפשר גם לשלוח הודעה למי שאינו חבר – מהפרופיל שלו.</p></section>`}</div>`;
+    } catch (e) { fail(e); }
+  }
+  let dmTimer = null;
+  async function dm(username) {
+    clearInterval(dmTimer);
+    busy();
+    try {
+      const p = await api.findUser(username);
+      if (!p) { view.innerHTML = `<div class="page"><p>לא מצאנו את @${esc(username)}</p></div>`; return; }
+      people.set(p.id, p);
+      const here = () => decodeURIComponent(location.hash.slice(1)) === "dm-" + username;
+      view.innerHTML = `<div class="page dm" style="max-width:720px">
+        <a class="row" href="#u-${esc(p.username)}" style="color:inherit;text-decoration:none">${avatar(p.id)}<span><b>${esc(p.full_name)}</b><br><span class="small muted" dir="ltr">@${esc(p.username)}</span></span></a>
+        <div id="dmReq"></div><div class="dm-log" id="dmLog"><p class="muted small">טוען…</p></div>
+        <form class="chat-form" id="dmForm"><textarea id="dmIn" rows="1" placeholder="הודעה…" aria-label="הודעה" maxlength="2000"></textarea><button class="btn" type="submit">שליחה</button></form>
+        <div class="row"><button class="btn ghost" type="button" id="dmBlock">🚫 חסימה</button><button class="btn ghost" type="button" id="dmReport">⚠️ דיווח</button></div></div>`;
+      let shown = -1;
+      const draw = async () => {
+        const t = await threads(), ms = t.by.get(p.id) || [], req = ms.length > 0 && t.isReq(p.id);
+        if (!req && ms.some((m) => m.recipient === meId() && !m.read_at)) api.markRead(p.id).catch(() => {});
+        $("#dmReq").innerHTML = req ? `<div class="notice">${esc(p.full_name)} עוד לא חבר/ה שלך ורוצה לשלוח לך הודעה.<div class="row" style="margin-top:8px"><button class="btn" id="dmOk" type="button">אישור</button><button class="btn ghost" id="dmDel" type="button">מחיקה</button></div></div>` : "";
+        if ($("#dmOk")) $("#dmOk").onclick = async () => { await api.acceptChat(p.id); draw(); };
+        if ($("#dmDel")) $("#dmDel").onclick = async () => { await api.deleteChatFrom(p.id); location.hash = "#messages-req"; };
+        if (ms.length === shown) return;
+        shown = ms.length;
+        $("#dmLog").innerHTML = ms.map((m) => `<div class="bubble ${m.sender === p.id ? "bot" : "me"}">${esc(m.body)}</div>`).join("") || '<p class="muted small">עוד אין הודעות. תגידו היי 👋</p>';
+        $("#dmLog").scrollTop = $("#dmLog").scrollHeight;
+      };
+      $("#dmIn").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#dmForm").requestSubmit(); } };
+      $("#dmForm").onsubmit = async (e) => {
+        e.preventDefault(); const v = $("#dmIn").value.trim(); if (!v) return;
+        try { await api.sendMessage(p.id, v); $("#dmIn").value = ""; api.track("message"); await draw(); } catch (err) { toast(err.message); }
+      };
+      $("#dmBlock").onclick = async () => { if (!confirm(`לחסום את ${p.full_name}? לא תקבלו ממנו/ה הודעות.`)) return; await api.block(p.id); toast("נחסם/ה"); location.hash = "#messages"; };
+      $("#dmReport").onclick = async () => { await api.report({ target: p.id, reason: "דיווח מהודעות" }); toast("תודה, הדיווח נשלח לבדיקה"); };
+      await draw();
+      // בודקים הודעות חדשות כל 8 שניות, כל עוד המסך פתוח
+      dmTimer = setInterval(() => { if (here() && document.visibilityState === "visible") draw().catch(() => {}); else if (!here()) clearInterval(dmTimer); }, 8000);
+    } catch (e) { fail(e); }
   }
 
   // ---------- פספסתי שיעור ----------
   function missed() {
-    if (needMe()) return;
-    const courses = ctx.prefs.get()?.courses || [];
     view.innerHTML = `<div class="page">
-      <h1 style="font-size:30px">🙋 פספסתי שיעור</h1>${DEMO}
-      <section class="soft small"><b>איך זה עובד:</b><ol class="steps" style="margin:6px 0 0"><li>בוחרים קורס ותאריך.</li><li>החברים שלך מאותו קורס מקבלים התראה.</li><li>מי שהיה בשיעור שולח בלחיצה סיכום, תמונה של הלוח או הקלטה.</li><li>מה שנשלח נכנס ישר למחברת של אותו שיעור אצלך, ומשם אפשר להפיק פודקאסט ומבחן.</li></ol></section>
-      <section class="card" style="display:grid;gap:12px"><h2>לא הייתי בשיעור, ואין הקלטה</h2>
-        <label>איזה קורס?<select id="msC">${courses.map((c) => `<option>${esc(c)}</option>`).join("")}</select></label>
-        <label>איזה תאריך?<input type="date" id="msD" value="${today.toISOString().slice(0, 10)}"></label>
-        <button class="btn" type="button" id="msGo">לבקש מהחברים בקורס</button></section>
+      <h1 style="font-size:30px">🙋 פספסתי שיעור</h1>
+      <section class="soft small"><b>איך זה עובד:</b><ol class="steps" style="margin:6px 0 0"><li>בוחרים קורס ותאריך.</li><li>כל החברים שלך מקבלים התראה "פספס/ה שיעור".</li><li>מי שהיה בשיעור שולח לך הודעה, או משתף איתך את הקורס ב"אותה כיתה" – ואז הסיכומים שלו נכנסים אצלך לבד.</li></ol></section>
+      <section class="card" style="display:grid;gap:12px"><h2>לא הייתי בשיעור</h2>
+        <label>איזה קורס?<select id="msC">${myCourses().map((c) => `<option>${esc(c)}</option>`).join("")}</select></label>
+        <label>איזה תאריך?<input type="date" id="msD" value="${new Date().toLocaleDateString("en-CA")}"></label>
+        <button class="btn" type="button" id="msGo">לבקש מהחברים</button></section>
       <section class="soft" style="display:grid;gap:8px"><h3>עוד דרכים להשלים</h3>
-        <a class="item" href="#notebooks"><span><span class="t">📚 החומר מהמודל</span><br><span class="small muted">מצגת השיעור, ומשם סיכום ופודקאסט עם AI</span></span></a>
-        <div class="item"><span><span class="t">🔁 הקבוצה המקבילה</span><br><span class="small muted">אם יש לקורס קבוצה נוספת עם הקלטה, נציע אותה</span></span></div>
-        <div class="item"><span><span class="t">🗂️ סיכומים משנים קודמות</span><br><span class="small muted">של אותו קורס ואותו מרצה, מסטודנטים ששיתפו</span></span></div>
-      </section><div id="msOut"></div></div>`;
-    $("#msGo").onclick = () => {
-      $("#msOut").innerHTML = `<section style="display:grid;gap:8px"><h3>✅ הבקשה נשלחה ל-3 חברים מהקורס</h3>
-        <div class="item">${avatar("noa_k")}<span style="flex:1"><span class="t">נועה שלחה סיכום</span><br><span class="small muted">"הנה, יש שם גם את הדוגמה מהלוח"</span></span><span class="chip ok">חדש</span></div>
-        <div class="item">${avatar("maya_b")}<span style="flex:1"><span class="t">מאיה שלחה 2 תמונות מהלוח</span></span></div>
-        <p class="small muted">בגרסה האמיתית: החברים מקבלים התראה, ומה שהם שולחים נכנס ישר למחברת של השיעור אצלכם.</p></section>`;
+        <a class="item" href="#upload"><span><span class="t">📄 העלאת המצגת של השיעור</span><br><span class="small muted">מהמודל או ממישהו מהכיתה – ותקבלו סיכום אישי לפי השאלון שלך</span></span></a>
+        <a class="item" href="#social-friends"><span><span class="t">🎓 אותה כיתה</span><br><span class="small muted">חברים שמשתפים איתך את הקורס – הסיכומים שלהם אצלך אוטומטית</span></span></a></section></div>`;
+    $("#msGo").onclick = async () => {
+      const c = $("#msC").value; if (!c) return toast("הוסיפו קורסים בהגדרות ← לימודים");
+      try { await api.missed(c, $("#msD").value); toast("✅ הבקשה נשלחה לחברים שלך"); api.track("missed"); } catch (e) { toast(e.message); }
     };
   }
 
-  // ---------- פרופיל ----------
-  function profileView(id) {
-    const s = st(); const mine = s.me && id === s.me.username;
-    const u = mine ? { ...s.me, color: "#0F172A" } : USERS[id];
-    if (!u) { view.innerHTML = `<div class="page">${DEMO}<p>לא מצאנו את @${esc(id)}</p></div>`; return; }
-    const ig = safeLink(u.ig, "instagram.com"), li = safeLink(u.li, "linkedin.com");
-    const posts = [...s.myPosts, ...POSTS].filter((p) => p.by === id);
-    const friend = s.friends.includes(id);
-    if (mine) { location.hash = "#profile"; return; }
-    view.innerHTML = `<div class="page" style="max-width:720px">${DEMO}
-      <section class="card prof"><div class="row" style="gap:16px">${avatar(id, true)}<span style="min-width:0;flex:1"><h1 style="font-size:28px">${esc(u.name)}</h1><span class="muted" dir="ltr">@${esc(id)}</span><br><span class="small muted">${esc(u.uni || "")} · ${esc(u.degree || "")}</span></span></div>
-        ${u.bio ? `<p>${esc(u.bio)}</p>` : mine ? '<p class="muted">עוד לא כתבת משהו על עצמך</p>' : ""}
-        <div class="row">${ig ? `<a class="btn ghost" href="${esc(ig)}" target="_blank" rel="noopener noreferrer">📸 Instagram</a>` : ""}${li ? `<a class="btn ghost" href="${esc(li)}" target="_blank" rel="noopener noreferrer">💼 LinkedIn</a>` : ""}
-          <a class="btn ghost" href="#dm-${encodeURIComponent(id)}">💬 הודעה</a>
-          ${mine ? '<button class="btn" type="button" id="edit">עריכת פרופיל</button>' : friend ? '<span class="chip ok">✓ חברים</span><button class="btn ghost" type="button" id="snd">📤 שליחת סיכום</button>' : s.pending.includes(id) ? '<span class="chip">⏳ מחכים לאישור</span>' : '<button class="btn" type="button" id="add">➕ בקשת חברות</button>'}</div>
-        ${mine && s.reservist ? `<p class="soft small">🎖️ הנחת מילואים 20%: ${s.reservist.verified ? "מאומת" : `פעילה. נשאר להעלות אישור עד ${new Date(Date.parse(s.reservist.since) + 30 * 864e5).toLocaleDateString("he-IL")}`} <button class="btn ghost" type="button" id="resUp" style="min-height:32px;padding:2px 10px">העלאת אישור</button></p>` : ""}
-      </section>
-      <h2 style="font-size:20px">מה ${mine ? "שיתפתי" : "שיתף/ה"} (${posts.length})</h2>
-      <div class="feed">${posts.map((p) => postCard(p, s)).join("") || '<p class="muted">עוד אין</p>'}</div></div>`;
-    bindFeed(posts);
-    $("#edit") && ($("#edit").onclick = editMe);
-    $("#snd") && ($("#snd").onclick = () => sendModal());
-    $("#add") && ($("#add").onclick = () => { s.pending.push(id); set(s); toast("הבקשה נשלחה. מחכים לאישור"); profileView(id); });
-    if ($("#resUp")) $("#resUp").onclick = () => {
-      const m = modal(`<h2>🎖️ העלאת אישור מילואים</h2>
-        <ol class="small"><li>מורידים "אישור משרת מילואים פעיל" מאתר המילואים או מקבלים מהיחידה.</li><li><b>מסתירים את מספר תעודת הזהות</b> (מספיק לצלם עם האצבע עליו).</li><li>מעלים כאן. אנחנו בודקים, <b>מוחקים את הקובץ</b>, ושומרים רק "מאומת עד תאריך".</li></ol>
-        <input type="file" accept="image/*,application/pdf" id="resFile"><div class="row"><button class="btn" id="resGo" type="button">שליחה לבדיקה</button><button class="btn ghost" data-x type="button">סגירה</button></div>`);
-      $("#resGo", m).onclick = () => { if (!$("#resFile", m).files.length) return toast("בחרו קובץ"); m.remove(); toast("בדוגמה הקובץ לא נשלח לשום מקום ✓"); };
-    };
+  // ---------- פרופיל של מישהו אחר ----------
+  async function profileView(username) {
+    busy();
+    try {
+      const p = await api.findUser(username);
+      if (!p) { view.innerHTML = `<div class="page"><p>לא מצאנו את @${esc(username)}</p></div>`; return; }
+      if (p.id === meId()) { location.hash = "#profile"; return; }
+      people.set(p.id, p);
+      const g = await graph();
+      const f = g.fr.find((x) => g.other(x) === p.id);
+      const d = await feedData((x) => x.author === p.id);
+      const ig = safeLink(p.ig, "instagram.com"), li = safeLink(p.li, "linkedin.com");
+      const rel = !f ? '<button class="btn" type="button" id="add">➕ בקשת חברות</button>'
+        : f.status === "accepted" ? '<span class="chip ok">✓ חברים</span><button class="btn ghost" type="button" id="shr">🎓 אותה כיתה</button>'
+        : f.requester === meId() ? '<span class="chip">⏳ מחכים לאישור</span>' : '<button class="btn" type="button" id="acc">אישור בקשת החברות</button>';
+      view.innerHTML = `<div class="page" style="max-width:720px">
+        <section class="card prof"><div class="row" style="gap:16px">${avatar(p.id, true)}<span style="min-width:0;flex:1"><h1 style="font-size:28px">${esc(p.full_name)}</h1><span class="muted" dir="ltr">@${esc(p.username)}</span><br><span class="small muted">${esc(p.uni)}${p.degree ? " · " + esc(p.degree) : ""}</span></span></div>
+          ${p.bio ? `<p>${esc(p.bio)}</p>` : ""}
+          <div class="row">${ig ? `<a class="btn ghost" href="${esc(ig)}" target="_blank" rel="noopener noreferrer">📸 Instagram</a>` : ""}${li ? `<a class="btn ghost" href="${esc(li)}" target="_blank" rel="noopener noreferrer">💼 LinkedIn</a>` : ""}
+            ${rel}<a class="btn ghost" href="#dm-${esc(p.username)}">💬 הודעה</a></div>
+          <div class="row"><button class="btn ghost" type="button" id="blk">🚫 חסימה</button><button class="btn ghost" type="button" id="rep">⚠️ דיווח</button>${f ? '<button class="btn ghost" type="button" id="unf">הסרה מהחברים</button>' : ""}</div></section>
+        <h2 style="font-size:20px">מה ${esc(p.full_name.split(" ")[0])} שיתף/ה</h2><div class="feed" id="pfFeed"></div></div>`;
+      renderPosts($("#pfFeed"), d, () => profileView(username));
+      const act = (fn) => async () => { try { await fn(); profileView(username); } catch (e) { toast(e.message); } };
+      if ($("#add")) $("#add").onclick = act(async () => { await api.requestFriend(p.id); toast("הבקשה נשלחה"); });
+      if ($("#acc")) $("#acc").onclick = act(async () => { await api.acceptFriend(f.id); toast("אתם חברים 🙌"); });
+      if ($("#shr")) $("#shr").onclick = () => shareModal(p.id, g);
+      if ($("#unf")) $("#unf").onclick = () => { if (confirm("להסיר מהחברים? גם השיתוף בקורסים יפסיק.")) act(async () => { for (const c of g.iShare(p.id)) await api.unshare(p.id, c); await api.removeFriend(f.id); })(); };
+      $("#blk").onclick = () => { if (confirm(`לחסום את ${p.full_name}?`)) act(async () => { await api.block(p.id); toast("נחסם/ה"); })(); };
+      $("#rep").onclick = act(async () => { await api.report({ target: p.id, reason: "דיווח מהפרופיל" }); toast("תודה, הדיווח נשלח"); });
+    } catch (e) { fail(e); }
   }
-  function editMe() {
-    const s = st(); const me = s.me;
-    const m = modal(`<h2>עריכת פרופיל</h2>
-      <label>על עצמי<textarea id="eBio" rows="3" maxlength="200">${esc(me.bio)}</textarea></label>
-      <label>תואר ושנה<input id="eDeg" value="${esc(me.degree)}"></label>
-      <label>קישור לאינסטגרם<input id="eIg" dir="ltr" value="${esc(me.ig)}" placeholder="https://instagram.com/..."></label>
-      <label>קישור ללינקדאין<input id="eLi" dir="ltr" value="${esc(me.li)}" placeholder="https://linkedin.com/in/..."></label>
-      <div class="row"><button class="btn" id="eGo" type="button">שמירה</button><button class="btn ghost" data-x type="button">ביטול</button></div>`);
-    $("#eGo", m).onclick = () => {
-      const ig = $("#eIg", m).value.trim(), li = $("#eLi", m).value.trim();
-      if (ig && !safeLink(ig, "instagram.com")) return toast("קישור אינסטגרם צריך להתחיל ב-https://instagram.com");
-      if (li && !safeLink(li, "linkedin.com")) return toast("קישור לינקדאין צריך להתחיל ב-https://linkedin.com");
-      Object.assign(me, { bio: $("#eBio", m).value.trim(), degree: $("#eDeg", m).value.trim(), ig, li }); set(s); m.remove(); dispatchEvent(new HashChangeEvent("hashchange"));
-    };
-  }
-
-  // ---------- הודעות ----------
-  const lastOf = (t) => t[t.length - 1];
-  const isRequest = (s, id) => !s.friends.includes(id) && !s.accepted.includes(id) && (s.threads[id] || []).every((m) => m.from === id);
-  function unread() { const s = get(); if (!s.me || !s.threads) return 0; return Object.entries(s.threads).filter(([id, t]) => t.length && lastOf(t).from === id && (s.read?.[id] || 0) < lastOf(t).at).length; }
-  function messages(box = "main") {
-    if (needMe()) return;
-    const s = st();
-    const all = Object.entries(s.threads).filter(([, t]) => t.length).sort((a, b) => lastOf(b[1]).at - lastOf(a[1]).at);
-    const reqs = all.filter(([id]) => isRequest(s, id)), main = all.filter(([id]) => !isRequest(s, id));
-    const list = box === "req" ? reqs : main;
-    const when = (t) => new Date(t).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
-    view.innerHTML = `<div class="page" style="max-width:720px">${DEMO}${subnav("messages")}
-      <div class="row"><a class="btn ${box === "req" ? "ghost" : ""}" href="#messages">ראשי</a><a class="btn ${box === "req" ? "" : "ghost"}" href="#messages-req">בקשות${reqs.length ? ` (${reqs.length})` : ""}</a></div>
-      ${box === "req" ? '<p class="small muted">הודעות ממי שאינו חבר שלך. הוא לא יודע שקראת עד שתאשר/י.</p>' : ""}
-      <div class="list">${list.map(([id, t]) => { const m = lastOf(t), un = m.from === id && (s.read[id] || 0) < m.at; return `<a class="item" href="#dm-${encodeURIComponent(id)}">${avatar(id)}<span style="flex:1;min-width:0"><span class="t">${esc(user(id)?.name || id)}</span>${un ? ' <span class="chip new">חדש</span>' : ""}<br><span class="small muted" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.from === id ? "" : "את/ה: "}${esc(m.text)}</span></span><span class="small muted">${when(m.at)}</span></a>`; }).join("") || '<p class="muted">אין כאן הודעות</p>'}</div>
-      ${box === "req" ? "" : `<section class="soft"><h3>הודעה חדשה</h3><div class="stories" style="margin-top:8px">${s.friends.map((id) => `<a class="story" href="#dm-${encodeURIComponent(id)}">${avatar(id)}<span class="small">${esc((user(id)?.name || id).split(" ")[0])}</span></a>`).join("")}</div></section>`}</div>`;
-  }
-  function dm(id) {
-    if (needMe()) return;
-    const s = st(); const u = user(id);
-    if (!u) { view.innerHTML = `<div class="page">${DEMO}<p>לא מצאנו את @${esc(id)}</p></div>`; return; }
-    const t = s.threads[id] || []; const req = t.length && isRequest(s, id);
-    if (t.length) { s.read[id] = lastOf(t).at; set(s); }
-    view.innerHTML = `<div class="page dm" style="max-width:720px">${DEMO}
-      <a class="row" href="#u-${encodeURIComponent(id)}" style="color:inherit;text-decoration:none">${avatar(id)}<span><b>${esc(u.name)}</b><br><span class="small muted" dir="ltr">@${esc(id)}</span></span></a>
-      ${req ? `<div class="notice">${esc(u.name)} עוד לא חבר/ה שלך ורוצה לשלוח לך הודעה.<div class="row" style="margin-top:8px"><button class="btn" id="dmOk" type="button">אישור</button><button class="btn ghost" id="dmDel" type="button">מחיקה</button><button class="btn ghost" id="dmBlock" type="button">🚫 חסימה</button></div></div>` : ""}
-      <div class="dm-log" id="dmLog">${t.map((m) => `<div class="bubble ${m.from === id ? "bot" : "me"}">${esc(m.text)}</div>`).join("") || '<p class="muted small">עוד אין הודעות. תגידו היי 👋</p>'}</div>
-      ${req ? "" : `<form class="chat-form" id="dmForm"><textarea id="dmIn" rows="1" placeholder="הודעה…" aria-label="הודעה"></textarea><button class="btn" type="submit">שליחה</button></form>`}
-      <button class="btn ghost" type="button" id="dmReport" style="justify-self:start">⚠️ דיווח על משתמש</button></div>`;
-    const log = $("#dmLog"); log.scrollTop = log.scrollHeight;
-    $("#dmReport").onclick = () => toast("הדיווח נשלח לבדיקה (דוגמה). אפשר גם לחסום בהגדרות ← פרטיות");
-    if (req) {
-      $("#dmOk").onclick = () => { s.accepted.push(id); set(s); dm(id); };
-      $("#dmDel").onclick = () => { delete s.threads[id]; set(s); location.hash = "#messages-req"; };
-      $("#dmBlock").onclick = () => { delete s.threads[id]; s.blocked.push(id); set(s); toast("נחסם/ה"); location.hash = "#messages-req"; };
-      return;
-    }
-    $("#dmIn").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#dmForm").requestSubmit(); } };
-    $("#dmForm").onsubmit = (e) => {
-      e.preventDefault(); const v = $("#dmIn").value.trim(); if (!v) return;
-      const x = st(); (x.threads[id] ??= []).push({ from: x.me.username, text: v, at: Date.now() }); set(x); dm(id);
-      // בדוגמה: חבר עונה אחרי רגע
-      if (USERS[id]) setTimeout(() => { const y = st(); y.threads[id].push({ from: id, text: ["סבבה 👍", "תודה!! 🙏", "אחלה, נדבר אחר כך"][Math.floor(Math.random() * 3)], at: Date.now() }); set(y); if (location.hash === "#dm-" + encodeURIComponent(id)) dm(id); }, 2500);
-    };
-  }
+  // הגעה מהתראה "משתף/ת איתך": פותחים את חלון השיתוף
+  async function shareFrom(username) { const p = await api.findUser(username); await friends(); if (p) { people.set(p.id, p); shareModal(p.id); } }
 
   // ---------- הפרופיל שלי (באזור הפרופיל) ----------
-  function myProfile(tab = "posts") {
-    const s = st(); const me = s.me; if (!me) return "";
+  async function myProfile(tab = "posts") {
+    const me = api.profile(); if (!me) return "";
+    people.set(me.id, me);
     const ig = safeLink(me.ig, "instagram.com"), li = safeLink(me.li, "linkedin.com");
-    const all = [...s.myPosts, ...POSTS];
-    const lists = { posts: all.filter((p) => p.by === me.username), liked: all.filter((p) => s.liked[p.id]), saved: all.filter((p) => s.saved[p.id]) };
+    const g = await graph();
     const tabs = [["posts", "📝 שפרסמתי"], ["liked", "❤️ אהבתי"], ["saved", "🔖 שמורים"]];
-    return `<section class="card prof"><div class="row" style="gap:16px">${avatar(me.username, true)}<span style="min-width:0;flex:1"><h1 style="font-size:28px">${esc(me.name)}</h1><span class="muted" dir="ltr">@${esc(me.username)}</span><br><span class="small muted">${esc(me.uni || "")} · ${esc(me.degree || "")}</span></span></div>
+    return `<section class="card prof"><div class="row" style="gap:16px">${avatar(me.id, true)}<span style="min-width:0;flex:1"><h1 style="font-size:28px">${esc(me.full_name)}</h1><span class="muted" dir="ltr">@${esc(me.username)}</span><br><span class="small muted">${esc(me.uni)}${me.degree ? " · " + esc(me.degree) : ""}</span></span></div>
       ${me.bio ? `<p>${esc(me.bio)}</p>` : '<p class="muted">עוד לא כתבת משהו על עצמך</p>'}
       <div class="row">${ig ? `<a class="btn ghost" href="${esc(ig)}" target="_blank" rel="noopener noreferrer">📸 Instagram</a>` : ""}${li ? `<a class="btn ghost" href="${esc(li)}" target="_blank" rel="noopener noreferrer">💼 LinkedIn</a>` : ""}
         <button class="btn" type="button" id="meEdit">עריכת פרופיל</button><a class="btn ghost" href="#settings">⚙️ הגדרות</a></div>
-      <p class="small muted">👥 ${s.friends.length} חברים · <a href="#social-friends">לרשימה</a></p></section>
-      <nav class="snav" aria-label="התוכן שלי">${tabs.map(([k, l]) => `<a href="#profile${k === "posts" ? "" : "-" + k}" ${tab === k ? 'aria-current="page"' : ""}>${l} (${lists[k].length})</a>`).join("")}</nav>
+      <p class="small muted">👥 ${g.friends.length} חברים · <a href="#social-friends">לרשימה</a></p></section>
+      <nav class="snav" aria-label="התוכן שלי">${tabs.map(([k, l]) => `<a href="#profile${k === "posts" ? "" : "-" + k}" ${tab === k ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</nav>
       ${tab !== "posts" ? '<p class="small muted">🔒 רק את/ה רואה את הרשימה הזו</p>' : ""}
-      <div class="feed" id="meFeed">${lists[tab].map((p) => postCard(p, s)).join("") || '<p class="muted">עוד אין כאן כלום</p>'}</div>`;
+      <div class="feed" id="meFeed"><p class="muted small">טוען…</p></div>`;
   }
-  function bindMyProfile() {
-    const s = st(); const all = [...s.myPosts, ...POSTS];
-    bindFeed(all.filter((p) => document.querySelector(`#meFeed [data-post="${p.id}"]`)));
-    $("#meEdit") && ($("#meEdit").onclick = editMe);
+  async function bindMyProfile(tab = "posts") {
+    if ($("#meEdit")) $("#meEdit").onclick = editMe;
+    const el = $("#meFeed"); if (!el) return;
+    try {
+      const me = meId();
+      const sv = new Set((await api.saves()).map((s) => s.post));
+      let liked = new Set();
+      if (tab === "liked") { const all = await api.posts(); liked = new Set((await api.likes(all.map((p) => p.id))).filter((l) => l.user_id === me).map((l) => l.post)); }
+      const d = await feedData((p) => (tab === "posts" ? p.author === me : tab === "saved" ? sv.has(p.id) : liked.has(p.id)));
+      renderPosts(el, d, () => bindMyProfile(tab));
+    } catch (e) { el.innerHTML = `<p class="notice alert">${esc(e.message)}</p>`; }
   }
-  function logout() { const s = get(); delete s.me; set(s); }
-  function deleteAccount() { try { localStorage.removeItem(KEY); } catch { /* */ } }
+  function editMe() {
+    const me = api.profile();
+    const m = modal(`<h2>עריכת פרופיל</h2>
+      <label>שם מלא<input id="eName" value="${esc(me.full_name)}" maxlength="60"></label>
+      <label>על עצמי<textarea id="eBio" rows="3" maxlength="300">${esc(me.bio)}</textarea></label>
+      <label>מוסד<select id="eUni">${UNIS.map((u) => `<option ${u === me.uni ? "selected" : ""}>${u}</option>`).join("")}</select></label>
+      <label>תואר ושנה<input id="eDeg" value="${esc(me.degree)}" maxlength="80"></label>
+      <label>יום הולדת<input id="eBday" type="date" value="${esc(me.birthday || "")}"></label>
+      <label>קישור לאינסטגרם<input id="eIg" dir="ltr" value="${esc(me.ig)}" placeholder="https://instagram.com/..."></label>
+      <label>קישור ללינקדאין<input id="eLi" dir="ltr" value="${esc(me.li)}" placeholder="https://linkedin.com/in/..."></label>
+      <div class="row"><button class="btn" id="eGo" type="button">שמירה</button><button class="btn ghost" data-x type="button">ביטול</button></div>`);
+    $("#eGo", m).onclick = async () => {
+      const ig = $("#eIg", m).value.trim(), li = $("#eLi", m).value.trim();
+      if (ig && !safeLink(ig, "instagram.com")) return toast("קישור אינסטגרם צריך להתחיל ב-https://instagram.com");
+      if (li && !safeLink(li, "linkedin.com")) return toast("קישור לינקדאין צריך להתחיל ב-https://linkedin.com");
+      try {
+        await api.updateMe({ full_name: $("#eName", m).value.trim() || me.full_name, bio: $("#eBio", m).value.trim(), uni: $("#eUni", m).value, degree: $("#eDeg", m).value.trim(), birthday: $("#eBday", m).value || null, ig: safeLink(ig, "instagram.com"), li: safeLink(li, "linkedin.com") });
+        m.remove(); toast("נשמר ✓"); dispatchEvent(new HashChangeEvent("hashchange"));
+      } catch (e) { toast(e.message); }
+    };
+  }
 
-  // פעמון: ימי הולדת של חברים היום (להודעות באפליקציה)
-  function birthdaysToday() { const s = get(); if (!s.me) return []; return (s.friends || ["noa_k", "maya_b", "itay.levi"]).filter((f) => USERS[f]?.bday === mmdd(today)).map((f) => USERS[f].name); }
+  // העלאת קובץ -> סיכום אישי, ומיד מכניסים אותו לספרייה במכשיר
+  async function upload(file, course) { const r = await api.summarizeFile(file, course); await syncSummaries(); return r; }
 
-  return {
-    feed, friends, missed, signup, birthdaysToday, messages, dm, unread, myProfile, bindMyProfile, editMe, logout, deleteAccount,
-    hasMe: () => !!get().me, state: st, save: set,
-    profile: (id) => profileView(id),
-  };
+  return { upload, feed, friends, missed, signup, messages, dm, myProfile, bindMyProfile, editMe, counts, syncSummaries, syncNotifications, pushPrefs, restorePrefs, shareFrom, profile: profileView };
 }

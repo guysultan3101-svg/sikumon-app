@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "המחבר של סיכומון",
+  "description": "בודק במודל שלך אם עלו קבצים חדשים, ושולח אותם לסיכום אישי בסיכומון.",
+  "version": "1.0.0",
+  "permissions": ["storage", "alarms"],
+  "host_permissions": ["https://*.ac.il/*", "https://islplhnlvaukixaglxof.supabase.co/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_popup": "popup.html", "default_title": "המחבר של סיכומון", "default_icon": { "128": "icon.png" } },
+  "icons": { "128": "icon.png" }
+}

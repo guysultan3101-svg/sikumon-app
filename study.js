@@ -89,9 +89,9 @@ export function initStudy(ctx) {
     const code = getCode();
     const p = prefs.get();
     if (code) return `<div class="soft small row" style="justify-content:space-between"><span>🔗 <b>מחובר למודל דרך המחשב.</b> ${p.lastSync ? `עודכן <bdi>${new Date(p.lastSync).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</bdi>` : ""}</span><button class="btn ghost small-btn" id="syncBtn">רענון</button></div>`;
-    return `<section class="card pair"><h3>🔗 חיבור אוטומטי למודל</h3>
+    return `<details class="soft small"><summary>יש לך קוד צימוד מהמחשב?</summary><section class="pair" style="margin-top:8px"><h3>🔗 חיבור בקוד צימוד</h3>
       <p class="small muted">מקלידים פעם אחת את קוד הצימוד מהמחשב. מאותו רגע, כל מה שחדש במודל, כל סיכום וכל מבחן נכנסים לאפליקציה לבד.</p>
-      <div class="row" style="margin-top:10px"><input type="text" id="pairCode" name="pairCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX" style="flex:1;min-width:180px;direction:ltr;text-align:center;font-family:var(--font-mono);letter-spacing:.1em"><button class="btn" id="pairGo">חיבור</button></div></section>`;
+      <div class="row" style="margin-top:10px"><input type="text" id="pairCode" name="pairCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX" style="flex:1;min-width:180px;direction:ltr;text-align:center;font-family:var(--font-mono);letter-spacing:.1em"><button class="btn" id="pairGo">חיבור</button></div></section></details>`;
   }
   function bindPair(after) {
     $("#syncBtn") && ($("#syncBtn").onclick = async () => {
@@ -132,11 +132,9 @@ export function initStudy(ctx) {
     view.innerHTML = `<div class="page">
       <h1 style="font-size:32px">הסיכומים שלי</h1>
       ${pairCard()}
-      ${items.length || getCode() ? "" : `<details class="soft small"><summary>אין קוד? ייבוא ידני מ-Drive</summary><div class="notice" style="margin-top:8px"><b>איך מכניסים את הסיכומים שכבר יש לך?</b>
-        <ol class="steps"><li>לוחצים "ייבוא מ-Drive".</li><li>בוחרים את הקובץ <b>סיכומון - החומר שלי.json</b> מהתיקייה "לימודים - אריאל" ב-Google Drive.</li><li>כל הסיכומים, דפי הנוסחאות והמבחנים נכנסים לאפליקציה, מסודרים לפי הקורסים שלך במודל.</li></ol>${importButton()}</div></details>`}
       ${groups.map(([course, list]) => `<section class="soft"><h2 style="font-size:20px">${esc(course)}</h2><div class="list" style="margin-top:10px">${list.map((s) =>
-        `<a class="item" href="#sum-${esc(s.id)}"><span style="min-width:0"><span class="t">${escT(s.title)}</span><br><span class="small muted">${s.kind === "formulas" ? "דף נוסחאות" : "סיכום"} · <bdi>${fmtDay(s.date)}</bdi></span></span>${s.kind === "formulas" ? '<span class="chip">📐 נוסחאות</span>' : ""}</a>`).join("")}</div></section>`).join("")}
-      ${items.length ? "" : `<section class="soft"><h3>סיכום לדוגמה</h3><a class="item" href="#summary" style="margin-top:10px"><span><span class="t">מבוא לכלכלה מיקרו</span><br><span class="small muted">ככה נראה סיכום אוטומטי</span></span><span class="chip demo">דוגמה</span></a></section>`}
+        `<a class="item" href="#sum-${esc(s.id)}"><span style="min-width:0"><span class="t">${escT(s.title)}</span><br><span class="small muted">${s.from ? "🎓 מ" + esc(s.from) : s.kind === "formulas" ? "דף נוסחאות" : "סיכום"} · <bdi>${fmtDay(s.date)}</bdi></span></span>${s.kind === "formulas" ? '<span class="chip">📐 נוסחאות</span>' : ""}</a>`).join("")}</div></section>`).join("")}
+      ${items.length ? "" : `<section class="soft"><h3>עוד אין סיכומים</h3><p class="small muted">העלו מצגת או PDF של שיעור, או חברו את המודל – והסיכומים יגיעו לכאן, מותאמים לאיך שאת/ה לומד/ת.</p><div class="row" style="margin-top:8px"><a class="btn" href="#upload">📄 העלאת מצגת</a><a class="btn ghost" href="#connect">🔗 חיבור למודל</a></div></section>`}
 
     </div>`;
     bindImport(summaries);

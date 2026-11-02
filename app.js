@@ -11,6 +11,7 @@ import { initSocial } from "./social.js";
 import { initSettings } from "./settings.js";
 import { initAssistant } from "./assistant.js";
 import * as ai from "./ai.js";
+import * as api from "./api.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const view = $("#view");
@@ -112,7 +113,7 @@ function onboarding(step = 0, answers = {}) {
       <p class="eyebrow">ברוכים הבאים</p>
       <h1 style="font-size:clamp(32px,5vw,48px)">נתאים את <span class="mark">סיכומון</span> בדיוק אלייך</h1>
       <p class="muted">חמש שאלות קצרות על איך שאת/ה לומד/ת, ואז כמה פרטים על הקורסים. לוקח פחות מדקה.</p>
-      <label class="field">איך לקרוא לך?<input type="text" id="name" name="name" autocomplete="given-name" placeholder="השם הפרטי שלך" value="${esc((social.state().me?.name || "").split(" ")[0])}"></label>
+      <label class="field">איך לקרוא לך?<input type="text" id="name" name="name" autocomplete="given-name" placeholder="השם הפרטי שלך" value="${esc((api.profile()?.full_name || "").split(" ")[0])}"></label>
       <label class="field">מוסד לימודים<select id="inst" name="inst"><option>אוניברסיטת אריאל</option><option>אוניברסיטת בן־גוריון</option><option>אוניברסיטת בר־אילן</option><option>אחר</option></select></label>
       <div class="row"><button class="btn" id="go">מתחילים</button></div>
     </div>`;
@@ -141,6 +142,7 @@ function onboardingCourses(answers) {
   $("#done").onclick = () => {
     const courses = $("#courses").value.split("\n").map((s) => s.trim()).filter(Boolean);
     prefs.set({ ...answers, courses: courses.length ? courses : ["קורס כללי"], createdAt: new Date().toISOString() });
+    social.pushPrefs(); api.track("onboarding_done");
     location.hash = "home";
     toast("מעולה! הפרופיל נשמר");
   };
@@ -161,7 +163,7 @@ async function home() {
   view.innerHTML = `<div class="page">
     <div>
       <p class="eyebrow">${new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}</p>
-      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}${(p.streak || 0) > 1 && p.streakDay >= new Date(Date.now() - 864e5).toLocaleDateString("en-CA") ? ` <span class="streak">🔥 ${p.streak}</span>` : ""}</h1><span class="row" style="gap:4px"><a href="#messages" class="tool show-phone bell" aria-label="הודעות מחברים">${svg("chat")}${social.unread() ? `<span class="bell-n">${social.unread()}</span>` : ""}</a><a href="#search" class="tool" aria-label="חיפוש בכל החומר">${svg("search")}</a><a href="#inbox" class="tool bell" aria-label="הודעות">${svg("bell")}<span class="bell-n" hidden></span></a><a href="#profile" class="tool show-phone" aria-label="פרופיל">${svg("user")}</a></span></div>
+      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}${(p.streak || 0) > 1 && p.streakDay >= new Date(Date.now() - 864e5).toLocaleDateString("en-CA") ? ` <span class="streak">🔥 ${p.streak}</span>` : ""}</h1><span class="row" style="gap:4px"><a href="#messages" class="tool show-phone bell" aria-label="הודעות מחברים">${svg("chat")}<span class="dm-n" hidden></span></a><a href="#search" class="tool" aria-label="חיפוש בכל החומר">${svg("search")}</a><a href="#inbox" class="tool bell" aria-label="הודעות">${svg("bell")}<span class="bell-n" hidden></span></a><a href="#profile" class="tool show-phone" aria-label="פרופיל">${svg("user")}</a></span></div>
     </div>
     <a class="card" href="#record" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;gap:16px">
       <div><h2 style="font-size:24px">${nowSlot ? "עכשיו: " + esc(nowSlot.course) : "מתחיל שיעור?"}</h2><p class="muted">${nowSlot ? `<bdi>${nowSlot.start}–${nowSlot.end}</bdi> · לחיצה אחת, וההקלטה נכנסת ישר למחברת של הקורס.` : "לחיצה אחת ומתחילים להקליט. ההקלטה נכנסת למחברת של השיעור."}</p></div>
@@ -172,7 +174,7 @@ async function home() {
     ${tq.length ? `<a class="item" href="#questions"><span style="min-width:0"><span class="t">🙋 ${tq.length} שאלות למתרגל</span><br><span class="small muted">${esc(tq[0].course)}: ${esc(tq[0].text)}</span></span></a>` : ""}
     ${gaps.length ? `<a class="item" href="#missing"><span style="min-width:0"><span class="t">📋 להשלים: ${gaps.length} דברים</span><br><span class="small muted">${esc(gaps[0].text)}</span></span></a>` : ""}
     ${hasMarks ? `<a class="item" href="#reels"><span><span class="t">🎬 הרגעים החשובים מהשיעורים</span><br><span class="small muted">קטע של דקה סביב כל ⭐ שסימנת</span></span></a>` : ""}
-    ${study.getCode() ? "" : `<a class="item pair-cta" href="#summaries"><span><span class="t">🔗 חיבור אוטומטי למודל</span><br><span class="small muted">קוד אחד מהמחשב, ומאז הכול נכנס לבד</span></span></a>`}
+    ${study.getCode() ? "" : `<div class="grid2"><a class="card" href="#upload"><h3>📄 סיכום ממצגת</h3><p class="small muted">מעלים מצגת או PDF של שיעור ומקבלים סיכום אישי + מבחן</p></a><a class="card" href="#connect"><h3>🔗 חיבור למודל</h3><p class="small muted">תוסף לכרום במחשב – כל קובץ חדש במודל מסוכם לבד</p></a></div>`}
     ${installHint()}
     <section class="soft">
       <h3>מה בודקים בגרסה הזו?</h3>
@@ -212,10 +214,10 @@ function feedback() {
   const ans = {};
   view.innerHTML = `<div class="page">
     <h1 style="font-size:32px">משוב על הגרסה</h1>
-    <p class="muted">ארבע שאלות ושורה חופשית. בסוף המשוב נפתח לשליחה (וואטסאפ, מייל או כל אפליקציה אחרת), ואתם רואים בדיוק מה נשלח.</p>
+    <p class="muted">ארבע שאלות ושורה חופשית. המשוב נשלח ישר אלינו.</p>
     ${feedbackQs.map((q) => `<fieldset class="soft fs"><legend>${q.q}</legend><div class="options">${q.options.map((o, i) => `<button type="button" class="opt" data-q="${q.id}" data-i="${i}" aria-pressed="false">${o}</button>`).join("")}</div></fieldset>`).join("")}
     <label class="field">מה הכי חסר, או מה הכי הפריע?<textarea id="free" name="free" rows="4" autocomplete="off" placeholder="למשל: הייתי רוצה שהסיכום יגיע גם למייל…"></textarea></label>
-    <div class="row"><button class="btn" id="send">${svg("share")} שליחת המשוב</button></div>
+    <div class="row"><button class="btn" id="send">שליחת המשוב</button></div>
   </div>`;
   view.querySelectorAll(".opt").forEach((b) => (b.onclick = () => {
     const q = feedbackQs.find((x) => x.id === b.dataset.q);
@@ -231,11 +233,8 @@ function feedback() {
       `חופשי: ${$("#free").value.trim() || "–"}`,
       `הקלטות: ${recs.length}, הארוכה: ${fmtTime(longest)}, קטיעות: ${recs.reduce((a, r) => a + (r.interruptions?.length || 0), 0)}`,
       `מכשיר: ${/iPad|Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1 ? "iPad" : /iPhone/.test(navigator.userAgent) ? "iPhone" : /Android/.test(navigator.userAgent) ? "Android" : "מחשב"}, מותקן: ${s.standalone ? "כן" : "לא"}`].join("\n");
-    try {
-      if (navigator.share) { await navigator.share({ title: "משוב על סיכומון", text }); toast("תודה! המשוב עוזר לנו מאוד"); return; }
-    } catch (e) { if (e.name === "AbortError") return; }
-    try { await navigator.clipboard.writeText(text); toast("המשוב הועתק. הדביקו אותו בוואטסאפ למי ששלח לכם את הקישור"); }
-    catch { toast("לא הצלחתי לפתוח שליחה. צלמו מסך ושלחו לנו"); }
+    try { await api.sendFeedback({ ...ans, free: $("#free").value.trim(), text }); toast("תודה! המשוב נשלח ועוזר לנו מאוד 🙏"); location.hash = "#home"; }
+    catch (e) { toast("המשוב לא נשלח: " + e.message); }
   };
 }
 
@@ -1147,19 +1146,20 @@ function timetable() {
   };
 }
 
-function profile(tab = "posts") {
+async function profile(tab = "posts") {
   const st = support();
+  const head = await social.myProfile(tab);
   view.innerHTML = `<div class="page" style="max-width:760px">
-    ${social.myProfile(tab)}
+    ${head}
     <section class="list">
-      <a class="item" href="#settings"><span><span class="t">⚙️ הגדרות</span><br><span class="small muted">איך אני לומד/ת, AI, מנוי, פרטיות, התראות, נגישות</span></span></a>
+      <a class="item" href="#settings"><span><span class="t">⚙️ הגדרות</span><br><span class="small muted">איך אני לומד/ת, AI, חשבון, פרטיות, נגישות</span></span></a>
       <a class="item" href="#timetable"><span><span class="t">🕘 מערכת השעות</span></span></a>
       <a class="item" href="#feedback"><span><span class="t">✉️ משוב על הגרסה</span></span></a>
     </section>
     ${!st.standalone ? '<p class="notice"><b>להתקנה באייפד/אייפון:</b> ב-Safari לוחצים על כפתור השיתוף ובוחרים "הוסף למסך הבית".</p>' : ""}
     <p class="small muted">גרסת האפליקציה: <b>${APP_VERSION}</b></p>
   </div>`;
-  social.bindMyProfile();
+  social.bindMyProfile(tab);
 }
 
 // ---------- ניתוב ----------
@@ -1178,11 +1178,12 @@ async function routeInner() {
   let hash = location.hash.slice(1) || "home";
   try { hash = decodeURIComponent(hash); } catch { /* כתובת לא תקינה */ }
   // משתמש חדש: קודם פותחים פרופיל, ורק אז השאלון ("איך אני לומד/ת")
-  if (!social.hasMe()) { renderTabs(null); assistant.mount(null); return social.signup(); }
+  // בלי חשבון (או לפני שנוצר פרופיל): הרשמה / כניסה
+  if (!api.user() || !api.profile()) { renderTabs(null); assistant.mount(null); return social.signup(api.user() ? "signup" : undefined); }
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
   if (hash === "social-missed") hash = "missed-lesson";
-  const tab = hash === "missed-lesson" ? "summaries" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
+  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
   renderTabs(tab);
   if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
   else if (hash === "record") record();
@@ -1193,6 +1194,7 @@ async function routeInner() {
     const pods = await podcastsList();
     const nx = (await extras.upcoming())[0];
     view.querySelector(".page h1")?.insertAdjacentHTML("afterend", `<div class="grid2">
+      <a class="card" href="#upload"><h3>📄 סיכום ממצגת / PDF</h3><p class="small muted">מעלים קובץ של שיעור, ומקבלים סיכום לפי איך שאת/ה לומד/ת</p></a>
       <a class="card star-card" href="#exam-focus"><h3>⭐ מה יהיה במבחן</h3><p class="small muted">כל מה שהמרצים אמרו שחשוב, מכל הסיכומים</p></a>
       <a class="card" href="#podcasts"><h3>🎧 פודקאסטים</h3><p class="small muted">${pods.length ? pods.length + " פרקים קצרים על השיעורים – נועה ואיתי מסבירים" : "פרק קצר יופיע לכל סיכום חדש"}</p></a>
       <a class="card" href="#missed-lesson"><h3>🙋 פספסתי שיעור</h3><p class="small muted">מבקשים מהחברים בקורס סיכום, תמונה של הלוח או הקלטה</p></a>
@@ -1231,18 +1233,21 @@ async function routeInner() {
   else if (hash.startsWith("quiz-mix-")) await study.mixQuiz(+hash.slice(9));
   else if (hash === "quiz") await study.quizById("demo");
   else if (hash.startsWith("quiz-")) await study.quizById(hash.slice(5));
-  else if (hash === "social") social.feed();
-  else if (hash === "social-friends") social.friends();
+  else if (hash === "social") await social.feed();
+  else if (hash === "social-friends") await social.friends();
   else if (hash === "missed-lesson") social.missed();
-  else if (hash === "messages") social.messages();
-  else if (hash === "messages-req") social.messages("req");
-  else if (hash.startsWith("dm-")) social.dm(hash.slice(3));
-  else if (hash === "settings") settings.page();
-  else if (hash.startsWith("settings-")) settings.page(hash.slice(9));
+  else if (hash === "upload") uploadPage();
+  else if (hash === "connect") connectPage();
+  else if (hash.startsWith("share-")) await social.shareFrom(hash.slice(6));
+  else if (hash === "messages") await social.messages();
+  else if (hash === "messages-req") await social.messages("req");
+  else if (hash.startsWith("dm-")) await social.dm(hash.slice(3));
+  else if (hash === "settings") await settings.page();
+  else if (hash.startsWith("settings-")) await settings.page(hash.slice(9));
   else if (hash.startsWith("legal-")) settings.legal(hash.slice(6));
-  else if (hash === "profile-liked" || hash === "profile-saved") profile(hash.slice(8));
-  else if (hash.startsWith("u-")) social.profile(hash.slice(2));
-  else if (hash === "profile") profile();
+  else if (hash === "profile-liked" || hash === "profile-saved") await profile(hash.slice(8));
+  else if (hash.startsWith("u-")) await social.profile(hash.slice(2));
+  else if (hash === "profile") await profile();
   else if (hash === "feedback") feedback();
   else if (hash === "diag") await diag();
   else if (hash === "timetable") timetable();
@@ -1259,6 +1264,8 @@ async function routeInner() {
   else if (hash.startsWith("lesson-")) { closeLesson(); await lessonPage(hash.slice(7)); }
   else await home();
   assistant.mount(tab);
+  if (!seenTabs.has(tab)) { seenTabs.add(tab); api.track("open:" + tab); }
+  paintCounts();
   if (hash !== "home" && !hash.startsWith("lesson-")) {
     const pg = view.querySelector(".page");
     if (pg) { pg.insertAdjacentHTML("afterbegin", '<button class="back-btn" type="button" aria-label="חזרה לדף הקודם">→ חזרה</button>'); pg.querySelector(".back-btn").onclick = goBack; }
@@ -1272,8 +1279,78 @@ const practice = initPractice({ view, $, esc, svg, toast, prefs, store });
 studyCtx.onQuizDone = () => practice.bumpStreak();
 const extras = initExtras({ view, $, esc, svg, toast, prefs, store, segmentsOf, fmtTime });
 const tools = initTools({ view, $, esc, svg, toast, prefs, store, lessonTitle, onQuizDone: () => practice.bumpStreak() });
-const social = initSocial({ view, $, esc, toast, prefs, store });
-const settings = initSettings({ view, $, esc, toast, prefs, store, ai, social, onboardingQuestions, version: () => APP_VERSION });
+const social = initSocial({ view, $, esc, toast, prefs, store, api });
+const settings = initSettings({ view, $, esc, toast, prefs, store, ai, social, api, onboardingQuestions, version: () => APP_VERSION });
+const seenTabs = new Set();
+// מספרים: בקשות חברות על לשונית "חברים", הודעות שלא נקראו על "הודעות"
+async function paintCounts() {
+  try {
+    const c = await social.counts();
+    const put = (sel, n) => document.querySelectorAll(sel).forEach((el) => { el.textContent = n || ""; el.hidden = !n; });
+    document.querySelectorAll('#tabs a[href="#social"], #tabs a[href="#messages"]').forEach((a) => { if (!a.querySelector(".tab-n")) a.insertAdjacentHTML("beforeend", '<span class="tab-n" hidden></span>'); });
+    put('#tabs a[href="#social"] .tab-n', c.requests); put('#tabs a[href="#messages"] .tab-n', c.unread); put(".dm-n", c.unread);
+  } catch { /* בלי אינטרנט */ }
+}
+// סנכרון מהשרת: התראות (🔔) וסיכומים (שלי + של חברים מאותה כיתה)
+let lastServerSync = 0;
+async function serverSync(force = false) {
+  if (!api.user() || (!force && Date.now() - lastServerSync < 60e3)) return;
+  lastServerSync = Date.now();
+  try {
+    const fresh = await social.syncNotifications();
+    planner.inboxStore().then(planner.paintBadge);
+    if (fresh.length && location.hash !== "#inbox") toast(`🔔 ${fresh[0].title}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ""}`);
+    const n = await social.syncSummaries();
+    if (n && ["#summaries", "#quizzes", "#home", ""].includes(location.hash)) route();
+    paintCounts();
+  } catch (e) { logError("serverSync", e); }
+}
+setInterval(() => serverSync(), 2 * 60e3);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") serverSync(); });
+
+// ---------- 📄 העלאת מצגת / PDF -> סיכום אישי ----------
+function uploadPage() {
+  const courses = prefs.get()?.courses || [];
+  view.innerHTML = `<div class="page" style="max-width:640px">
+    <h1 style="font-size:30px">📄 סיכום ממצגת או PDF</h1>
+    <p class="muted">מעלים קובץ של שיעור (מצגת מהמודל, PDF, וורד או צילום של הלוח), ומקבלים סיכום אישי לפי איך שאת/ה לומד/ת, עם מבחן קצר בסוף.</p>
+    <section class="card" style="display:grid;gap:12px">
+      <label>קורס<select id="upC">${courses.map((c) => `<option>${esc(c)}</option>`).join("")}</select></label>
+      <label>הקובץ<input type="file" id="upF" accept=".pdf,.pptx,.docx,.txt,.md,image/*,application/pdf"></label>
+      <p class="small muted">PDF, מצגת (pptx), וורד (docx), תמונה או טקסט · עד 15MB · עד 10 סיכומים ביום</p>
+      <button class="btn" type="button" id="upGo">✨ סכם לי</button>
+      <p class="small" id="upState" aria-live="polite"></p>
+    </section>
+    <p class="small muted">🔒 הקובץ נשלח לסיכום ולא נשמר אצלנו – רק הסיכום נשמר בחשבון שלך. משתמשים רק בחומר שקיבלת כסטודנט/ית בקורס.</p>
+  </div>`;
+  $("#upGo").onclick = async () => {
+    const f = $("#upF").files[0]; if (!f) return toast("בחרו קובץ");
+    $("#upGo").disabled = true; $("#upState").textContent = "⏳ קורא את הקובץ וכותב סיכום… (חצי דקה עד דקה)";
+    try {
+      const r = await social.upload(f, $("#upC").value);
+      api.track("upload");
+      $("#upState").textContent = "✅ הסיכום מוכן!";
+      location.hash = "#sum-srv-" + r.id;
+    } catch (e) { $("#upState").textContent = "❌ " + e.message; $("#upGo").disabled = false; }
+  };
+}
+
+// ---------- 🔗 חיבור למודל: תוסף לכרום במחשב ----------
+function connectPage() {
+  view.innerHTML = `<div class="page" style="max-width:680px">
+    <h1 style="font-size:30px">🔗 חיבור למודל</h1>
+    <p class="muted">"המחבר של סיכומון" הוא תוסף קטן לכרום במחשב. כשכרום פתוח, הוא בודק במודל שלך (פעם בכמה שעות) אם עלו מצגות או קבצים חדשים, ושולח אותם לסיכום אישי. הסיכומים מופיעים כאן, בכל המכשירים שלך.</p>
+    <section class="card" style="display:grid;gap:10px"><h2 style="font-size:20px">התקנה (פעם אחת, 2 דקות)</h2>
+      <ol class="steps">
+        <li>במחשב, בכרום: מורידים את <a href="extension/sikumon-connector.zip" download>קובץ התוסף</a> ופותחים אותו (Extract / חילוץ) לתיקייה.</li>
+        <li>נכנסים לכתובת <b dir="ltr">chrome://extensions</b> ומדליקים למעלה "Developer mode" (מצב מפתח).</li>
+        <li>לוחצים "Load unpacked" (טעינת תוסף לא ארוז) ובוחרים את התיקייה שחילצתם.</li>
+        <li>לוחצים על סמל התוסף 📚 למעלה, מתחברים עם אותו מייל וסיסמה של סיכומון, ובוחרים את המודל שלך (אריאל / בן-גוריון).</li>
+        <li>נכנסים פעם אחת למודל כרגיל, עם הסיסמה שלך. זהו – מעכשיו זה עובד לבד.</li>
+      </ol></section>
+    <p class="small muted">🔒 התוסף לא רואה ולא שומר את הסיסמה שלך למודל. הוא קורא רק את הקורסים שלך, ושולח לסיכום רק קבצים שמותר לך להוריד. אין לך מחשב? אפשר תמיד <a href="#upload">להעלות מצגת</a> מהאייפד או מהטלפון.</p>
+  </div>`;
+}
 const assistant = initAssistant({ store, esc, ai, prefs });
 settings.applyUI();
 // חזרה דף אחד אחורה: אם נכנסו ישר לדף (בלי היסטוריה באפליקציה) – לבית
@@ -1311,9 +1388,11 @@ window.addEventListener("beforeunload", (e) => { if (recorder?.running) { e.prev
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushLesson(true); });
 window.addEventListener("pagehide", () => flushLesson());
 // חזרה מההתחברות ל-OpenRouter: מחליפים את הקוד במפתח של המשתמש
-ai.pingSeen(); // הבודק פתח את האפליקציה (לדוח השימוש)
 ai.finishOpenRouterLogin().then((k) => k && toast("OpenRouter חובר ✓ בחרו מודל")).catch((e) => toast(e.message));
-recoverOrphans().then(migrateRecordings).catch(() => {}).finally(route);
+recoverOrphans().then(migrateRecordings).catch(() => {})
+  .then(() => api.init().catch((e) => logError("api.init", e)))
+  .then(() => { social.restorePrefs(); api.touch(); ai.loadQuota(); serverSync(true); })
+  .finally(route);
 let lastAutoSync = 0;
 async function autoSync() {
   if (!study.getCode() || Date.now() - lastAutoSync < 10 * 60e3 || editingLesson || recorder?.running) return;
@@ -1327,7 +1406,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "21";
+const APP_VERSION = "22";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

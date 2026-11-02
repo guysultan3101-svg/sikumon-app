@@ -529,3 +529,8 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 .ai-card select { min-width: 0; width: 100%; flex: 1 1 100%; }
 .ai-card input { min-width: 0 !important; }
 .ai-card ol { padding-inline-start: 20px; margin: 0; }
+
+/* ---------- v22: מספרים על הלשוניות ---------- */
+#tabs a { position: relative; }
+.tab-n, .dm-n { position: absolute; top: 4px; inset-inline-end: 6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--red); color: #fff; font: 700 11px/18px var(--font-body); text-align: center; }
+.tool .dm-n { top: 2px; inset-inline-end: 2px; }
