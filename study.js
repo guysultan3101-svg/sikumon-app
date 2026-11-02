@@ -25,6 +25,7 @@ export function initStudy(ctx) {
     for (const s of pack.summaries || []) await store.putItem({ ...s, type: "summary" });
     if (pack.moodle) await store.putItem({ id: "moodle-feed", type: "moodle", courses: pack.moodle, at: pack.createdAt });
     if (pack.deadlines) await store.putItem({ id: "deadlines", type: "deadlines", events: pack.deadlines, at: pack.createdAt });
+    if (pack.messages) await store.putItem({ id: "pack-messages", type: "messages", items: pack.messages, at: pack.createdAt });
     for (const q of pack.quizzes || []) await store.putItem({ ...q, type: "quiz" });
     // קורסים חדשים מ-Moodle נכנסים גם למחברות
     const p = prefs.get();

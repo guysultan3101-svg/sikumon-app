@@ -110,6 +110,8 @@ export function initPlanner(ctx) {
     const news = (await ctx.study.moodleNew()) || [];
     if (box.seenMoodle === null) box.seenMoodle = news.map((n) => n.url);
     for (const n of news.filter((n) => !box.seenMoodle.includes(n.url))) { add({ id: "md-" + n.url, icon: "🆕", title: `חדש במודל: ${n.course}`, body: n.name, link: n.url, ext: true }); box.seenMoodle.push(n.url); }
+    // הודעות מסוכני הענן (למשל ☀️ הודעת הבוקר) שהגיעו עם העדכון מהמחשב
+    for (const m of (await store.getItem("pack-messages"))?.items || []) add({ id: "pm-" + m.id, icon: m.icon || "☀️", title: m.title, body: esc(m.summary || ""), link: "#msg-" + encodeURIComponent(m.id) });
     // סיכום שבועי: ממוצאי שבת
     const now = new Date();
     if ((now.getDay() === 6 && now.getHours() >= 19) || now.getDay() === 0) {
@@ -163,5 +165,11 @@ export function initPlanner(ctx) {
     </div>`;
   }
 
-  return { calendar, inbox, weekly, refresh, paintBadge, inboxStore, eventsBetween };
+  // הודעה מלאה (Markdown) מסוכן ענן
+  async function message(id, miniMd) {
+    const m = ((await store.getItem("pack-messages"))?.items || []).find((x) => x.id === id);
+    view.innerHTML = m ? `<div class="page"><a href="#inbox" class="small">→ הודעות</a><h1 style="font-size:28px">${m.icon || "☀️"} ${esc(m.title)}</h1><p class="small muted"><bdi>${esc(m.date || "")}</bdi></p><article class="card md-body">${miniMd(m.md || "")}</article></div>` : '<div class="page"><p>ההודעה לא נמצאה.</p><a href="#inbox">להודעות</a></div>';
+  }
+
+  return { message, calendar, inbox, weekly, refresh, paintBadge, inboxStore, eventsBetween };
 }
