@@ -1310,6 +1310,8 @@ window.addEventListener("beforeunload", (e) => { if (recorder?.running) { e.prev
 // שמירה לפני יציאה מהאפליקציה (באייפד: מעבר לאפליקציה אחרת)
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushLesson(true); });
 window.addEventListener("pagehide", () => flushLesson());
+// חזרה מההתחברות ל-OpenRouter: מחליפים את הקוד במפתח של המשתמש
+ai.finishOpenRouterLogin().then((k) => k && toast("OpenRouter חובר ✓ בחרו מודל")).catch((e) => toast(e.message));
 recoverOrphans().then(migrateRecordings).catch(() => {}).finally(route);
 let lastAutoSync = 0;
 async function autoSync() {
@@ -1324,7 +1326,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "20";
+const APP_VERSION = "21";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

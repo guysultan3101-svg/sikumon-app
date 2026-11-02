@@ -519,3 +519,13 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
     --red: #DC2626; --green: #16A34A; --line: #D5DEF2; color-scheme: light;
   }
 }
+
+/* ---------- v21: כרטיסי "ה-AI שלי" ---------- */
+.ai-card { display: grid; gap: 8px; padding: 14px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--bg); }
+.ai-card.cur { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
+.ai-card h3 { font-size: 17px; margin: 0; }
+.ai-card { min-width: 0; overflow-wrap: anywhere; }
+.ai-card .row { min-width: 0; }
+.ai-card select { min-width: 0; width: 100%; flex: 1 1 100%; }
+.ai-card input { min-width: 0 !important; }
+.ai-card ol { padding-inline-start: 20px; margin: 0; }

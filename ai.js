@@ -1,19 +1,113 @@
-// AI בתוך האפליקציה: "שאל את השיעור", "הסבר נוסף" והעוזר. ברירת מחדל: Gemini של גוגל במסלול החינמי
-// (כולל חיפוש בגוגל), ו-Claude API כאפשרות נוספת.
-// גרסת בדיקה: מפתח ה-API נשמר רק במכשיר של המשתמש, והבקשות יוצאות ישירות מהמכשיר ל-Anthropic.
-// (במוצר הסופי המפתח יישב בשרת, לא במכשיר.)
+// AI בתוך האפליקציה: "שאל את השיעור", "הסבר נוסף" והעוזר. כל סטודנט מחבר את ה-AI שלו, והשיחה נשארת באפליקציה:
+// Gemini (מפתח חינמי, כולל חיפוש בגוגל), OpenRouter (התחברות בלחיצה – GPT, Claude, Gemini ומודלים חינמיים),
+// ChatGPT (מפתח של OpenAI) או Claude (מפתח של Anthropic).
+// המפתחות נשמרים רק במכשיר של המשתמש, והבקשות יוצאות ישירות מהמכשיר לספק. אנחנו לא משלמים ולא רואים את המפתח.
 
 const SDK_URL = "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.3.0/+esm";
 const MODEL = "claude-opus-5-5";
 const KEY = "sikumon-ai-key";
+const ls = { get: (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } }, set: (k, v) => { try { v ? localStorage.setItem(k, String(v).trim()) : localStorage.removeItem(k); } catch { /* */ } } };
 
-export const getKey = () => { try { return localStorage.getItem(KEY) || ""; } catch { return ""; } };
-export const setKey = (k) => { try { k ? localStorage.setItem(KEY, k.trim()) : localStorage.removeItem(KEY); } catch { /* */ } };
+export const getKey = () => ls.get(KEY);
+export const setKey = (k) => ls.set(KEY, k);
 const GKEY = "sikumon-gemini-key";
-export const getGeminiKey = () => { try { return localStorage.getItem(GKEY) || ""; } catch { return ""; } };
-export const setGeminiKey = (k) => { try { k ? localStorage.setItem(GKEY, k.trim()) : localStorage.removeItem(GKEY); } catch { /* */ } };
-export const hasAI = () => !!(getGeminiKey() || getKey());
-export const provider = () => (getGeminiKey() ? "gemini" : getKey() ? "claude" : "");
+export const getGeminiKey = () => ls.get(GKEY);
+export const setGeminiKey = (k) => ls.set(GKEY, k);
+// כל הספקים: איפה נשמר המפתח
+export const PROVIDERS = {
+  gemini: { name: "Gemini (גוגל)", key: GKEY },
+  openrouter: { name: "OpenRouter (GPT, Claude, Gemini ועוד)", key: "sikumon-openrouter-key" },
+  openai: { name: "ChatGPT (OpenAI)", key: "sikumon-openai-key" },
+  claude: { name: "Claude (Anthropic)", key: KEY },
+};
+export const keyOf = (p) => ls.get(PROVIDERS[p].key);
+export const setKeyOf = (p, k) => ls.set(PROVIDERS[p].key, k);
+export const modelOf = (p) => ls.get("sikumon-ai-model-" + p);
+export const setModelOf = (p, m) => ls.set("sikumon-ai-model-" + p, m);
+export const hasAI = () => Object.keys(PROVIDERS).some(keyOf);
+// הספק שבשימוש: מה שהמשתמש בחר, ואם אין לו מפתח – הראשון שמחובר
+export const provider = () => { const c = ls.get("sikumon-ai-provider"); return c && keyOf(c) ? c : Object.keys(PROVIDERS).find(keyOf) || ""; };
+export const setProvider = (p) => ls.set("sikumon-ai-provider", p);
+
+// ---------- OpenRouter: התחברות בלחיצה (OAuth עם PKCE), בלי להעתיק מפתח ----------
+const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+export async function openRouterLogin() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  sessionStorage.setItem("or-verifier", verifier);
+  const back = location.origin + location.pathname;
+  location.href = `https://openrouter.ai/auth?callback_url=${encodeURIComponent(back)}&code_challenge=${challenge}&code_challenge_method=S256`;
+}
+// בחזרה מ-OpenRouter הכתובת מכילה ?code=… -> מחליפים אותו במפתח של המשתמש
+export async function finishOpenRouterLogin() {
+  const code = new URLSearchParams(location.search).get("code");
+  const verifier = sessionStorage.getItem("or-verifier");
+  if (!code || !verifier) return null;
+  sessionStorage.removeItem("or-verifier");
+  history.replaceState(null, "", location.pathname + "#settings-ai");
+  const res = await fetch("https://openrouter.ai/api/v1/auth/keys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, code_verifier: verifier, code_challenge_method: "S256" }) });
+  if (!res.ok) throw new Error("ההתחברות ל-OpenRouter לא הצליחה. נסו שוב.");
+  const { key } = await res.json();
+  setKeyOf("openrouter", key); setProvider("openrouter");
+  return key;
+}
+// רשימת מודלים: ב-OpenRouter – חינמיים (:free) וגם מהיצרנים הגדולים; ב-OpenAI – מודלי GPT שיש למפתח גישה אליהם
+export async function listModels(p) {
+  if (p === "openrouter") {
+    const { data } = await (await fetch("https://openrouter.ai/api/v1/models")).json();
+    const pick = (m) => ({ id: m.id, name: m.name || m.id, free: m.id.endsWith(":free") });
+    // בלי מודלים שאינם לשיחה (סינון תוכן, הטמעות, תמונות)
+    return data.filter((m) => (m.id.endsWith(":free") || /^(openai|anthropic|google)\//.test(m.id)) && !/safety|guard|embed|image|audio|tts/i.test(m.id + m.name)).map(pick);
+  }
+  if (p === "openai") {
+    const res = await fetch("https://api.openai.com/v1/models", { headers: { Authorization: "Bearer " + keyOf("openai") } });
+    if (!res.ok) throw new Error(res.status === 401 ? "מפתח OpenAI לא תקין" : `תקלה ב-OpenAI (${res.status})`);
+    return (await res.json()).data.filter((m) => /^(gpt|o\d)/.test(m.id) && !/audio|realtime|tts|transcribe|image|search/.test(m.id)).sort((a, b) => b.created - a.created).map((m) => ({ id: m.id, name: m.id }));
+  }
+  return [];
+}
+
+// ---------- ChatGPT ו-OpenRouter: אותו פורמט (chat completions), תשובה בחלקים ----------
+async function askOpenAICompat({ p, system, history, question, onText, signal }) {
+  const url = p === "openrouter" ? "https://openrouter.ai/api/v1/chat/completions" : "https://api.openai.com/v1/chat/completions";
+  const model = modelOf(p) || (p === "openrouter" ? "openrouter/auto" : "");
+  if (!model) throw new Error("בחרו מודל בהגדרות ← AI");
+  const headers = { "Content-Type": "application/json", Authorization: "Bearer " + keyOf(p) };
+  if (p === "openrouter") { headers["HTTP-Referer"] = location.origin; headers["X-Title"] = "Sikumon"; }
+  let res;
+  try {
+    res = await fetch(url, { method: "POST", signal, headers, body: JSON.stringify({ model, stream: true, messages: [{ role: "system", content: system }, ...history, { role: "user", content: question }] }) });
+  } catch (e) {
+    if (e?.name === "AbortError") throw Object.assign(new Error("בוטל"), { code: "abort" });
+    throw new Error("אין חיבור לאינטרנט.");
+  }
+  if (!res.ok) {
+    const msg = (await res.json().catch(() => ({})))?.error?.message || "";
+    if (res.status === 401) throw new Error("המפתח לא תקין או שההתחברות פגה. חברו שוב בהגדרות ← AI.");
+    if (res.status === 402) throw new Error("נגמר הקרדיט בחשבון. בחרו מודל חינמי או הוסיפו קרדיט.");
+    if (res.status === 429) throw new Error("יותר מדי בקשות כרגע (או שנגמרה המכסה היומית). נסו שוב בעוד דקה.");
+    throw new Error(`תקלה (${res.status}). ${msg.slice(0, 120)}`);
+  }
+  const reader = res.body.getReader(); const dec = new TextDecoder();
+  let buf = "", full = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+        if (!line.startsWith("data:") || line === "data: [DONE]") continue;
+        const t = JSON.parse(line.slice(5))?.choices?.[0]?.delta?.content || "";
+        if (t) { full += t; onText?.(t); }
+      }
+    }
+  } catch (e) {
+    if (e?.name === "AbortError") throw Object.assign(new Error("בוטל"), { code: "abort" });
+    throw e;
+  }
+  return full;
+}
 
 // ---------- Gemini (מסלול חינמי) ----------
 // לפי דף התמחור של גוגל: gemini-3.8-flash חינמי לשאלות על החומר; חיפוש בגוגל חינמי (עד 500 ביום) רק ב-gemini-2.5-flash
@@ -79,13 +173,16 @@ const TUTOR = `אתה מורה פרטי סבלני לסטודנט שנה א' ב�
 
 // שולח שאלה על שיעור ומזרים את התשובה; מחזיר את הטקסט המלא
 export async function ask({ lessonTitle, lessonText, history, question, onText, signal, web = false }) {
-  if (getGeminiKey()) {
-    const system = TUTOR + (web ? "\n- מותר לחפש באינטרנט כשהחומר לא מספיק, ולציין שזה מהאינטרנט." : "") + `
+  const p = provider();
+  if (p && p !== "claude") {
+    const web2 = web && p === "gemini"; // חיפוש בגוגל: רק ב-Gemini (חינם)
+    const system = TUTOR + (web2 ? "\n- מותר לחפש באינטרנט כשהחומר לא מספיק, ולציין שזה מהאינטרנט." : "") + `
 
 <lesson title="${lessonTitle.replace(/"/g, "'")}">
 ${lessonText}
 </lesson>`;
-    return askGemini({ system, history, question, onText, signal, web });
+    if (p === "gemini") return askGemini({ system, history, question, onText, signal, web: web2 });
+    return askOpenAICompat({ p, system, history, question, onText, signal });
   }
   const key = getKey();
   if (!key) throw Object.assign(new Error("צריך קודם לחבר AI בהגדרות"), { code: "nokey" });

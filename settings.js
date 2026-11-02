@@ -35,15 +35,20 @@ export function initSettings(ctx) {
         <div class="row"><button class="btn ghost" type="button" id="saveCourses">שמירת הקורסים</button><a class="btn ghost" href="#timetable">🕘 מערכת השעות</a><a class="btn ghost" href="#summaries">🔗 חיבור למודל</a></div>
       </section>
 
-      <section class="soft set" id="set-ai"><h2>🤖 AI: העוזר, "שאל את השיעור" ו"הסבר נוסף"</h2>
-        <p>מחברים את <b>Gemini של גוגל במסלול החינמי</b>, בלי כרטיס אשראי. הוא יכול גם לחפש באינטרנט, עד 500 חיפושים ביום.</p>
-        <ol class="small"><li>נכנסים ל-<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com/apikey</a> עם חשבון גוגל <b>פרטי</b> (חשבונות של מוסד לימודים חוסמים את זה לפעמים).</li><li>לוחצים "Create API key" ומעתיקים.</li><li>מדביקים כאן ולוחצים "שמירה".</li></ol>
-        <p class="small muted">המפתח נשמר רק במכשיר הזה. במסלול החינמי גוגל רשאית להשתמש בשאלות כדי לשפר את המערכות שלה. לכן לא כותבים לעוזר פרטים אישיים, רק שאלות על החומר.</p>
-        <p class="small">מצב: <b id="gState">${ai.getGeminiKey() ? "✅ Gemini מחובר" : ai.getKey() ? "✅ Claude מחובר" : "לא מחובר"}</b></p>
-        <div class="row"><input type="password" id="gKey" autocomplete="off" spellcheck="false" placeholder="AIza…" style="flex:1;min-width:200px;direction:ltr"><button class="btn" type="button" id="gSave">שמירה</button><button class="btn ghost" type="button" id="gTest" ${ai.hasAI() ? "" : "disabled"}>בדיקה</button><button class="btn ghost" type="button" id="gDel" ${ai.getGeminiKey() ? "" : "disabled"}>הסרה</button></div>
-        <details class="small"><summary>אפשרות נוספת: Claude (בתשלום לפי שימוש)</summary>
-          <p class="muted">אם מחובר Gemini, משתמשים בו. Claude משמש רק כשאין Gemini.</p>
-          <div class="row" style="margin-top:6px"><input type="password" id="aiKey" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" style="flex:1;min-width:200px;direction:ltr"><button class="btn ghost" type="button" id="aiSave">שמירה</button><button class="btn ghost" type="button" id="aiDel" ${ai.getKey() ? "" : "disabled"}>הסרה</button></div></details>
+      <section class="soft set" id="set-ai"><h2>🤖 ה-AI שלי</h2>
+        <p>מחברים את ה-AI שלך, וכל השיחות נשארות כאן באפליקציה: העוזר, "שאל את השיעור" ו"הסבר נוסף". אנחנו לא רואים את המפתח, והוא נשמר רק במכשיר הזה.</p>
+        <p class="small">בשימוש עכשיו: <b id="gState">${ai.provider() ? ai.PROVIDERS[ai.provider()].name : "עוד לא חיברת"}</b> ${ai.hasAI() ? '<button class="btn ghost" type="button" id="gTest" style="min-height:32px;padding:2px 10px">בדיקה</button>' : ""}</p>
+        ${aiCard("gemini", "🆓 Gemini של גוגל", "חינם, בלי כרטיס אשראי. יכול גם לחפש באינטרנט (עד 500 חיפושים ביום).",
+          `<ol class="small"><li>נכנסים ל-<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com/apikey</a> עם חשבון גוגל <b>פרטי</b> (חשבון של מוסד לימודים חוסם את זה לפעמים).</li><li>לוחצים "Create API key", מעתיקים ומדביקים כאן.</li></ol>
+          <p class="small muted">במסלול החינמי גוגל רשאית להשתמש בשאלות לשיפור המערכות שלה, אז לא כותבים פרטים אישיים.</p>`, "AIza…")}
+        ${aiCard("openrouter", "🔑 OpenRouter: חשבון אחד לכל ה-AI", "מתחברים בלחיצה, בלי להעתיק מפתח. בוחרים GPT, Claude, Gemini ועוד. יש מודלים חינמיים (עד 50 שאלות ביום), ומודלים בתשלום מהקרדיט שלך.",
+          `<button class="btn" type="button" id="orLogin">התחברות עם OpenRouter</button>
+          <p class="small muted">באייפד, אם אחרי ההתחברות לא חזרת לכאן מחובר/ת: יוצרים מפתח ב-<a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener noreferrer">openrouter.ai/settings/keys</a> ומדביקים:</p>`, "sk-or-…")}
+        ${aiCard("openai", "💬 ChatGPT", "מפתח API של OpenAI. בתשלום לפי שימוש (סנטים לשאלה), ונפרד ממנוי ChatGPT Plus.",
+          `<p class="small">יוצרים מפתח ב-<a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">platform.openai.com/api-keys</a>.</p>`, "sk-…")}
+        ${aiCard("claude", "✳️ Claude", "מפתח API של Anthropic. בתשלום לפי שימוש, ונפרד ממנוי Claude Pro.",
+          `<p class="small">יוצרים מפתח ב-<a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>.</p>`, "sk-ant-…")}
+        <p class="small muted">למה אי אפשר פשוט "להתחבר עם המנוי" של ChatGPT, Claude או Gemini? החברות לא מאפשרות לאפליקציות אחרות להשתמש במנויים. מפתח API (או OpenRouter) הוא הדרך המותרת להשתמש ב-AI שלך מתוך אפליקציה אחרת.</p>
       </section>
 
       <section class="soft set" id="set-sub"><h2>💳 מנוי</h2>
@@ -101,6 +106,41 @@ export function initSettings(ctx) {
     if (section) setTimeout(() => document.getElementById("set-" + section)?.scrollIntoView({ block: "start" }), 60);
   }
 
+  // ---------- כרטיס לכל ספק AI: חיבור, בחירת מודל, "להשתמש בזה", ניתוק ----------
+  const KEY_RULES = { gemini: [/^AIza[\w-]{20,}$/, "מפתח של גוגל מתחיל ב-AIza"], openai: [/^sk-[\w-]{20,}$/, "מפתח של OpenAI מתחיל ב-sk-"], openrouter: [/^sk-or-[\w-]{20,}$/, "מפתח של OpenRouter מתחיל ב-sk-or-"], claude: [/^sk-ant-[\w-]{20,}$/, "מפתח של Anthropic מתחיל ב-sk-ant-"] };
+  function aiCard(p, title, desc, how, placeholder) {
+    const on = !!ai.keyOf(p), cur = ai.provider() === p;
+    return `<div class="ai-card${cur ? " cur" : ""}" data-prov="${p}">
+      <div class="row" style="justify-content:space-between"><h3>${title}</h3>${on ? (cur ? '<span class="chip ok">✓ בשימוש</span>' : `<button class="btn ghost" type="button" data-use="${p}" style="min-height:32px;padding:2px 10px">להשתמש בזה</button>`) : ""}</div>
+      <p class="small muted">${desc}</p>
+      ${on ? `<div class="row small">✅ מחובר ${p === "openrouter" || p === "openai" ? `<select data-model="${p}" style="width:auto;max-width:100%;flex:1"><option>טוען מודלים…</option></select>` : ""}<button class="btn ghost" type="button" data-off="${p}" style="min-height:32px;padding:2px 10px">ניתוק</button></div>`
+        : `${how}${placeholder ? `<div class="row"><input type="password" data-key="${p}" autocomplete="off" spellcheck="false" placeholder="${placeholder}" style="flex:1;min-width:180px;direction:ltr"><button class="btn" type="button" data-save="${p}">חיבור</button></div>` : ""}`}
+    </div>`;
+  }
+  function bindAI() {
+    view.querySelectorAll("[data-save]").forEach((b) => (b.onclick = () => {
+      const p = b.dataset.save, k = view.querySelector(`[data-key="${p}"]`).value.trim();
+      if (!KEY_RULES[p][0].test(k)) return toast("זה לא נראה כמו מפתח תקין: " + KEY_RULES[p][1]);
+      ai.setKeyOf(p, k); ai.setProvider(p); toast("חובר ✓"); page("ai");
+    }));
+    view.querySelectorAll("[data-use]").forEach((b) => (b.onclick = () => { ai.setProvider(b.dataset.use); page("ai"); }));
+    view.querySelectorAll("[data-off]").forEach((b) => (b.onclick = () => { ai.setKeyOf(b.dataset.off, ""); toast("נותק"); page("ai"); }));
+    $("#orLogin") && ($("#orLogin").onclick = () => ai.openRouterLogin());
+    $("#gTest") && ($("#gTest").onclick = async () => { $("#gTest").disabled = true; $("#gState").textContent = "בודק…"; try { const r = await ai.testKey(); $("#gState").textContent = `✅ ${ai.PROVIDERS[ai.provider()].name} עובד (${r.slice(0, 20)})`; } catch (e) { $("#gState").textContent = "❌ " + e.message; } $("#gTest").disabled = false; });
+    // רשימת מודלים לבחירה (OpenRouter: קודם החינמיים)
+    view.querySelectorAll("[data-model]").forEach(async (sel) => {
+      const p = sel.dataset.model;
+      try {
+        // קודם חינמיים של חברות מוכרות (טובים יותר בעברית), אחר כך שאר החינמיים, ואז בתשלום
+        const rank = (m) => (m.free ? 0 : 2) + (m.free && !/^(google|meta-llama|deepseek|qwen|mistralai|openai)\//.test(m.id) ? 1 : 0);
+        const list = (await ai.listModels(p)).sort((a, b) => rank(a) - rank(b));
+        if (!ai.modelOf(p) && list.length) ai.setModelOf(p, list[0].id);
+        sel.innerHTML = list.map((m) => `<option value="${esc(m.id)}" ${m.id === ai.modelOf(p) ? "selected" : ""}>${m.free ? "🆓 " : ""}${esc(m.name)}</option>`).join("");
+        sel.onchange = () => { ai.setModelOf(p, sel.value); toast("המודל נשמר ✓"); };
+      } catch (e) { sel.innerHTML = `<option>${esc(e.message)}</option>`; }
+    });
+  }
+
   function confirmModal(html, onOk, okLabel = "אישור", danger = true) {
     document.body.insertAdjacentHTML("beforeend", `<div class="modal" id="setModal" role="dialog"><div class="card">${html}<div class="row"><button class="btn ${danger ? "danger" : ""}" type="button" id="mOk">${okLabel}</button><button class="btn ghost" type="button" id="mNo">חזרה</button></div></div></div>`);
     const m = document.getElementById("setModal");
@@ -113,11 +153,7 @@ export function initSettings(ctx) {
     onboardingQuestions.forEach((q) => ($("#lq-" + q.id).onchange = (e) => { saveP((p) => (p[q.id] = e.target.value)); toast("נשמר ✓"); }));
     $("#saveCourses").onclick = () => { const c = $("#setCourses").value.split("\n").map((x) => x.trim()).filter(Boolean); if (!c.length) return toast("צריך לפחות קורס אחד"); saveP((p) => (p.courses = c)); toast("הקורסים נשמרו ✓"); };
     // AI
-    $("#gSave").onclick = () => { const k = $("#gKey").value.trim(); if (!/^AIza[\w-]{20,}$/.test(k)) return toast("זה לא נראה כמו מפתח של גוגל (מתחיל ב-AIza)"); ai.setGeminiKey(k); $("#gKey").value = ""; toast("Gemini חובר ✓"); page("ai"); };
-    $("#gDel").onclick = () => { ai.setGeminiKey(""); toast("המפתח הוסר"); page("ai"); };
-    $("#gTest").onclick = async () => { $("#gTest").disabled = true; $("#gState").textContent = "בודק…"; try { const r = await ai.testKey(); $("#gState").textContent = "✅ עובד (" + r.slice(0, 20) + ")"; } catch (e) { $("#gState").textContent = "❌ " + e.message; } $("#gTest").disabled = false; };
-    $("#aiSave").onclick = () => { const k = $("#aiKey").value.trim(); if (!k.startsWith("sk-ant-")) return toast("זה לא נראה כמו מפתח של Anthropic (מתחיל ב-sk-ant-)"); ai.setKey(k); toast("נשמר"); page("ai"); };
-    $("#aiDel").onclick = () => { ai.setKey(""); page("ai"); };
+    bindAI();
     // מנוי (דוגמה)
     $("#receipts").onclick = $("#payMethod").onclick = () => toast("יופיע אחרי שנחבר תשלומים");
     $("#resOn") && ($("#resOn").onclick = () => { const s = social.state(); s.reservist = { since: new Date().toISOString().slice(0, 10), verified: false }; social.save(s); toast("ההנחה הופעלה. יש 30 יום להעלות אישור"); page("sub"); });
