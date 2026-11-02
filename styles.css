@@ -457,3 +457,6 @@ mark { background: var(--marker); color: #0F172A; border-radius: 3px; padding: 0
 
 .brief-card { max-width: 520px !important; max-height: 85dvh; overflow-y: auto; }
 .brief-card .md-body { border: 0; padding: 0; }
+.pod-chip { background: color-mix(in srgb, var(--violet) 15%, transparent); color: var(--violet); cursor: pointer; font-weight: 700; }
+.page .grid2:has(> a.card + a.card + a.card) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 700px) { .page .grid2:has(> a.card + a.card + a.card) { grid-template-columns: 1fr; } }

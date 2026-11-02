@@ -663,7 +663,6 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
         return `<a class="nb-f ${sel === i ? "on" : ""}" href="#course-${i}"><i style="background:${color(i)}"></i><span>${esc(c)}</span>${newBy[c] ? `<span class="chip new">${newBy[c]}</span>` : ""}<b>${n || ""}</b><button class="folder-del" data-i="${i}" aria-label="מחיקת התיקייה ${esc(c)}">${svg("trash")}</button></a>`;
       }).join("")}
       <a class="nb-f" href="#recordings"><i style="background:var(--red)"></i><span>כל ההקלטות</span></a>
-      <a class="nb-f" href="#podcasts"><i style="background:var(--violet)"></i><span>🎧 פודקאסטים</span><b>${pods.length || ""}</b></a>
     </aside>
     <section class="nb-main">
       <div class="row" style="justify-content:space-between">
@@ -674,7 +673,6 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
           <button class="btn small-btn" id="newLesson">${svg("plus")} חדש</button>
         </div>
       </div>
-      ${course && pods.some((p) => p.course === course) ? `<section class="pod-strip"><h3>🎧 פודקאסטים על השיעורים</h3><div class="list">${pods.filter((p) => p.course === course).map((p) => podCard(p, false)).join("")}</div></section>` : ""}
       <div class="cards" id="cards">${list.map(card).join("") || `<p class="muted">${course ? 'עוד אין שיעורים בתיקייה הזו. לחצו "חדש" כדי לפתוח דף, או "ייבוא מ-Notability" כדי להכניס את מה שכתבתם בעבר.' : "עוד אין שיעורים. בחרו תיקייה מהרשימה ולחצו \"חדש\"."}</p>`}</div>
       ${!course && list.length === 0 ? "" : ""}
       ${course ? extras.pastExamsBlock(await extras.pastExams(course), course) : ""}
@@ -1185,7 +1183,7 @@ async function routeInner() {
   try { hash = decodeURIComponent(hash); } catch { /* כתובת לא תקינה */ }
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
-  const tab = hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") || hash === "podcasts" ? "notebooks" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
+  const tab = hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
   renderTabs(tab);
   if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
   else if (hash === "record") record();
@@ -1193,10 +1191,19 @@ async function routeInner() {
   else if (hash.startsWith("rec-")) await recordingDetail(hash.slice(4));
   else if (hash === "summaries") {
     await study.summaries();
+    const pods = await podcastsList();
     const nx = (await extras.upcoming())[0];
     view.querySelector(".page h1")?.insertAdjacentHTML("afterend", `<div class="grid2">
       <a class="card star-card" href="#exam-focus"><h3>⭐ מה יהיה במבחן</h3><p class="small muted">כל מה שהמרצים אמרו שחשוב, מכל הסיכומים</p></a>
+      <a class="card" href="#podcasts"><h3>🎧 פודקאסטים</h3><p class="small muted">${pods.length ? pods.length + " פרקים קצרים על השיעורים – נועה ואיתי מסבירים" : "פרק קצר יופיע לכל סיכום חדש"}</p></a>
       <a class="card" href="#deadlines"><h3>⏳ לוח מבחנים והגשות</h3><p class="small muted">${nx ? esc(nx.title) + " · " + extras.inDays(extras.daysTo(nx.when)) : "הוסיפו את תאריכי המבחנים"}</p></a></div>`);
+    if (pods.length) {
+      view.querySelector(".page .grid2")?.insertAdjacentHTML("afterend", `<section class="pod-strip"><h2 style="font-size:20px">🎧 האחרונים</h2><div class="list">${pods.slice(-3).reverse().map((p) => podCard(p)).join("")}</div><a class="small" href="#podcasts">כל הפודקאסטים (${pods.length})</a></section>`);
+      // ▶ קטן ליד כל סיכום שיש לו פודקאסט
+      view.querySelectorAll('.item[href^="#sum-"]').forEach((a) => { const id = decodeURIComponent(a.getAttribute("href").slice(5)); const p = pods.find((x) => x.summaryId === id); if (p) a.insertAdjacentHTML("beforeend", `<span class="chip pod-chip" data-podsum="${esc(p.id)}">🎧 ${podMin(p.seconds)}</span>`); });
+      view.querySelectorAll("[data-podsum]").forEach((c) => (c.onclick = (e) => { e.preventDefault(); e.stopPropagation(); playPodcast(pods.find((x) => x.id === c.dataset.podsum)); }));
+      bindPods(pods);
+    }
   }
   else if (hash === "summary") summary();
   else if (hash.startsWith("sum-")) {
@@ -1293,7 +1300,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "17";
+const APP_VERSION = "18";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
