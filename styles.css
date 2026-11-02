@@ -454,3 +454,6 @@ mark { background: var(--marker); color: #0F172A; border-radius: 3px; padding: 0
 .pod-bar select { width: auto; min-height: 36px; padding: 2px 6px; }
 @media (min-width: 821px) { .pod-bar { bottom: 18px; inset-inline-start: 264px; } }
 .pod-script { display: grid; gap: 6px; margin-top: 8px; font-size: 15px; }
+
+.brief-card { max-width: 520px !important; max-height: 85dvh; overflow-y: auto; }
+.brief-card .md-body { border: 0; padding: 0; }

@@ -1156,6 +1156,7 @@ function profile() {
       <div class="row" style="margin-top:8px"><input type="password" id="aiKey" name="aiKey" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" style="flex:1;min-width:200px;direction:ltr"><button class="btn" id="aiSave">שמירה</button><button class="btn ghost" id="aiTest" ${ai.getKey() ? "" : "disabled"}>בדיקה</button><button class="btn ghost" id="aiDel" ${ai.getKey() ? "" : "disabled"}>הסרה</button></div></section>
     <a class="item" href="#timetable"><span><span class="t">🕘 מערכת השעות</span><br><span class="small muted">${(p.timetable || []).length ? (p.timetable.length + " שיעורים בשבוע · ההקלטות נכנסות לבד לקורס הנכון") : "עוד לא הוגדרה. בלעדיה בוחרים קורס ידנית בכל הקלטה"}</span></span></a>
     <div class="row"><button class="btn ghost" id="redo">לענות מחדש על השאלון</button><a class="btn" href="#feedback">${svg("share")} שליחת משוב</a></div>
+    <p class="small muted">גרסת האפליקציה: <b>${APP_VERSION}</b></p>
     <div class="soft small"><b>פרטיות:</b> בגרסת הבדיקה הכול נשמר רק במכשיר שלך: התשובות, הקורסים וההקלטות. שום דבר לא נשלח לשרת. משוב נשלח רק כשאתם לוחצים "שליחה" ובוחרים למי.</div>
     <a class="item" href="#diag"><span><span class="t">🩺 בדיקת מכשיר</span><br><span class="small muted">בודק מיקרופון, הקלטה, שמירה, עט וחיבור למודל, ומפיק דוח</span></span></a>
     <div class="soft small" hidden><b>בדיקת מכשיר:</b> מיקרופון ${s.mic ? "✓" : "✗"} · הקלטה ${s.recorder ? "✓" : "✗"} (${esc(s.mime || "לא ידוע")}) · מסך דלוק ${s.wakeLock ? "✓" : "✗"} · מותקן כאפליקציה ${s.standalone ? "✓" : "✗"}</div>
@@ -1251,7 +1252,25 @@ const tools = initTools({ view, $, esc, svg, toast, prefs, store, lessonTitle, o
 const planner = initPlanner({ view, $, esc, toast, prefs, store, extras, study, lessonForToday });
 // הודעות: בודקים בפתיחה, אחרי סנכרון, וכל 10 דקות
 async function refreshInbox() { try { const f = await planner.refresh(); if (f.length && location.hash !== "#inbox") toast(`🔔 ${f[0].title}${f.length > 1 ? ` (+${f.length - 1})` : ""}`); } catch (e) { logError("inbox", e); } }
-setTimeout(refreshInbox, 2500);
+setTimeout(async () => { await refreshInbox(); morningPopup(); }, 2500);
+
+// ☀️ פעם ביום, בכניסה הראשונה: חלון "מה עושים היום" (מההודעה של סוכן הבוקר)
+async function morningPopup() {
+  const p = prefs.get(); if (!p) return;
+  const today = new Date().toLocaleDateString("en-CA");
+  if (p.briefShown === today || document.getElementById("briefModal")) return;
+  const m = ((await store.getItem("pack-messages"))?.items || []).find((x) => x.id === "brief-" + today);
+  if (!m) return;
+  p.briefShown = today; prefs.set(p);
+  document.body.insertAdjacentHTML("beforeend", `<div class="modal" id="briefModal" role="dialog" aria-labelledby="briefT"><div class="card brief-card">
+    <h2 id="briefT">${m.icon || "☀️"} ${esc(m.title)}</h2><article class="md-body">${ai.miniMd(m.md || "")}</article>
+    <div class="row"><button class="btn" id="briefOk">יאללה, מתחילים 💪</button><a class="btn ghost" href="#inbox" id="briefInbox">לכל ההודעות</a></div></div></div>`);
+  const close = async () => {
+    document.getElementById("briefModal")?.remove();
+    const box = await planner.inboxStore(); box.items.forEach((x) => x.id === "pm-" + m.id && (x.read = true)); await store.putItem(box); planner.paintBadge(box);
+  };
+  $("#briefOk").onclick = close; $("#briefInbox").onclick = close;
+}
 setInterval(refreshInbox, 10 * 60e3);
 window.addEventListener("hashchange", route);
 // אזהרה לפני סגירה באמצע הקלטה
@@ -1267,11 +1286,24 @@ async function autoSync() {
   lastAutoSync = Date.now();
   try {
     const r = await study.syncNow();
-    refreshInbox();
+    refreshInbox().then(morningPopup);
     if (r?.fresh && ["#home", "#summaries", "#quizzes", "#notebooks", "#calendar", "#deadlines", "#inbox", ""].includes(location.hash)) { route(); toast("עודכן מהמודל"); }
   } catch { /* בלי אינטרנט – ננסה בפעם הבאה */ }
 }
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js");
+const APP_VERSION = "17";
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
+    reg.update();
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update(); });
+  });
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloading) return;
+    if (recorder?.running || editingLesson) { toast("יש גרסה חדשה – היא תיכנס בפעם הבאה שתפתחו את האפליקציה"); return; }
+    reloading = true; location.reload();
+  });
+}
+document.querySelector(".beta") && (document.querySelector(".beta").textContent = "גרסת בדיקה · " + APP_VERSION);
