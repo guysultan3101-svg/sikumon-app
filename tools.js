@@ -40,10 +40,21 @@ export function initTools(ctx) {
       speechSynthesis.speak(u);
     };
     const stop = () => { playing = false; paused = false; speechSynthesis.cancel(); mark(); $("#rdPlay") && ($("#rdPlay").textContent = "🔊 הקראה"); $("#rdStop") && ($("#rdStop").hidden = true); };
+    // באייפד/אייפון: הקול של הדפדפן מושתק במצב שקט. מבקשים "מצב השמעה" (כמו מוזיקה),
+    // ומנגנים רגע של שקט מתוך הלחיצה כדי "לפתוח" את הרמקול – ככה ההקראה נשמעת גם בלי אוזניות.
+    const unlockAudio = () => {
+      try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch { /* */ }
+      try {
+        const a = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=");
+        a.play().catch(() => {});
+      } catch { /* */ }
+    };
     $("#rdPlay").onclick = () => {
+      unlockAudio();
       if (playing && !paused) { speechSynthesis.pause(); paused = true; $("#rdPlay").textContent = "▶ המשך"; return; }
       if (paused) { speechSynthesis.resume(); paused = false; $("#rdPlay").textContent = "⏸ השהיה"; return; }
       if (!voice()) toast("אין במכשיר קול בעברית? באייפון: הגדרות ← נגישות ← תוכן מוקרא ← קולות ← עברית");
+      else if (/iPad|iPhone|Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) toast("לא שומעים? מכבים מצב שקט: מחליקים ממרכז הבקרה ולוחצים על הפעמון, ומגבירים ווליום");
       playing = true; i = 0; $("#rdPlay").textContent = "⏸ השהיה"; $("#rdStop").hidden = false; speakNext();
     };
     $("#rdStop").onclick = stop;
