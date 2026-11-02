@@ -15,18 +15,44 @@ export const getGeminiKey = () => ls.get(GKEY);
 export const setGeminiKey = (k) => ls.set(GKEY, k);
 // כל הספקים: איפה נשמר המפתח
 export const PROVIDERS = {
+  sikumon: { name: "העוזר של סיכומון", key: "" },
   gemini: { name: "Gemini (גוגל)", key: GKEY },
   openrouter: { name: "OpenRouter (GPT, Claude, Gemini ועוד)", key: "sikumon-openrouter-key" },
   openai: { name: "ChatGPT (OpenAI)", key: "sikumon-openai-key" },
   claude: { name: "Claude (Anthropic)", key: KEY },
 };
-export const keyOf = (p) => ls.get(PROVIDERS[p].key);
+export const keyOf = (p) => (p === "sikumon" ? (SERVER.url ? "built-in" : "") : ls.get(PROVIDERS[p].key));
 export const setKeyOf = (p, k) => ls.set(PROVIDERS[p].key, k);
 export const modelOf = (p) => ls.get("sikumon-ai-model-" + p);
 export const setModelOf = (p, m) => ls.set("sikumon-ai-model-" + p, m);
-export const hasAI = () => Object.keys(PROVIDERS).some(keyOf);
-// הספק שבשימוש: מה שהמשתמש בחר, ואם אין לו מפתח – הראשון שמחובר
-export const provider = () => { const c = ls.get("sikumon-ai-provider"); return c && keyOf(c) ? c : Object.keys(PROVIDERS).find(keyOf) || ""; };
+
+// ---------- העוזר המובנה של סיכומון: דרך השרת שלנו (Grok כרגע), 5 שאלות ביום לבודק ----------
+// הכתובת והמפתח הציבורי (anon) של Supabase. אלה לא סודות; מפתח ה-AI עצמו נמצא רק בשרת.
+const SERVER = { url: "", anon: "" };
+export const builtIn = () => !!SERVER.url;
+// מזהה אקראי של המכשיר (בשלב הבדיקות אין חשבונות אמיתיים)
+export function testerId() {
+  let id = ls.get("sikumon-tester-id");
+  if (!id) { id = crypto.randomUUID(); ls.set("sikumon-tester-id", id); }
+  return id;
+}
+const myName = () => { try { return JSON.parse(localStorage.getItem("sikumon-social-demo") || "{}").me?.username || ""; } catch { return ""; } };
+async function callServer(payload, signal) {
+  return fetch(`${SERVER.url}/functions/v1/ask`, {
+    method: "POST", signal,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVER.anon}`, apikey: SERVER.anon },
+    body: JSON.stringify({ tester: testerId(), username: myName(), ...payload }),
+  });
+}
+// בכל פתיחה: "הבודק היה פה" (כדי לדעת מי לא השתמש ב-AI בכלל)
+export function pingSeen() { if (SERVER.url) callServer({ action: "seen" }).catch(() => {}); }
+// כמה שאלות נשארו היום (מתעדכן אחרי כל שאלה)
+export const quota = () => { try { const q = JSON.parse(ls.get("sikumon-quota") || "null"); const today = new Date().toLocaleDateString("en-CA"); return q && q.day === today ? q : { day: today, used: 0, limit: 5 }; } catch { return { used: 0, limit: 5 }; } };
+const saveQuota = (res) => { const u = res.headers.get("x-quota-used"), l = res.headers.get("x-quota-limit"); if (u !== null && l !== null) ls.set("sikumon-quota", JSON.stringify({ day: new Date().toLocaleDateString("en-CA"), used: +u, limit: +l })); };
+
+export const hasAI = () => builtIn() || Object.keys(PROVIDERS).some(keyOf);
+// הספק שבשימוש: מה שהמשתמש בחר; אחרת העוזר המובנה; אחרת הראשון שמחובר
+export const provider = () => { const c = ls.get("sikumon-ai-provider"); return c && keyOf(c) ? c : builtIn() ? "sikumon" : Object.keys(PROVIDERS).filter((p) => p !== "sikumon").find(keyOf) || ""; };
 export const setProvider = (p) => ls.set("sikumon-ai-provider", p);
 
 // ---------- OpenRouter: התחברות בלחיצה (OAuth עם PKCE), בלי להעתיק מפתח ----------
@@ -69,17 +95,30 @@ export async function listModels(p) {
 
 // ---------- ChatGPT ו-OpenRouter: אותו פורמט (chat completions), תשובה בחלקים ----------
 async function askOpenAICompat({ p, system, history, question, onText, signal }) {
-  const url = p === "openrouter" ? "https://openrouter.ai/api/v1/chat/completions" : "https://api.openai.com/v1/chat/completions";
-  const model = modelOf(p) || (p === "openrouter" ? "openrouter/auto" : "");
-  if (!model) throw new Error("בחרו מודל בהגדרות ← AI");
-  const headers = { "Content-Type": "application/json", Authorization: "Bearer " + keyOf(p) };
-  if (p === "openrouter") { headers["HTTP-Referer"] = location.origin; headers["X-Title"] = "Sikumon"; }
   let res;
   try {
-    res = await fetch(url, { method: "POST", signal, headers, body: JSON.stringify({ model, stream: true, messages: [{ role: "system", content: system }, ...history, { role: "user", content: question }] }) });
+    if (p === "sikumon") {
+      // העוזר המובנה: השרת שלנו בוחר מודל ושומר על המכסה
+      res = await callServer({ system, history, question }, signal);
+      saveQuota(res);
+    } else {
+      const url = p === "openrouter" ? "https://openrouter.ai/api/v1/chat/completions" : "https://api.openai.com/v1/chat/completions";
+      const model = modelOf(p) || (p === "openrouter" ? "openrouter/auto" : "");
+      if (!model) throw Object.assign(new Error("בחרו מודל בהגדרות ← AI"), { code: "nomodel" });
+      const headers = { "Content-Type": "application/json", Authorization: "Bearer " + keyOf(p) };
+      if (p === "openrouter") { headers["HTTP-Referer"] = location.origin; headers["X-Title"] = "Sikumon"; }
+      res = await fetch(url, { method: "POST", signal, headers, body: JSON.stringify({ model, stream: true, messages: [{ role: "system", content: system }, ...history, { role: "user", content: question }] }) });
+    }
   } catch (e) {
+    if (e?.code) throw e;
     if (e?.name === "AbortError") throw Object.assign(new Error("בוטל"), { code: "abort" });
     throw new Error("אין חיבור לאינטרנט.");
+  }
+  if (!res.ok && p === "sikumon") {
+    const err = (await res.json().catch(() => ({})))?.error;
+    if (err === "limit") { const q = quota(); throw Object.assign(new Error(`נגמרו ${q.limit} השאלות של היום 🙂 מחר יש עוד. (במנוי פרו יהיו הרבה יותר שאלות.)`), { code: "limit" }); }
+    if (err === "global_cap") throw new Error("העוזר עמוס היום. נסו שוב מחר.");
+    throw new Error("העוזר לא זמין כרגע. נסו שוב בעוד כמה דקות.");
   }
   if (!res.ok) {
     const msg = (await res.json().catch(() => ({})))?.error?.message || "";

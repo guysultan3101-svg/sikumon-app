@@ -1311,6 +1311,7 @@ window.addEventListener("beforeunload", (e) => { if (recorder?.running) { e.prev
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushLesson(true); });
 window.addEventListener("pagehide", () => flushLesson());
 // חזרה מההתחברות ל-OpenRouter: מחליפים את הקוד במפתח של המשתמש
+ai.pingSeen(); // הבודק פתח את האפליקציה (לדוח השימוש)
 ai.finishOpenRouterLogin().then((k) => k && toast("OpenRouter חובר ✓ בחרו מודל")).catch((e) => toast(e.message));
 recoverOrphans().then(migrateRecordings).catch(() => {}).finally(route);
 let lastAutoSync = 0;

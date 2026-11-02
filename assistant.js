@@ -45,7 +45,7 @@ export function initAssistant(ctx) {
       <div class="row" style="justify-content:space-between"><h2 id="aiPT" style="font-size:20px">🤖 העוזר</h2><button class="tool" id="aiX" aria-label="סגירה">✕</button></div>
       ${has ? `<p class="small muted" id="aiCtx">שואלים על החומר. העוזר עונה לפי הסיכומים שלך.</p>
       <div class="chat-log" id="aiLog" aria-live="polite"></div>
-      ${ai.provider() === "gemini" ? '<label class="row small" style="gap:6px"><input type="checkbox" id="aiWeb" style="width:auto"> 🌐 גם מהאינטרנט (חיפוש בגוגל)</label>' : `<p class="small muted">מחובר: ${esc(ai.PROVIDERS[ai.provider()].name)}</p>`}
+      ${ai.provider() === "gemini" ? '<label class="row small" style="gap:6px"><input type="checkbox" id="aiWeb" style="width:auto"> 🌐 גם מהאינטרנט (חיפוש בגוגל)</label>' : ai.provider() === "sikumon" ? `<p class="small muted" id="aiQuota">${quotaText()}</p>` : `<p class="small muted">מחובר: ${esc(ai.PROVIDERS[ai.provider()].name)}</p>`}
       <form class="chat-form" id="aiForm"><textarea id="aiIn" rows="2" placeholder="למשל: מה ההבדל בין חציון לממוצע?" autocomplete="off"></textarea><button class="btn" id="aiSend">שליחה</button></form>`
       : `<p class="notice">כדי שהעוזר יעבוד, מחברים פעם אחת את ה-AI שלך: Gemini (חינם), ChatGPT, Claude או OpenRouter. לוקח 2 דקות.</p><a class="btn" href="#settings-ai" id="aiGo">לחיבור</a>`}
     </section>`);
@@ -72,10 +72,15 @@ export function initAssistant(ctx) {
         bot.innerHTML = ai.miniMd(full);
       } catch (err) {
         if (err.code !== "abort") bot.innerHTML = `<span class="err">${esc(err.message)}</span>`;
-      } finally { ctrl = null; document.getElementById("aiSend") && (document.getElementById("aiSend").textContent = "שליחה"); }
+      } finally {
+        ctrl = null; document.getElementById("aiSend") && (document.getElementById("aiSend").textContent = "שליחה");
+        document.getElementById("aiQuota") && (document.getElementById("aiQuota").textContent = quotaText());
+      }
     };
     input.focus();
   }
+  // "נשארו 3 מתוך 5 שאלות היום"
+  function quotaText() { const q = ai.quota(); return `🎁 נשארו ${Math.max(q.limit - q.used, 0)} מתוך ${q.limit} שאלות היום`; }
   function close() { ctrl?.abort(); document.getElementById("aiPanel")?.remove(); }
 
   // נקרא אחרי כל מעבר מסך: מציג את הכפתור רק באזורים הרלוונטיים

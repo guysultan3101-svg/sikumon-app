@@ -38,6 +38,10 @@ export function initSettings(ctx) {
       <section class="soft set" id="set-ai"><h2>🤖 ה-AI שלי</h2>
         <p>מחברים את ה-AI שלך, וכל השיחות נשארות כאן באפליקציה: העוזר, "שאל את השיעור" ו"הסבר נוסף". אנחנו לא רואים את המפתח, והוא נשמר רק במכשיר הזה.</p>
         <p class="small">בשימוש עכשיו: <b id="gState">${ai.provider() ? ai.PROVIDERS[ai.provider()].name : "עוד לא חיברת"}</b> ${ai.hasAI() ? '<button class="btn ghost" type="button" id="gTest" style="min-height:32px;padding:2px 10px">בדיקה</button>' : ""}</p>
+        ${ai.builtIn() ? `<div class="ai-card${ai.provider() === "sikumon" ? " cur" : ""}" data-prov="sikumon">
+          <div class="row" style="justify-content:space-between"><h3>🎁 העוזר של סיכומון</h3>${ai.provider() === "sikumon" ? '<span class="chip ok">✓ בשימוש</span>' : '<button class="btn ghost" type="button" data-use="sikumon" style="min-height:32px;padding:2px 10px">להשתמש בזה</button>'}</div>
+          <p class="small muted">כלול באפליקציה, בלי להתחבר לשום דבר. בתקופת הבדיקות: ${ai.quota().limit} שאלות ביום (נשארו היום: <b>${Math.max(ai.quota().limit - ai.quota().used, 0)}</b>).</p></div>
+          <details class="soft"><summary><b>רוצים בלי הגבלה? חברו AI משלכם</b></summary><div style="display:grid;gap:10px;margin-top:10px">` : ""}
         ${aiCard("gemini", "🆓 Gemini של גוגל", "חינם, בלי כרטיס אשראי. יכול גם לחפש באינטרנט (עד 500 חיפושים ביום).",
           `<ol class="small"><li>נכנסים ל-<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com/apikey</a> עם חשבון גוגל <b>פרטי</b> (חשבון של מוסד לימודים חוסם את זה לפעמים).</li><li>לוחצים "Create API key", מעתיקים ומדביקים כאן.</li></ol>
           <p class="small muted">במסלול החינמי גוגל רשאית להשתמש בשאלות לשיפור המערכות שלה, אז לא כותבים פרטים אישיים.</p>`, "AIza…")}
@@ -48,6 +52,7 @@ export function initSettings(ctx) {
           `<p class="small">יוצרים מפתח ב-<a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">platform.openai.com/api-keys</a>.</p>`, "sk-…")}
         ${aiCard("claude", "✳️ Claude", "מפתח API של Anthropic. בתשלום לפי שימוש, ונפרד ממנוי Claude Pro.",
           `<p class="small">יוצרים מפתח ב-<a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>.</p>`, "sk-ant-…")}
+        ${ai.builtIn() ? "</div></details>" : ""}
         <p class="small muted">למה אי אפשר פשוט "להתחבר עם המנוי" של ChatGPT, Claude או Gemini? החברות לא מאפשרות לאפליקציות אחרות להשתמש במנויים. מפתח API (או OpenRouter) הוא הדרך המותרת להשתמש ב-AI שלך מתוך אפליקציה אחרת.</p>
       </section>
 
