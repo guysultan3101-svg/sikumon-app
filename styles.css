@@ -420,3 +420,26 @@ i.ev { display: inline-block; width: 12px; height: 12px; border-radius: 4px; bac
 @media (max-width: 700px) {
   .cal-d { min-height: 54px; align-items: center; } .cal-d .evs { display: none; } .cal-d .dots { display: flex; justify-content: center; }
 }
+
+/* ---------- כלים: הקראה, סימולציה, ציונים, חיפוש, שאלות ---------- */
+.reader { gap: 8px; }
+.md-body .reading { background: color-mix(in srgb, var(--marker) 40%, transparent); border-radius: 8px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--marker) 40%, transparent); }
+.sim-clock { font: 700 20px var(--font-mono); } .sim-clock.hot { color: var(--red); }
+.sim-nav { display: flex; flex-wrap: wrap; gap: 6px; }
+.sim-dot { width: 38px; height: 38px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--paper); font: 700 14px var(--font-mono); cursor: pointer; color: var(--ink); }
+.sim-dot.done { background: color-mix(in srgb, var(--blue) 15%, var(--paper)); border-color: var(--blue); }
+.sim-dot.cur { outline: 2px solid var(--ink); }
+.gr-row { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.gr-row input { width: auto; min-height: 44px; } .gr-row .gr-n { flex: 1; min-width: 140px; } .gr-row .gr-w, .gr-row .gr-g { width: 110px; }
+.gr-card label input { min-height: 38px; padding: 4px 8px; display: inline-block; }
+mark { background: var(--marker); color: #0F172A; border-radius: 3px; padding: 0 2px; }
+.tq.done b { text-decoration: line-through; opacity: .6; }
+.tq-ans { margin-top: 8px; min-height: 60px; }
+/* הדפסה / PDF: רק הסיכום, נקי וצפוף */
+@media print {
+  .side, .tabs, .reader, #chat, .explain-btn, .sel-bar, .toast, .page > a.small, .btn, .row .chip { display: none !important; }
+  .app { display: block !important; } main { padding: 0 !important; } body { background: #fff !important; }
+  .md-body { border: 0 !important; box-shadow: none !important; padding: 0 !important; font-size: 12px; line-height: 1.45; column-count: 2; column-gap: 22px; }
+  .md-body h2 { break-after: avoid; font-size: 15px; } .md-body table { break-inside: avoid; font-size: 11px; }
+  h1 { font-size: 20px !important; }
+}

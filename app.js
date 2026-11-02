@@ -6,6 +6,7 @@ import { initStudy } from "./study.js";
 import { initExtras } from "./extras.js";
 import { initPractice } from "./practice.js";
 import { initPlanner } from "./planner.js";
+import { initTools } from "./tools.js";
 import * as ai from "./ai.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -145,13 +146,14 @@ async function home() {
   const next = (await extras.upcoming()).slice(0, 3);
   const hasMarks = (await store.listRecordings()).some((r) => (r.marks || []).length);
   const gaps = await practice.missing();
+  const tq = await tools.openQuestions();
   const lastSum = items.filter((x) => x.type === "summary" && x.kind !== "formulas").sort((a, b) => b.date.localeCompare(a.date))[0];
   const quizCount = items.filter((x) => x.type === "quiz").length;
   const recent = (await store.listLessons()).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")).slice(0, 3);
   view.innerHTML = `<div class="page">
     <div>
       <p class="eyebrow">${new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}</p>
-      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}${(p.streak || 0) > 1 && p.streakDay >= new Date(Date.now() - 864e5).toLocaleDateString("en-CA") ? ` <span class="streak">🔥 ${p.streak}</span>` : ""}</h1><span class="row" style="gap:4px"><a href="#inbox" class="tool bell" aria-label="הודעות">${svg("bell")}<span class="bell-n" hidden></span></a><a href="#profile" class="tool show-phone" aria-label="פרופיל">${svg("user")}</a></span></div>
+      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}${(p.streak || 0) > 1 && p.streakDay >= new Date(Date.now() - 864e5).toLocaleDateString("en-CA") ? ` <span class="streak">🔥 ${p.streak}</span>` : ""}</h1><span class="row" style="gap:4px"><a href="#search" class="tool" aria-label="חיפוש בכל החומר">${svg("search")}</a><a href="#inbox" class="tool bell" aria-label="הודעות">${svg("bell")}<span class="bell-n" hidden></span></a><a href="#profile" class="tool show-phone" aria-label="פרופיל">${svg("user")}</a></span></div>
     </div>
     <a class="card" href="#record" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;gap:16px">
       <div><h2 style="font-size:24px">${nowSlot ? "עכשיו: " + esc(nowSlot.course) : "מתחיל שיעור?"}</h2><p class="muted">${nowSlot ? `<bdi>${nowSlot.start}–${nowSlot.end}</bdi> · לחיצה אחת, וההקלטה נכנסת ישר למחברת של הקורס.` : "לחיצה אחת ומתחילים להקליט. ההקלטה נכנסת למחברת של השיעור."}</p></div>
@@ -159,6 +161,7 @@ async function home() {
     </a>
     ${news && news.length ? `<section class="soft"><div class="row" style="justify-content:space-between"><h3>חדש במודל <span class="chip new">${news.length}</span></h3><a class="small" href="#notebooks">לפי קורסים</a></div><div class="list" style="margin-top:10px">${news.slice(0, 5).map((it) => study.moodleItem(it, true)).join("")}</div></section>` : ""}
     ${next.length ? `<section class="soft"><div class="row" style="justify-content:space-between"><h3>⏳ הבא בתור</h3><a class="small" href="#deadlines">לוח מבחנים</a></div><div class="list" style="margin-top:10px">${next.map((x) => `<a class="item" href="#deadlines"><span style="min-width:0"><span class="t">${x.kind === "exam" ? "📝" : "📌"} ${esc(x.title)}</span><br><span class="small muted">${esc(x.course)}</span></span>${extras.chip(x)}</a>`).join("")}</div></section>` : ""}
+    ${tq.length ? `<a class="item" href="#questions"><span style="min-width:0"><span class="t">🙋 ${tq.length} שאלות למתרגל</span><br><span class="small muted">${esc(tq[0].course)}: ${esc(tq[0].text)}</span></span></a>` : ""}
     ${gaps.length ? `<a class="item" href="#missing"><span style="min-width:0"><span class="t">📋 להשלים: ${gaps.length} דברים</span><br><span class="small muted">${esc(gaps[0].text)}</span></span></a>` : ""}
     ${hasMarks ? `<a class="item" href="#reels"><span><span class="t">🎬 הרגעים החשובים מהשיעורים</span><br><span class="small muted">קטע של דקה סביב כל ⭐ שסימנת</span></span></a>` : ""}
     ${study.getCode() ? "" : `<a class="item pair-cta" href="#summaries"><span><span class="t">🔗 חיבור אוטומטי למודל</span><br><span class="small muted">קוד אחד מהמחשב, ומאז הכול נכנס לבד</span></span></a>`}
@@ -755,6 +758,7 @@ async function lessonPage(id) {
       <div class="row" style="gap:8px">
         <button class="btn ghost small-btn" id="lrec">${svg("mic")} <span>הקלטה</span></button>
         <button class="btn ghost small-btn" id="lstar" hidden>⭐ <span></span></button>
+        <button class="btn ghost small-btn" id="ltq">🙋 <span>שאלה למתרגל</span></button>
         <button class="btn ghost small-btn" id="lshare">${svg("share")} <span>שיתוף</span></button>
         <button class="btn ghost small-btn" id="lsplit">${svg("split")} <span>מסך מפוצל</span></button>
         <button class="btn small-btn" id="lfull">${svg("expand")} <span>מסך מלא</span></button>
@@ -863,6 +867,7 @@ async function lessonPage(id) {
     window.scrollTo(0, 0);
   };
   $("#lfull").onclick = () => setFull(true);
+  $("#ltq").onclick = () => tools.quickQuestion(l.course, l.id);
   $("#lsplit").onclick = async () => {
     if (document.body.classList.contains("split")) { closeSplit(); return; }
     const sums = (await store.listItems()).filter((x) => x.type === "summary").sort((a, b) => (b.course === l.course) - (a.course === l.course) || (a.kind === "formulas") - (b.kind === "formulas") || b.date.localeCompare(a.date));
@@ -1138,7 +1143,7 @@ async function routeInner() {
   try { hash = decodeURIComponent(hash); } catch { /* כתובת לא תקינה */ }
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
-  const tab = hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash.startsWith("cards") || hash === "progress" ? "quizzes" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
+  const tab = hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
   renderTabs(tab);
   if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
   else if (hash === "record") record();
@@ -1152,7 +1157,12 @@ async function routeInner() {
       <a class="card" href="#deadlines"><h3>⏳ לוח מבחנים והגשות</h3><p class="small muted">${nx ? esc(nx.title) + " · " + extras.inDays(extras.daysTo(nx.when)) : "הוסיפו את תאריכי המבחנים"}</p></a></div>`);
   }
   else if (hash === "summary") summary();
-  else if (hash.startsWith("sum-")) { await study.summaryPage(hash.slice(4)); await attachAI(hash.slice(4)); }
+  else if (hash.startsWith("sum-")) { await study.summaryPage(hash.slice(4)); tools.attachReader(); await attachAI(hash.slice(4)); }
+  else if (hash === "sim") await tools.simSetup();
+  else if (hash === "grades") tools.grades();
+  else if (hash === "search") await tools.search();
+  else if (hash.startsWith("search-")) await tools.search(hash.slice(7));
+  else if (hash === "questions") await tools.questions();
   else if (hash === "calendar") await planner.calendar();
   else if (hash.startsWith("calendar-")) await planner.calendar(hash.slice(9));
   else if (hash === "inbox") await planner.inbox();
@@ -1160,7 +1170,7 @@ async function routeInner() {
   else if (hash.startsWith("msg-")) await planner.message(hash.slice(4), ai.miniMd);
   else if (hash === "quizzes") {
     await study.quizzes();
-    view.querySelector(".page > .row")?.insertAdjacentHTML("afterend", `<div class="grid2"><a class="card" href="#cards"><h3>🃏 כרטיסיות זיכרון</h3><p class="small muted">חזרה מרווחת מכל המבחנים ודפי הנוסחאות</p></a><a class="card" href="#progress"><h3>📈 ההתקדמות שלי</h3><p class="small muted">ציונים לאורך זמן, ובמה כדאי לחזור</p></a></div>`);
+    view.querySelector(".page > .row")?.insertAdjacentHTML("afterend", `<div class="grid2"><a class="card" href="#cards"><h3>🃏 כרטיסיות זיכרון</h3><p class="small muted">חזרה מרווחת מכל המבחנים ודפי הנוסחאות</p></a><a class="card" href="#progress"><h3>📈 ההתקדמות שלי</h3><p class="small muted">ציונים לאורך זמן, ובמה כדאי לחזור</p></a><a class="card" href="#sim"><h3>⏱️ סימולציית מבחן</h3><p class="small muted">טיימר, שאלות מכל הקורס, ציון בסוף</p></a><a class="card" href="#grades"><h3>🎯 כמה אני צריך במבחן?</h3><p class="small muted">לפי המשקלות והציונים שכבר יש</p></a></div>`);
   }
   else if (hash === "quiz-new") study.quizEditor();
   else if (hash.startsWith("quiz-mix-")) await study.mixQuiz(+hash.slice(9));
@@ -1190,6 +1200,7 @@ const study = initStudy(studyCtx);
 const practice = initPractice({ view, $, esc, svg, toast, prefs, store });
 studyCtx.onQuizDone = () => practice.bumpStreak();
 const extras = initExtras({ view, $, esc, svg, toast, prefs, store, segmentsOf, fmtTime });
+const tools = initTools({ view, $, esc, svg, toast, prefs, store, lessonTitle, onQuizDone: () => practice.bumpStreak() });
 const planner = initPlanner({ view, $, esc, toast, prefs, store, extras, study, lessonForToday });
 // הודעות: בודקים בפתיחה, אחרי סנכרון, וכל 10 דקות
 async function refreshInbox() { try { const f = await planner.refresh(); if (f.length && location.hash !== "#inbox") toast(`🔔 ${f[0].title}${f.length > 1 ? ` (+${f.length - 1})` : ""}`); } catch (e) { logError("inbox", e); } }
