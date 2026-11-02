@@ -329,6 +329,43 @@ async function attachAI(id) {
   window.addEventListener("hashchange", () => { document.removeEventListener("selectionchange", onSel); bar.remove(); ctrl?.abort(); }, { once: true });
 }
 
+// ----- 🎧 פודקאסטים: שני מגישים (נועה ואיתי) משוחחים על כל שיעור -----
+async function podcastsList(course = null) { return ((await store.getItem("podcasts"))?.items || []).filter((p) => !course || p.course === course); }
+const podMin = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+function podCard(p, withCourse = true) {
+  return `<div class="pod" data-pod="${esc(p.id)}"><button class="pod-play" aria-label="השמעה">▶</button><span style="min-width:0;flex:1"><span class="t">${esc(p.title)}</span><br><span class="small muted">${withCourse ? esc(p.course) + " · " : ""}🎧 <bdi>${podMin(p.seconds || 0)}</bdi> · נועה ואיתי</span></span></div>`;
+}
+// נגן אחד לכל האפליקציה: נשאר למטה גם כשעוברים מסך
+let podAudio = null;
+async function playPodcast(p) {
+  try {
+    toast("טוען את הפרק…");
+    const blob = await study.podcastAudio(p);
+    if (!podAudio) { podAudio = new Audio(); }
+    podAudio.src = URL.createObjectURL(blob);
+    $("#podBar")?.remove();
+    document.body.insertAdjacentHTML("beforeend", `<div class="pod-bar" id="podBar"><span class="t">🎧 ${esc(p.title)}</span><audio controls id="podEl"></audio><select id="podRate" aria-label="מהירות"><option value="1">1x</option><option value="1.25">1.25x</option><option value="1.5">1.5x</option></select><button class="tool" id="podX" aria-label="סגירה">✕</button></div>`);
+    const el = $("#podEl"); el.src = podAudio.src; podAudio = el;
+    $("#podRate").onchange = () => (el.playbackRate = +$("#podRate").value);
+    $("#podX").onclick = () => { el.pause(); $("#podBar").remove(); };
+    await el.play().catch(() => {});
+  } catch (e) { toast(e.message); }
+}
+function bindPods(list) {
+  view.querySelectorAll("[data-pod]").forEach((el) => (el.querySelector(".pod-play").onclick = () => { const p = list.find((x) => x.id === el.dataset.pod); if (p) playPodcast(p); }));
+}
+async function podcastsPage() {
+  const list = await podcastsList();
+  const by = list.reduce((m, p) => ((m[p.course] = m[p.course] || []).push(p), m), {});
+  view.innerHTML = `<div class="page">
+    <h1 style="font-size:30px">🎧 פודקאסטים על השיעורים</h1>
+    <p class="muted">פרק קצר על כל שיעור (5–7 דקות): נועה ואיתי מסבירים אחד לשני את החומר, עם דוגמאות. מושלם לאוטובוס לאוניברסיטה.</p>
+    ${Object.entries(by).map(([c, l]) => `<section class="soft"><h2 style="font-size:20px">${esc(c)}</h2><div class="list" style="margin-top:8px">${l.map((p) => podCard(p, false)).join("")}</div></section>`).join("") || '<p class="muted">עוד אין פודקאסטים. פרק חדש נוצר לבד לכל סיכום חדש.</p>'}
+    ${list.length ? `<details class="soft"><summary><b>התסריט של הפרק האחרון</b></summary><div class="pod-script">${list[list.length - 1].lines.map((ln) => `<p><b>${esc((list[list.length - 1].hosts || {})[ln.s] || ln.s)}:</b> ${esc(ln.t)}</p>`).join("")}</div></details>` : ""}
+  </div>`;
+  bindPods(list);
+}
+
 // ----- מחיקה (עם אישור) -----
 async function removeRecording(id) {
   const r = await store.getRecording(id);
@@ -603,6 +640,7 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
   const course = sel === null ? null : courses[sel];
   if (sel !== null && !course) { location.hash = "notebooks"; return; }
   const all = await store.listLessons();
+  const pods = await podcastsList();
   const newBy = {};
   for (const it of (await study.moodleNew()) || []) newBy[it.course] = (newBy[it.course] || 0) + 1;
   const color = (i) => FOLDER_COLORS[i % FOLDER_COLORS.length];
@@ -625,6 +663,7 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
         return `<a class="nb-f ${sel === i ? "on" : ""}" href="#course-${i}"><i style="background:${color(i)}"></i><span>${esc(c)}</span>${newBy[c] ? `<span class="chip new">${newBy[c]}</span>` : ""}<b>${n || ""}</b><button class="folder-del" data-i="${i}" aria-label="מחיקת התיקייה ${esc(c)}">${svg("trash")}</button></a>`;
       }).join("")}
       <a class="nb-f" href="#recordings"><i style="background:var(--red)"></i><span>כל ההקלטות</span></a>
+      <a class="nb-f" href="#podcasts"><i style="background:var(--violet)"></i><span>🎧 פודקאסטים</span><b>${pods.length || ""}</b></a>
     </aside>
     <section class="nb-main">
       <div class="row" style="justify-content:space-between">
@@ -635,6 +674,7 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
           <button class="btn small-btn" id="newLesson">${svg("plus")} חדש</button>
         </div>
       </div>
+      ${course && pods.some((p) => p.course === course) ? `<section class="pod-strip"><h3>🎧 פודקאסטים על השיעורים</h3><div class="list">${pods.filter((p) => p.course === course).map((p) => podCard(p, false)).join("")}</div></section>` : ""}
       <div class="cards" id="cards">${list.map(card).join("") || `<p class="muted">${course ? 'עוד אין שיעורים בתיקייה הזו. לחצו "חדש" כדי לפתוח דף, או "ייבוא מ-Notability" כדי להכניס את מה שכתבתם בעבר.' : "עוד אין שיעורים. בחרו תיקייה מהרשימה ולחצו \"חדש\"."}</p>`}</div>
       ${!course && list.length === 0 ? "" : ""}
       ${course ? extras.pastExamsBlock(await extras.pastExams(course), course) : ""}
@@ -643,6 +683,7 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
   </div>`;
 
   extras.bindPastExams(() => notebooks(sel));
+  bindPods(pods);
   // מצב עריכה: מופיעים כפתורי מחיקה על כל שיעור ועל כל תיקייה
   $("#editNb").onclick = () => {
     const on = !view.querySelector(".nb").classList.toggle("editing") ? false : true;
@@ -1143,7 +1184,7 @@ async function routeInner() {
   try { hash = decodeURIComponent(hash); } catch { /* כתובת לא תקינה */ }
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
-  const tab = hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
+  const tab = hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") || hash === "podcasts" ? "notebooks" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
   renderTabs(tab);
   if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
   else if (hash === "record") record();
@@ -1157,7 +1198,13 @@ async function routeInner() {
       <a class="card" href="#deadlines"><h3>⏳ לוח מבחנים והגשות</h3><p class="small muted">${nx ? esc(nx.title) + " · " + extras.inDays(extras.daysTo(nx.when)) : "הוסיפו את תאריכי המבחנים"}</p></a></div>`);
   }
   else if (hash === "summary") summary();
-  else if (hash.startsWith("sum-")) { await study.summaryPage(hash.slice(4)); tools.attachReader(); await attachAI(hash.slice(4)); }
+  else if (hash.startsWith("sum-")) {
+    await study.summaryPage(hash.slice(4)); tools.attachReader();
+    const pods = (await podcastsList()).filter((p) => p.summaryId === hash.slice(4));
+    if (pods.length) { view.querySelector(".reader")?.insertAdjacentHTML("afterend", podCard(pods[0], false)); bindPods(pods); }
+    await attachAI(hash.slice(4));
+  }
+  else if (hash === "podcasts") await podcastsPage();
   else if (hash === "sim") await tools.simSetup();
   else if (hash === "grades") tools.grades();
   else if (hash === "search") await tools.search();

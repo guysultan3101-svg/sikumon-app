@@ -25,6 +25,7 @@ export function initStudy(ctx) {
     for (const s of pack.summaries || []) await store.putItem({ ...s, type: "summary" });
     if (pack.moodle) await store.putItem({ id: "moodle-feed", type: "moodle", courses: pack.moodle, at: pack.createdAt });
     if (pack.deadlines) await store.putItem({ id: "deadlines", type: "deadlines", events: pack.deadlines, at: pack.createdAt });
+    if (pack.podcasts) await store.putItem({ id: "podcasts", type: "podcasts", items: pack.podcasts, at: pack.createdAt });
     if (pack.messages) await store.putItem({ id: "pack-messages", type: "messages", items: pack.messages, at: pack.createdAt });
     for (const q of pack.quizzes || []) await store.putItem({ ...q, type: "quiz" });
     // קורסים חדשים מ-Moodle נכנסים גם למחברות
@@ -48,10 +49,21 @@ export function initStudy(ctx) {
     const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("sikumon-sync:" + normCode(code)));
     return [...new Uint8Array(h)].map((x) => x.toString(16).padStart(2, "0")).join("").slice(0, 20) + ".json";
   }
-  async function decrypt(code, f) {
+  async function decryptBytes(code, f) {
     const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(normCode(code)), "PBKDF2", false, ["deriveKey"]);
     const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: b64(f.salt), iterations: f.iter, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
-    return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64(f.iv) }, key, b64(f.data))));
+    return crypto.subtle.decrypt({ name: "AES-GCM", iv: b64(f.iv) }, key, b64(f.data));
+  }
+  async function decrypt(code, f) { return JSON.parse(new TextDecoder().decode(await decryptBytes(code, f))); }
+  // קובץ קול של פודקאסט: מורידים פעם אחת, פותחים עם קוד הצימוד, ושומרים במכשיר לשמיעה גם בלי אינטרנט
+  async function podcastAudio(pod) {
+    const cached = await store.getItem("pod-audio-" + pod.key);
+    if (cached?.blob) return cached.blob;
+    const res = await fetch(SYNC_BASE + pod.file, { cache: "no-store" });
+    if (!res.ok) throw new Error("הפרק עוד לא זמין להורדה. נסו שוב בעוד כמה דקות.");
+    const blob = new Blob([await decryptBytes(getCode(), await res.json())], { type: "audio/mpeg" });
+    await store.putItem({ id: "pod-audio-" + pod.key, type: "pod-audio", blob });
+    return blob;
   }
   let syncing = null;
   async function syncNow(code = getCode(), { quiet = true } = {}) {
@@ -290,5 +302,5 @@ export function initStudy(ctx) {
       <p class="small muted" style="margin-top:8px">עודכן <bdi>${new Date(mc.updated).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</bdi>. הקישורים נפתחים במודל.</p></section>`;
   }
 
-  return { syncNow, getCode, pairCard, bindPair, moodleCourse, moodleNew, moodleItem, moodleSection, isNew, summaries, summaryPage, quizzes, quizById, mixQuiz, quizEditor, importPack };
+  return { podcastAudio, syncNow, getCode, pairCard, bindPair, moodleCourse, moodleNew, moodleItem, moodleSection, isNew, summaries, summaryPage, quizzes, quizById, mixQuiz, quizEditor, importPack };
 }

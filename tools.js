@@ -9,14 +9,24 @@ export function initTools(ctx) {
   function attachReader() {
     const body = view.querySelector(".md-body");
     if (!body || !("speechSynthesis" in window)) return;
-    const blocks = [...body.children].filter((el) => el.textContent.trim());
+    // מקריאים רק את השיעור עצמו: בלי "המקור", בלי "לבדוק" ובלי הערות טכניות
+    const SKIP_H = /^(לבדוק|מקור|הערות?|הערה טכנית)/;
+    const blocks = [];
+    let skipping = false;
+    for (const el of body.children) {
+      if (/^H[1-4]$/.test(el.tagName)) skipping = SKIP_H.test(el.textContent.replace("🪄 הסבר נוסף", "").trim());
+      if (skipping || el.tagName === "BLOCKQUOTE" || !el.textContent.trim()) continue;
+      if (/^\*{0,2}המקור/.test(el.textContent.trim())) continue;
+      blocks.push(el);
+    }
     view.querySelector(".page h1")?.insertAdjacentHTML("afterend", `<div class="reader row" role="group" aria-label="הקראה">
       <button class="btn small-btn" id="rdPlay">🔊 הקראה</button><button class="btn ghost small-btn" id="rdStop" hidden>⏹ עצירה</button>
       <select id="rdRate" name="rdRate" aria-label="מהירות" style="width:auto"><option value="0.9">איטי</option><option value="1" selected>רגיל</option><option value="1.25">מהיר</option><option value="1.5">מהיר מאוד</option></select>
       <button class="btn ghost small-btn" id="printBtn">🖨️ הדפסה / PDF</button></div>`);
     let i = 0, playing = false, paused = false, fails = 0;
     const voice = () => speechSynthesis.getVoices().find((v) => /^he|iw/i.test(v.lang));
-    const clean = (t) => t.replace(/🪄 הסבר נוסף/g, "").replace(/[⭐📐📌📝✅❌]/g, "").replace(/\s+/g, " ").trim();
+    // טקסט נקי להקראה: בלי אימוג'י ובלי כפתורים, וסימנים נקראים כמילים
+    const clean = (t) => t.replace(/🪄 הסבר נוסף/g, "").replace(/\p{Extended_Pictographic}/gu, "").replace(/\|/g, ", ").replace(/[−–]/g, " פחות ").replace(/=/g, " שווה ").replace(/\s+/g, " ").trim();
     const mark = () => blocks.forEach((b, k) => b.classList.toggle("reading", playing && k === i));
     const speakNext = () => {
       if (!playing) return;
