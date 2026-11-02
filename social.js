@@ -13,6 +13,7 @@ export function initSocial(ctx) {
     "itay.levi": { name: "איתי לוי", uni: "אריאל", degree: "כלכלה ומנהל, שנה א", bday: "03-14", bio: "מילואימניק 🎖️ משלים פערים ביחד איתכם", ig: "", li: "https://linkedin.com/", color: "#2563EB" },
     maya_b: { name: "מאיה ברק", uni: "אריאל", degree: "כלכלה ומנהל, שנה א", bday: mmdd(new Date(Date.now() + 2 * 864e5)), bio: "דפי נוסחאות זה האהבה שלי", ig: "https://instagram.com/", li: "", color: "#16A34A" },
     daniel_r: { name: "דניאל רוזן", uni: "אריאל", degree: "כלכלה ומנהל, שנה ב", bday: "07-02", bio: "עובד 30 שעות בשבוע ולומד בלילות", ig: "", li: "https://linkedin.com/", color: "#6D28D9" },
+    yoni_m: { name: "יוני מזרחי", uni: "אריאל", degree: "כלכלה ומנהל, שנה א", bday: "", bio: "", ig: "", li: "", color: "#0891B2" },
     "shira.g": { name: "שירה גבאי", uni: "בן-גוריון", degree: "הנדסת תעשייה וניהול", bday: "11-20", bio: "", ig: "https://instagram.com/", li: "https://linkedin.com/", color: "#EA580C" },
   };
   const POSTS = [
@@ -36,6 +37,15 @@ export function initSocial(ctx) {
     s.incoming ??= ["daniel_r"];
     s.pending ??= [];
     s.liked ??= {}; s.saved ??= {}; s.myPosts ??= []; s.sent ??= [];
+    // שיחות: מחברים -> "ראשי"; ממי שאינו חבר -> "בקשות" עד שמאשרים
+    s.threads ??= {
+      noa_k: [{ from: "noa_k", text: "היי! ראית שהמרצה העלה את המצגת של שיעור 5?", at: Date.now() - 36e5 }],
+      maya_b: [{ from: "maya_b", text: "מחר לומדים ביחד לבוחן? 📚", at: Date.now() - 864e5 }],
+      yoni_m: [{ from: "yoni_m", text: "היי, אני מהקורס במיקרו. אפשר את הסיכום של שיעור 3?", at: Date.now() - 2 * 36e5 }],
+    };
+    s.accepted ??= [];
+    s.read ??= {};
+    s.blocked ??= [];
     return s;
   };
   const user = (id) => USERS[id] || (get().me?.username === id ? { ...get().me, color: "#0F172A" } : null);
@@ -47,7 +57,7 @@ export function initSocial(ctx) {
   const safeLink = (url, host) => { try { const u = new URL(url); return u.protocol === "https:" && (u.hostname === host || u.hostname.endsWith("." + host)) ? u.href : ""; } catch { return ""; } };
 
   const DEMO = `<p class="notice">🧪 <b>עיצוב לדוגמה.</b> המשתמשים והפוסטים כאן מדומים, ושום דבר לא נשלח לאף אחד. ככה זה ייראה כשנחבר שרת.</p>`;
-  const subnav = (cur) => `<nav class="snav" aria-label="חברים">${[["social", "📰 פיד"], ["social-friends", "👥 חברים"], ["social-missed", "🙋 פספסתי שיעור"], ["me", "🙂 הפרופיל שלי"]].map(([h, l]) => `<a href="#${h}" ${cur === h ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</nav>`;
+  const subnav = (cur) => `<nav class="snav" aria-label="חברים">${[["social", "📰 פיד"], ["social-friends", "👥 חברים"], ["messages", "💬 הודעות"]].map(([h, l]) => `<a href="#${h}" ${cur === h ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</nav>`;
   const needMe = () => {
     if (get().me) return false;
     view.innerHTML = `<div class="page">${DEMO}<section class="card" style="display:grid;gap:12px"><h1 style="font-size:28px">👥 חברים ושיתוף</h1>
@@ -58,8 +68,11 @@ export function initSocial(ctx) {
 
   // ---------- הרשמה ----------
   function signup() {
-    view.innerHTML = `<div class="page" style="max-width:560px">${DEMO}
+    view.innerHTML = `<div class="page" style="max-width:560px">
+      <p class="eyebrow">ברוכים הבאים לסיכומון</p>
       <h1 style="font-size:30px">יצירת חשבון</h1>
+      <p class="muted">כדי להיכנס פותחים פרופיל. ככה חברים מהקורס יוכלו למצוא אתכם ולשלוח לכם סיכומים.</p>
+      ${DEMO}
       <button class="btn ghost" id="sgGoogle" type="button"><b style="color:#4285F4">G</b> המשך עם Google</button>
       <p class="muted small" style="text-align:center">או</p>
       <form id="sgForm" class="card" style="display:grid;gap:12px" novalidate>
@@ -100,7 +113,7 @@ export function initSocial(ctx) {
       if ($("#sgRes").checked) s.reservist = { since: new Date().toISOString().slice(0, 10), verified: false };
       set(s);
       toast("החשבון נוצר (דוגמה) 🎉");
-      location.hash = "#social";
+      if (location.hash === "#home") dispatchEvent(new HashChangeEvent("hashchange")); else location.hash = "#home";
     };
   }
 
@@ -206,7 +219,7 @@ export function initSocial(ctx) {
       </section>
       ${s.incoming.length ? `<section style="display:grid;gap:8px"><h3>בקשות חדשות (${s.incoming.length})</h3>${s.incoming.map((id) => row(id, `<button class="btn" data-ok="${esc(id)}" type="button">אישור</button><button class="btn ghost" data-no="${esc(id)}" type="button">לא עכשיו</button>`)).join("")}</section>` : ""}
       ${s.pending.length ? `<section style="display:grid;gap:8px"><h3>ממתינים לאישור</h3>${s.pending.map((id) => row(id, '<span class="chip">⏳ נשלחה</span>')).join("")}</section>` : ""}
-      <section style="display:grid;gap:8px"><h3>החברים שלי (${s.friends.length})</h3>${s.friends.map((id) => row(id, `<button class="btn ghost" data-snd="${esc(id)}" type="button">📤</button>`)).join("")}</section></div>`;
+      <section style="display:grid;gap:8px"><h3>החברים שלי (${s.friends.length})</h3>${s.friends.map((id) => row(id, `<a class="btn ghost" href="#dm-${encodeURIComponent(id)}" aria-label="הודעה">💬</a><button class="btn ghost" data-snd="${esc(id)}" type="button" aria-label="שליחת סיכום">📤</button>`)).join("")}</section></div>`;
     $("#frForm").onsubmit = (e) => {
       e.preventDefault();
       const id = $("#frQ").value.trim().replace(/^@/, "").toLowerCase();
@@ -226,8 +239,10 @@ export function initSocial(ctx) {
   function missed() {
     if (needMe()) return;
     const courses = ctx.prefs.get()?.courses || [];
-    view.innerHTML = `<div class="page">${DEMO}${subnav("social-missed")}
-      <section class="card" style="display:grid;gap:12px"><h2>🙋 לא הייתי בשיעור, ואין הקלטה</h2>
+    view.innerHTML = `<div class="page">
+      <h1 style="font-size:30px">🙋 פספסתי שיעור</h1>${DEMO}
+      <section class="soft small"><b>איך זה עובד:</b><ol class="steps" style="margin:6px 0 0"><li>בוחרים קורס ותאריך.</li><li>החברים שלך מאותו קורס מקבלים התראה.</li><li>מי שהיה בשיעור שולח בלחיצה סיכום, תמונה של הלוח או הקלטה.</li><li>מה שנשלח נכנס ישר למחברת של אותו שיעור אצלך, ומשם אפשר להפיק פודקאסט ומבחן.</li></ol></section>
+      <section class="card" style="display:grid;gap:12px"><h2>לא הייתי בשיעור, ואין הקלטה</h2>
         <label>איזה קורס?<select id="msC">${courses.map((c) => `<option>${esc(c)}</option>`).join("")}</select></label>
         <label>איזה תאריך?<input type="date" id="msD" value="${today.toISOString().slice(0, 10)}"></label>
         <button class="btn" type="button" id="msGo">לבקש מהחברים בקורס</button></section>
@@ -252,10 +267,12 @@ export function initSocial(ctx) {
     const ig = safeLink(u.ig, "instagram.com"), li = safeLink(u.li, "linkedin.com");
     const posts = [...s.myPosts, ...POSTS].filter((p) => p.by === id);
     const friend = s.friends.includes(id);
-    view.innerHTML = `<div class="page" style="max-width:720px">${DEMO}${mine ? subnav("me") : ""}
+    if (mine) { location.hash = "#profile"; return; }
+    view.innerHTML = `<div class="page" style="max-width:720px">${DEMO}
       <section class="card prof"><div class="row" style="gap:16px">${avatar(id, true)}<span style="min-width:0;flex:1"><h1 style="font-size:28px">${esc(u.name)}</h1><span class="muted" dir="ltr">@${esc(id)}</span><br><span class="small muted">${esc(u.uni || "")} · ${esc(u.degree || "")}</span></span></div>
         ${u.bio ? `<p>${esc(u.bio)}</p>` : mine ? '<p class="muted">עוד לא כתבת משהו על עצמך</p>' : ""}
         <div class="row">${ig ? `<a class="btn ghost" href="${esc(ig)}" target="_blank" rel="noopener noreferrer">📸 Instagram</a>` : ""}${li ? `<a class="btn ghost" href="${esc(li)}" target="_blank" rel="noopener noreferrer">💼 LinkedIn</a>` : ""}
+          <a class="btn ghost" href="#dm-${encodeURIComponent(id)}">💬 הודעה</a>
           ${mine ? '<button class="btn" type="button" id="edit">עריכת פרופיל</button>' : friend ? '<span class="chip ok">✓ חברים</span><button class="btn ghost" type="button" id="snd">📤 שליחת סיכום</button>' : s.pending.includes(id) ? '<span class="chip">⏳ מחכים לאישור</span>' : '<button class="btn" type="button" id="add">➕ בקשת חברות</button>'}</div>
         ${mine && s.reservist ? `<p class="soft small">🎖️ הנחת מילואים 20%: ${s.reservist.verified ? "מאומת" : `פעילה. נשאר להעלות אישור עד ${new Date(Date.parse(s.reservist.since) + 30 * 864e5).toLocaleDateString("he-IL")}`} <button class="btn ghost" type="button" id="resUp" style="min-height:32px;padding:2px 10px">העלאת אישור</button></p>` : ""}
       </section>
@@ -284,16 +301,86 @@ export function initSocial(ctx) {
       const ig = $("#eIg", m).value.trim(), li = $("#eLi", m).value.trim();
       if (ig && !safeLink(ig, "instagram.com")) return toast("קישור אינסטגרם צריך להתחיל ב-https://instagram.com");
       if (li && !safeLink(li, "linkedin.com")) return toast("קישור לינקדאין צריך להתחיל ב-https://linkedin.com");
-      Object.assign(me, { bio: $("#eBio", m).value.trim(), degree: $("#eDeg", m).value.trim(), ig, li }); set(s); m.remove(); profileView(me.username);
+      Object.assign(me, { bio: $("#eBio", m).value.trim(), degree: $("#eDeg", m).value.trim(), ig, li }); set(s); m.remove(); dispatchEvent(new HashChangeEvent("hashchange"));
     };
   }
+
+  // ---------- הודעות ----------
+  const lastOf = (t) => t[t.length - 1];
+  const isRequest = (s, id) => !s.friends.includes(id) && !s.accepted.includes(id) && (s.threads[id] || []).every((m) => m.from === id);
+  function unread() { const s = get(); if (!s.me || !s.threads) return 0; return Object.entries(s.threads).filter(([id, t]) => t.length && lastOf(t).from === id && (s.read?.[id] || 0) < lastOf(t).at).length; }
+  function messages(box = "main") {
+    if (needMe()) return;
+    const s = st();
+    const all = Object.entries(s.threads).filter(([, t]) => t.length).sort((a, b) => lastOf(b[1]).at - lastOf(a[1]).at);
+    const reqs = all.filter(([id]) => isRequest(s, id)), main = all.filter(([id]) => !isRequest(s, id));
+    const list = box === "req" ? reqs : main;
+    const when = (t) => new Date(t).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
+    view.innerHTML = `<div class="page" style="max-width:720px">${DEMO}${subnav("messages")}
+      <div class="row"><a class="btn ${box === "req" ? "ghost" : ""}" href="#messages">ראשי</a><a class="btn ${box === "req" ? "" : "ghost"}" href="#messages-req">בקשות${reqs.length ? ` (${reqs.length})` : ""}</a></div>
+      ${box === "req" ? '<p class="small muted">הודעות ממי שאינו חבר שלך. הוא לא יודע שקראת עד שתאשר/י.</p>' : ""}
+      <div class="list">${list.map(([id, t]) => { const m = lastOf(t), un = m.from === id && (s.read[id] || 0) < m.at; return `<a class="item" href="#dm-${encodeURIComponent(id)}">${avatar(id)}<span style="flex:1;min-width:0"><span class="t">${esc(user(id)?.name || id)}</span>${un ? ' <span class="chip new">חדש</span>' : ""}<br><span class="small muted" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.from === id ? "" : "את/ה: "}${esc(m.text)}</span></span><span class="small muted">${when(m.at)}</span></a>`; }).join("") || '<p class="muted">אין כאן הודעות</p>'}</div>
+      ${box === "req" ? "" : `<section class="soft"><h3>הודעה חדשה</h3><div class="stories" style="margin-top:8px">${s.friends.map((id) => `<a class="story" href="#dm-${encodeURIComponent(id)}">${avatar(id)}<span class="small">${esc((user(id)?.name || id).split(" ")[0])}</span></a>`).join("")}</div></section>`}</div>`;
+  }
+  function dm(id) {
+    if (needMe()) return;
+    const s = st(); const u = user(id);
+    if (!u) { view.innerHTML = `<div class="page">${DEMO}<p>לא מצאנו את @${esc(id)}</p></div>`; return; }
+    const t = s.threads[id] || []; const req = t.length && isRequest(s, id);
+    if (t.length) { s.read[id] = lastOf(t).at; set(s); }
+    view.innerHTML = `<div class="page dm" style="max-width:720px">${DEMO}
+      <a class="row" href="#u-${encodeURIComponent(id)}" style="color:inherit;text-decoration:none">${avatar(id)}<span><b>${esc(u.name)}</b><br><span class="small muted" dir="ltr">@${esc(id)}</span></span></a>
+      ${req ? `<div class="notice">${esc(u.name)} עוד לא חבר/ה שלך ורוצה לשלוח לך הודעה.<div class="row" style="margin-top:8px"><button class="btn" id="dmOk" type="button">אישור</button><button class="btn ghost" id="dmDel" type="button">מחיקה</button><button class="btn ghost" id="dmBlock" type="button">🚫 חסימה</button></div></div>` : ""}
+      <div class="dm-log" id="dmLog">${t.map((m) => `<div class="bubble ${m.from === id ? "bot" : "me"}">${esc(m.text)}</div>`).join("") || '<p class="muted small">עוד אין הודעות. תגידו היי 👋</p>'}</div>
+      ${req ? "" : `<form class="chat-form" id="dmForm"><textarea id="dmIn" rows="1" placeholder="הודעה…" aria-label="הודעה"></textarea><button class="btn" type="submit">שליחה</button></form>`}
+      <button class="btn ghost" type="button" id="dmReport" style="justify-self:start">⚠️ דיווח על משתמש</button></div>`;
+    const log = $("#dmLog"); log.scrollTop = log.scrollHeight;
+    $("#dmReport").onclick = () => toast("הדיווח נשלח לבדיקה (דוגמה). אפשר גם לחסום בהגדרות ← פרטיות");
+    if (req) {
+      $("#dmOk").onclick = () => { s.accepted.push(id); set(s); dm(id); };
+      $("#dmDel").onclick = () => { delete s.threads[id]; set(s); location.hash = "#messages-req"; };
+      $("#dmBlock").onclick = () => { delete s.threads[id]; s.blocked.push(id); set(s); toast("נחסם/ה"); location.hash = "#messages-req"; };
+      return;
+    }
+    $("#dmIn").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#dmForm").requestSubmit(); } };
+    $("#dmForm").onsubmit = (e) => {
+      e.preventDefault(); const v = $("#dmIn").value.trim(); if (!v) return;
+      const x = st(); (x.threads[id] ??= []).push({ from: x.me.username, text: v, at: Date.now() }); set(x); dm(id);
+      // בדוגמה: חבר עונה אחרי רגע
+      if (USERS[id]) setTimeout(() => { const y = st(); y.threads[id].push({ from: id, text: ["סבבה 👍", "תודה!! 🙏", "אחלה, נדבר אחר כך"][Math.floor(Math.random() * 3)], at: Date.now() }); set(y); if (location.hash === "#dm-" + encodeURIComponent(id)) dm(id); }, 2500);
+    };
+  }
+
+  // ---------- הפרופיל שלי (באזור הפרופיל) ----------
+  function myProfile(tab = "posts") {
+    const s = st(); const me = s.me; if (!me) return "";
+    const ig = safeLink(me.ig, "instagram.com"), li = safeLink(me.li, "linkedin.com");
+    const all = [...s.myPosts, ...POSTS];
+    const lists = { posts: all.filter((p) => p.by === me.username), liked: all.filter((p) => s.liked[p.id]), saved: all.filter((p) => s.saved[p.id]) };
+    const tabs = [["posts", "📝 שפרסמתי"], ["liked", "❤️ אהבתי"], ["saved", "🔖 שמורים"]];
+    return `<section class="card prof"><div class="row" style="gap:16px">${avatar(me.username, true)}<span style="min-width:0;flex:1"><h1 style="font-size:28px">${esc(me.name)}</h1><span class="muted" dir="ltr">@${esc(me.username)}</span><br><span class="small muted">${esc(me.uni || "")} · ${esc(me.degree || "")}</span></span></div>
+      ${me.bio ? `<p>${esc(me.bio)}</p>` : '<p class="muted">עוד לא כתבת משהו על עצמך</p>'}
+      <div class="row">${ig ? `<a class="btn ghost" href="${esc(ig)}" target="_blank" rel="noopener noreferrer">📸 Instagram</a>` : ""}${li ? `<a class="btn ghost" href="${esc(li)}" target="_blank" rel="noopener noreferrer">💼 LinkedIn</a>` : ""}
+        <button class="btn" type="button" id="meEdit">עריכת פרופיל</button><a class="btn ghost" href="#settings">⚙️ הגדרות</a></div>
+      <p class="small muted">👥 ${s.friends.length} חברים · <a href="#social-friends">לרשימה</a></p></section>
+      <nav class="snav" aria-label="התוכן שלי">${tabs.map(([k, l]) => `<a href="#profile${k === "posts" ? "" : "-" + k}" ${tab === k ? 'aria-current="page"' : ""}>${l} (${lists[k].length})</a>`).join("")}</nav>
+      ${tab !== "posts" ? '<p class="small muted">🔒 רק את/ה רואה את הרשימה הזו</p>' : ""}
+      <div class="feed" id="meFeed">${lists[tab].map((p) => postCard(p, s)).join("") || '<p class="muted">עוד אין כאן כלום</p>'}</div>`;
+  }
+  function bindMyProfile() {
+    const s = st(); const all = [...s.myPosts, ...POSTS];
+    bindFeed(all.filter((p) => document.querySelector(`#meFeed [data-post="${p.id}"]`)));
+    $("#meEdit") && ($("#meEdit").onclick = editMe);
+  }
+  function logout() { const s = get(); delete s.me; set(s); }
+  function deleteAccount() { try { localStorage.removeItem(KEY); } catch { /* */ } }
 
   // פעמון: ימי הולדת של חברים היום (להודעות באפליקציה)
   function birthdaysToday() { const s = get(); if (!s.me) return []; return (s.friends || ["noa_k", "maya_b", "itay.levi"]).filter((f) => USERS[f]?.bday === mmdd(today)).map((f) => USERS[f].name); }
 
   return {
-    feed, friends, missed, signup, birthdaysToday,
-    me: () => (needMe() ? null : profileView(get().me.username)),
+    feed, friends, missed, signup, birthdaysToday, messages, dm, unread, myProfile, bindMyProfile, editMe, logout, deleteAccount,
+    hasMe: () => !!get().me, state: st, save: set,
     profile: (id) => profileView(id),
   };
 }

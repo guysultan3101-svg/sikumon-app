@@ -485,3 +485,37 @@ mark { background: var(--marker); color: #0F172A; border-radius: 3px; padding: 0
 .vis input { width: auto; }
 .prof { display: grid; gap: 12px; }
 .modal .card { max-height: 88dvh; overflow-y: auto; }
+
+/* ---------- v20: חזרה, עוזר AI, הגדרות, הודעות ---------- */
+.back-btn { justify-self: start; display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 4px 12px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--paper); color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer; }
+.back-btn:hover { border-color: var(--blue); }
+.ai-fab { position: fixed; z-index: 60; inset-inline-start: 16px; bottom: calc(var(--tabbar-h) + 16px + env(safe-area-inset-bottom, 0px)); width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--ink); background: var(--violet); color: #fff; font-size: 26px; box-shadow: 3px 3px 0 var(--ink); cursor: pointer; }
+@media (min-width: 821px) { .ai-fab { bottom: 24px; inset-inline-start: auto; inset-inline-end: 24px; } }
+body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area-inset-bottom, 0px)); }
+.ai-panel { position: fixed; z-index: 90; inset-inline: 12px; bottom: calc(var(--tabbar-h) + 12px + env(safe-area-inset-bottom, 0px)); max-height: 70dvh; display: grid; grid-template-rows: auto auto 1fr auto auto; gap: 8px; padding: 14px; background: var(--paper); border: 2px solid var(--violet); border-radius: 18px; box-shadow: 0 12px 32px rgba(0,0,0,.25); }
+@media (min-width: 821px) { .ai-panel { inset-inline: auto 24px; width: 420px; bottom: 90px; } }
+.ai-panel .chat-log { overflow-y: auto; min-height: 60px; display: grid; gap: 8px; align-content: start; }
+.settings .set { display: grid; gap: 10px; scroll-margin-top: 16px; }
+.settings .set h2 { font-size: 21px; }
+.settings .set h3 { font-size: 17px; margin-top: 6px; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.set-row:last-of-type { border-bottom: 0; }
+.switch { appearance: none; -webkit-appearance: none; width: 48px !important; height: 28px; flex: none; border-radius: 999px; background: var(--line); position: relative; cursor: pointer; transition: background .15s; padding: 0; border: 0; }
+.switch::after { content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: inset-inline-start .15s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.switch:checked { background: var(--green); }
+.switch:checked::after { inset-inline-start: 23px; }
+.btn.danger { background: var(--red); border-color: var(--red); color: #fff; }
+.dm-log { display: grid; gap: 8px; align-content: start; min-height: 200px; max-height: 55dvh; overflow-y: auto; padding: 8px; background: var(--paper); border: 1.5px solid var(--line); border-radius: var(--radius); }
+.calm *, .calm *::before, .calm *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+:root[data-theme="dark"] {
+  --bg: #0B1120; --paper: #121b30; --grid: #17223a; --ink: #E7ECF7; --ink-soft: #A3B0C8;
+  --blue: #5B8DEF; --on-blue: #0B1120; --violet: #A78BFA; --marker: #FACC15; --pink: #F472B6;
+  --red: #F87171; --green: #4ADE80; --line: #26324d; color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="light"] {
+    --bg: #F7F9FE; --paper: #FFFFFF; --grid: #E6ECF8; --ink: #0F172A; --ink-soft: #475569;
+    --blue: #2563EB; --on-blue: #FFFFFF; --violet: #6D28D9; --marker: #FDE047; --pink: #DB2777;
+    --red: #DC2626; --green: #16A34A; --line: #D5DEF2; color-scheme: light;
+  }
+}

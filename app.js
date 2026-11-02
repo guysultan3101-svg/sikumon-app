@@ -8,6 +8,8 @@ import { initPractice } from "./practice.js";
 import { initPlanner } from "./planner.js";
 import { initTools } from "./tools.js";
 import { initSocial } from "./social.js";
+import { initSettings } from "./settings.js";
+import { initAssistant } from "./assistant.js";
 import * as ai from "./ai.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -48,6 +50,8 @@ const icon = {
   cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   users: '<circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 7 0 0 1 14 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 4 6"/>',
+  chat: '<path d="M4 5h16v11H9l-5 4z"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   hand: '<path d="M7 11V6a1.5 1.5 0 0 1 3 0v4M10 10V4.5a1.5 1.5 0 0 1 3 0V10M13 10V5.5a1.5 1.5 0 0 1 3 0V11M16 11V8.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1a7 7 0 0 1-5-2.5L3.5 15a1.5 1.5 0 0 1 2.3-2L7 14"/>',
   type: '<path d="M4 7V5h16v2M12 5v14M9 19h6"/>',
@@ -60,12 +64,13 @@ const svg = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 
 const TABS = [
   { hash: "home", label: "בית", icon: "home" },
+  { hash: "social", label: "חברים", icon: "users" },
   { hash: "notebooks", label: "מחברות", icon: "folder" },
   { hash: "record", label: "הקלטה", icon: "mic", cls: "rec-tab" },
   { hash: "calendar", label: "יומן", icon: "cal" },
   { hash: "summaries", label: "סיכומים", icon: "book" },
   { hash: "quizzes", label: "מבחנים", icon: "check" },
-  { hash: "social", label: "חברים", icon: "users", cls: "hide-phone" },
+  { hash: "messages", label: "הודעות", icon: "chat", cls: "hide-phone" },
   { hash: "profile", label: "פרופיל", icon: "user", cls: "hide-phone" },
 ];
 function renderTabs(active) {
@@ -107,7 +112,7 @@ function onboarding(step = 0, answers = {}) {
       <p class="eyebrow">ברוכים הבאים</p>
       <h1 style="font-size:clamp(32px,5vw,48px)">נתאים את <span class="mark">סיכומון</span> בדיוק אלייך</h1>
       <p class="muted">חמש שאלות קצרות על איך שאת/ה לומד/ת, ואז כמה פרטים על הקורסים. לוקח פחות מדקה.</p>
-      <label class="field">איך לקרוא לך?<input type="text" id="name" name="name" autocomplete="given-name" placeholder="השם הפרטי שלך"></label>
+      <label class="field">איך לקרוא לך?<input type="text" id="name" name="name" autocomplete="given-name" placeholder="השם הפרטי שלך" value="${esc((social.state().me?.name || "").split(" ")[0])}"></label>
       <label class="field">מוסד לימודים<select id="inst" name="inst"><option>אוניברסיטת אריאל</option><option>אוניברסיטת בן־גוריון</option><option>אוניברסיטת בר־אילן</option><option>אחר</option></select></label>
       <div class="row"><button class="btn" id="go">מתחילים</button></div>
     </div>`;
@@ -156,7 +161,7 @@ async function home() {
   view.innerHTML = `<div class="page">
     <div>
       <p class="eyebrow">${new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}</p>
-      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}${(p.streak || 0) > 1 && p.streakDay >= new Date(Date.now() - 864e5).toLocaleDateString("en-CA") ? ` <span class="streak">🔥 ${p.streak}</span>` : ""}</h1><span class="row" style="gap:4px"><a href="#social" class="tool show-phone" aria-label="חברים">${svg("users")}</a><a href="#search" class="tool" aria-label="חיפוש בכל החומר">${svg("search")}</a><a href="#inbox" class="tool bell" aria-label="הודעות">${svg("bell")}<span class="bell-n" hidden></span></a><a href="#profile" class="tool show-phone" aria-label="פרופיל">${svg("user")}</a></span></div>
+      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}${(p.streak || 0) > 1 && p.streakDay >= new Date(Date.now() - 864e5).toLocaleDateString("en-CA") ? ` <span class="streak">🔥 ${p.streak}</span>` : ""}</h1><span class="row" style="gap:4px"><a href="#messages" class="tool show-phone bell" aria-label="הודעות מחברים">${svg("chat")}${social.unread() ? `<span class="bell-n">${social.unread()}</span>` : ""}</a><a href="#search" class="tool" aria-label="חיפוש בכל החומר">${svg("search")}</a><a href="#inbox" class="tool bell" aria-label="הודעות">${svg("bell")}<span class="bell-n" hidden></span></a><a href="#profile" class="tool show-phone" aria-label="פרופיל">${svg("user")}</a></span></div>
     </div>
     <a class="card" href="#record" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;gap:16px">
       <div><h2 style="font-size:24px">${nowSlot ? "עכשיו: " + esc(nowSlot.course) : "מתחיל שיעור?"}</h2><p class="muted">${nowSlot ? `<bdi>${nowSlot.start}–${nowSlot.end}</bdi> · לחיצה אחת, וההקלטה נכנסת ישר למחברת של הקורס.` : "לחיצה אחת ומתחילים להקליט. ההקלטה נכנסת למחברת של השיעור."}</p></div>
@@ -266,21 +271,21 @@ async function attachAI(id) {
   const sum = await store.getItem(id);
   const page = view.querySelector(".page"); if (!sum || !page) return;
   const lessonText = ai.htmlToText(sum.html);
-  const hasKey = !!ai.getKey();
+  const hasKey = ai.hasAI();
   page.insertAdjacentHTML("beforeend", `<section class="card chat" id="chat">
     <h2 style="font-size:21px">💬 שאל את השיעור</h2>
     ${hasKey ? `<p class="small muted">שואלים כל שאלה על השיעור הזה, ומקבלים הסבר לפי החומר. אפשר גם לסמן משפט בסיכום ולבקש הסבר נוסף.</p>
     <div class="chat-log" id="chatLog" aria-live="polite"></div>
     <div class="chips-row" id="chatSugg">${["לא הבנתי את הנושא המרכזי, תסביר שוב", "תן לי דוגמה מספרית", "מה הכי חשוב לזכור מהשיעור למבחן?", "תשאל אותי שאלה לבדוק שהבנתי"].map((q) => `<button class="chip-btn" data-q="${q}">${q}</button>`).join("")}</div>
     <form class="chat-form" id="chatForm"><textarea id="chatIn" name="question" rows="2" placeholder="למשל: מה ההבדל בין עלות שולית לעלות ממוצעת…" autocomplete="off"></textarea><button class="btn" id="chatSend">שליחה</button></form>`
-    : `<p class="notice">כדי להשתמש, מכניסים פעם אחת מפתח API בפרופיל ← "🤖 AI". <a href="#profile">להגדרה</a></p>`}
+    : `<p class="notice">כדי להשתמש, מחברים פעם אחת AI חינמי בהגדרות. <a href="#settings-ai">לחיבור</a></p>`}
   </section>`);
   // כפתור "הסבר נוסף" ליד כל כותרת בסיכום
   view.querySelectorAll(".md-body h2").forEach((h) => h.insertAdjacentHTML("beforeend", ` <button class="explain-btn" aria-label="הסבר נוסף על החלק הזה">🪄 הסבר נוסף</button>`));
   const history = [];
   let ctrl = null;
   const send = async (question) => {
-    if (!hasKey) { location.hash = "profile"; toast("קודם מגדירים מפתח API"); return; }
+    if (!hasKey) { location.hash = "settings-ai"; toast("קודם מחברים AI בהגדרות"); return; }
     if (ctrl) return;
     $("#chat").scrollIntoView({ behavior: "smooth", block: "start" });
     const log = $("#chatLog");
@@ -1142,31 +1147,19 @@ function timetable() {
   };
 }
 
-function profile() {
-  const p = prefs.get();
-  const rows = onboardingQuestions.map((q) => `<div class="item"><span class="muted small">${q.q}</span><b>${esc(p[q.id] || "–")}</b></div>`).join("");
-  const s = support();
-  view.innerHTML = `<div class="page">
-    <h1 style="font-size:32px">הפרופיל שלי</h1>
-    <div class="soft"><b>${esc(p.name || "")}</b> · ${esc(p.inst || "")}</div>
-    <h2 style="font-size:22px">איך אני לומד/ת</h2><div class="list">${rows}</div>
-    <h2 style="font-size:22px">הקורסים</h2><div class="soft">${(p.courses || []).map(esc).join(" · ")}</div>
-    <section class="soft" id="aiBox"><h3>🤖 AI: שאל את השיעור והסבר נוסף</h3>
-      <p class="small muted">מדביקים מפתח API של Anthropic (מ-console.anthropic.com ← API Keys). בגרסת הבדיקה המפתח נשמר רק במכשיר הזה ולא נשלח לשום מקום חוץ מ-Anthropic. אל תגדירו אותו במכשיר של מישהו אחר.</p>
-      <p class="small" style="margin-top:6px">מצב: <b id="aiState">${ai.getKey() ? "✅ מוגדר" : "לא מוגדר"}</b></p>
-      <div class="row" style="margin-top:8px"><input type="password" id="aiKey" name="aiKey" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" style="flex:1;min-width:200px;direction:ltr"><button class="btn" id="aiSave">שמירה</button><button class="btn ghost" id="aiTest" ${ai.getKey() ? "" : "disabled"}>בדיקה</button><button class="btn ghost" id="aiDel" ${ai.getKey() ? "" : "disabled"}>הסרה</button></div></section>
-    <a class="item" href="#timetable"><span><span class="t">🕘 מערכת השעות</span><br><span class="small muted">${(p.timetable || []).length ? (p.timetable.length + " שיעורים בשבוע · ההקלטות נכנסות לבד לקורס הנכון") : "עוד לא הוגדרה. בלעדיה בוחרים קורס ידנית בכל הקלטה"}</span></span></a>
-    <div class="row"><button class="btn ghost" id="redo">לענות מחדש על השאלון</button><a class="btn" href="#feedback">${svg("share")} שליחת משוב</a></div>
+function profile(tab = "posts") {
+  const st = support();
+  view.innerHTML = `<div class="page" style="max-width:760px">
+    ${social.myProfile(tab)}
+    <section class="list">
+      <a class="item" href="#settings"><span><span class="t">⚙️ הגדרות</span><br><span class="small muted">איך אני לומד/ת, AI, מנוי, פרטיות, התראות, נגישות</span></span></a>
+      <a class="item" href="#timetable"><span><span class="t">🕘 מערכת השעות</span></span></a>
+      <a class="item" href="#feedback"><span><span class="t">✉️ משוב על הגרסה</span></span></a>
+    </section>
+    ${!st.standalone ? '<p class="notice"><b>להתקנה באייפד/אייפון:</b> ב-Safari לוחצים על כפתור השיתוף ובוחרים "הוסף למסך הבית".</p>' : ""}
     <p class="small muted">גרסת האפליקציה: <b>${APP_VERSION}</b></p>
-    <div class="soft small"><b>פרטיות:</b> בגרסת הבדיקה הכול נשמר רק במכשיר שלך: התשובות, הקורסים וההקלטות. שום דבר לא נשלח לשרת. משוב נשלח רק כשאתם לוחצים "שליחה" ובוחרים למי.</div>
-    <a class="item" href="#diag"><span><span class="t">🩺 בדיקת מכשיר</span><br><span class="small muted">בודק מיקרופון, הקלטה, שמירה, עט וחיבור למודל, ומפיק דוח</span></span></a>
-    <div class="soft small" hidden><b>בדיקת מכשיר:</b> מיקרופון ${s.mic ? "✓" : "✗"} · הקלטה ${s.recorder ? "✓" : "✗"} (${esc(s.mime || "לא ידוע")}) · מסך דלוק ${s.wakeLock ? "✓" : "✗"} · מותקן כאפליקציה ${s.standalone ? "✓" : "✗"}</div>
-    ${!s.standalone ? '<p class="notice"><b>להתקנה באייפד/אייפון:</b> ב-Safari לוחצים על כפתור השיתוף ובוחרים "הוסף למסך הבית".</p>' : ""}
   </div>`;
-  $("#redo").onclick = () => onboarding(0);
-  $("#aiSave").onclick = () => { const k = $("#aiKey").value.trim(); if (!k.startsWith("sk-ant-")) { toast("זה לא נראה כמו מפתח של Anthropic (מתחיל ב-sk-ant-)"); return; } ai.setKey(k); $("#aiKey").value = ""; toast("המפתח נשמר במכשיר"); profile(); };
-  $("#aiDel").onclick = () => { ai.setKey(""); toast("המפתח הוסר מהמכשיר"); profile(); };
-  $("#aiTest").onclick = async () => { $("#aiTest").disabled = true; $("#aiState").textContent = "בודק…"; try { const r = await ai.testKey(); $("#aiState").textContent = "✅ עובד (" + r.slice(0, 20) + ")"; } catch (e) { $("#aiState").textContent = "❌ " + e.message; } $("#aiTest").disabled = false; };
+  social.bindMyProfile();
 }
 
 // ---------- ניתוב ----------
@@ -1184,9 +1177,12 @@ async function route() {
 async function routeInner() {
   let hash = location.hash.slice(1) || "home";
   try { hash = decodeURIComponent(hash); } catch { /* כתובת לא תקינה */ }
+  // משתמש חדש: קודם פותחים פרופיל, ורק אז השאלון ("איך אני לומד/ת")
+  if (!social.hasMe()) { renderTabs(null); assistant.mount(null); return social.signup(); }
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
-  const tab = hash.startsWith("social") || hash.startsWith("u-") || hash === "me" || hash === "signup" ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
+  if (hash === "social-missed") hash = "missed-lesson";
+  const tab = hash === "missed-lesson" ? "summaries" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
   renderTabs(tab);
   if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
   else if (hash === "record") record();
@@ -1199,6 +1195,7 @@ async function routeInner() {
     view.querySelector(".page h1")?.insertAdjacentHTML("afterend", `<div class="grid2">
       <a class="card star-card" href="#exam-focus"><h3>⭐ מה יהיה במבחן</h3><p class="small muted">כל מה שהמרצים אמרו שחשוב, מכל הסיכומים</p></a>
       <a class="card" href="#podcasts"><h3>🎧 פודקאסטים</h3><p class="small muted">${pods.length ? pods.length + " פרקים קצרים על השיעורים – נועה ואיתי מסבירים" : "פרק קצר יופיע לכל סיכום חדש"}</p></a>
+      <a class="card" href="#missed-lesson"><h3>🙋 פספסתי שיעור</h3><p class="small muted">מבקשים מהחברים בקורס סיכום, תמונה של הלוח או הקלטה</p></a>
       <a class="card" href="#deadlines"><h3>⏳ לוח מבחנים והגשות</h3><p class="small muted">${nx ? esc(nx.title) + " · " + extras.inDays(extras.daysTo(nx.when)) : "הוסיפו את תאריכי המבחנים"}</p></a></div>`);
     if (pods.length) {
       view.querySelector(".page .grid2")?.insertAdjacentHTML("afterend", `<section class="pod-strip"><h2 style="font-size:20px">🎧 האחרונים</h2><div class="list">${pods.slice(-3).reverse().map((p) => podCard(p)).join("")}</div><a class="small" href="#podcasts">כל הפודקאסטים (${pods.length})</a></section>`);
@@ -1236,9 +1233,14 @@ async function routeInner() {
   else if (hash.startsWith("quiz-")) await study.quizById(hash.slice(5));
   else if (hash === "social") social.feed();
   else if (hash === "social-friends") social.friends();
-  else if (hash === "social-missed") social.missed();
-  else if (hash === "signup") social.signup();
-  else if (hash === "me") social.me();
+  else if (hash === "missed-lesson") social.missed();
+  else if (hash === "messages") social.messages();
+  else if (hash === "messages-req") social.messages("req");
+  else if (hash.startsWith("dm-")) social.dm(hash.slice(3));
+  else if (hash === "settings") settings.page();
+  else if (hash.startsWith("settings-")) settings.page(hash.slice(9));
+  else if (hash.startsWith("legal-")) settings.legal(hash.slice(6));
+  else if (hash === "profile-liked" || hash === "profile-saved") profile(hash.slice(8));
   else if (hash.startsWith("u-")) social.profile(hash.slice(2));
   else if (hash === "profile") profile();
   else if (hash === "feedback") feedback();
@@ -1256,6 +1258,11 @@ async function routeInner() {
   else if (hash.startsWith("course-")) await courseFolder(+hash.slice(7));
   else if (hash.startsWith("lesson-")) { closeLesson(); await lessonPage(hash.slice(7)); }
   else await home();
+  assistant.mount(tab);
+  if (hash !== "home" && !hash.startsWith("lesson-")) {
+    const pg = view.querySelector(".page");
+    if (pg) { pg.insertAdjacentHTML("afterbegin", '<button class="back-btn" type="button" aria-label="חזרה לדף הקודם">→ חזרה</button>'); pg.querySelector(".back-btn").onclick = goBack; }
+  }
   view.focus({ preventScroll: true });
   window.scrollTo(0, 0);
 }
@@ -1266,6 +1273,13 @@ studyCtx.onQuizDone = () => practice.bumpStreak();
 const extras = initExtras({ view, $, esc, svg, toast, prefs, store, segmentsOf, fmtTime });
 const tools = initTools({ view, $, esc, svg, toast, prefs, store, lessonTitle, onQuizDone: () => practice.bumpStreak() });
 const social = initSocial({ view, $, esc, toast, prefs, store });
+const settings = initSettings({ view, $, esc, toast, prefs, store, ai, social, onboardingQuestions, version: () => APP_VERSION });
+const assistant = initAssistant({ store, esc, ai, prefs });
+settings.applyUI();
+// חזרה דף אחד אחורה: אם נכנסו ישר לדף (בלי היסטוריה באפליקציה) – לבית
+let navDepth = 0, goingBack = false;
+window.addEventListener("hashchange", () => { if (goingBack) { navDepth = Math.max(0, navDepth - 1); goingBack = false; } else navDepth++; });
+function goBack() { if (navDepth > 0) { goingBack = true; history.back(); } else location.hash = "#home"; }
 const planner = initPlanner({ view, $, esc, toast, prefs, store, extras, study, lessonForToday });
 // הודעות: בודקים בפתיחה, אחרי סנכרון, וכל 10 דקות
 async function refreshInbox() { try { const f = await planner.refresh(); if (f.length && location.hash !== "#inbox") toast(`🔔 ${f[0].title}${f.length > 1 ? ` (+${f.length - 1})` : ""}`); } catch (e) { logError("inbox", e); } }
@@ -1310,7 +1324,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "19";
+const APP_VERSION = "20";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
