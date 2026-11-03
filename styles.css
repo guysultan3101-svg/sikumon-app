@@ -563,3 +563,9 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 /* נגישות: קישור "דילוג לתוכן" שמופיע רק כשמגיעים אליו במקלדת */
 .skip-link { position: fixed; top: 8px; inset-inline-start: 8px; z-index: 999; padding: 10px 16px; border-radius: 10px; background: var(--ink); color: var(--paper); font-weight: 700; transform: translateY(-200%); }
 .skip-link:focus { transform: none; }
+
+/* ---------- v25: תמלול וסיכום של הקלטות ---------- */
+.tr-card { display: grid; gap: 10px; }
+.transcript { margin-top: 10px; max-height: 60dvh; overflow-y: auto; line-height: 1.8; font-size: 16px; white-space: normal; }
+.transcript .ts { display: inline-block; margin-inline-end: 6px; padding: 0 6px; border-radius: 6px; background: var(--grid); font: 600 12px/1.6 var(--font-mono); color: var(--blue); direction: ltr; }
+.lrec { gap: 10px; }

@@ -3,6 +3,7 @@
 
 const DB_NAME = "sikumon";
 const CHUNK_MS = 60_000;
+const ROLL_MS = 12 * 60_000; // אורך קטע: 12 דקות (~5–9MB)
 
 // ---------- אחסון במכשיר ----------
 let dbPromise = null;
@@ -175,6 +176,9 @@ export class LessonRecorder extends EventTarget {
     this.mr.onstop = () => { this._interrupted("ההקלטה נעצרה"); this.dispatchEvent(new Event("segmentstop")); };
     this.mr.onerror = (e) => this._interrupted("שגיאת הקלטה: " + (e.error?.name || "לא ידוע"));
     this.mr.start(CHUNK_MS);
+    // כל 12 דקות מתחילים קטע חדש (הפסקה של שבריר שנייה): כל קטע הוא קובץ קטן שאפשר לתמלל בנפרד
+    clearTimeout(this.rollTimer);
+    this.rollTimer = setTimeout(() => this.roll(), ROLL_MS);
     this.segmentStart = Date.now(); this.lastDataAt = Date.now(); this.segActive = true;
     this.rec.segments = this.segment + 1;
     // ביטחון: אם הדפדפן לא מסר חתיכה יותר מדקה וחצי, מבקשים אותה ידנית
@@ -238,7 +242,7 @@ export class LessonRecorder extends EventTarget {
 
   // סוגר את המיקרופון ומד העוצמה של הקטע הנוכחי, אחרי שהחתיכה האחרונה נשמרה
   async _closeSegment() {
-    clearInterval(this.watchdog);
+    clearInterval(this.watchdog); clearTimeout(this.rollTimer);
     if (this.segActive) { this.elapsedBefore = this.elapsedMs; this.segActive = false; }
     if (this.mr && this.mr.state !== "inactive") {
       const done = new Promise((r) => this.addEventListener("segmentstop", r, { once: true }));
@@ -270,6 +274,13 @@ export class LessonRecorder extends EventTarget {
     this.rec.marks = [...(this.rec.marks || []), m];
     store.saveRecording(this.rec);
     return m;
+  }
+
+  // מעבר שקט לקטע חדש באמצע הקלטה (לא נחשב קטיעה)
+  async roll() {
+    if (!this.running || this.rec?.status !== "recording") return;
+    try { await this.resume(); this.dispatchEvent(new Event("change")); }
+    catch { this._interrupted("לא הצלחתי להמשיך את ההקלטה אחרי 12 דקות – לחצו המשך"); }
   }
 
   async resume() {

@@ -582,6 +582,80 @@ async function recordings() {
   }));
 }
 
+// ---------- 📝 תמלול וסיכום של הקלטה ----------
+// ההקלטה שמורה בחתיכות של דקה. מחלקים לחלקים של עד ~12 דקות (ובקבצים כבדים פחות), כדי שכל חלק ייכנס למכסה החינמית.
+// חלק שלא מתחיל בתחילת קטע מקבל את החתיכה הראשונה של הקטע (שם יושב "הראש" של הקובץ), והשרת מתבקש לדלג עליה.
+const PART_BYTES = 13 * 1024 * 1024;
+async function recordingParts(r) {
+  const chunks = (await store.chunksOf(r.id)).sort((a, b) => a.segment - b.segment || a.seq - b.seq);
+  const bySeg = new Map();
+  for (const c of chunks) { if (!bySeg.has(c.segment)) bySeg.set(c.segment, []); bySeg.get(c.segment).push(c); }
+  const parts = []; let minute = 0;
+  for (const list of bySeg.values()) {
+    const avg = list.reduce((n, c) => n + c.blob.size, 0) / list.length || 1;
+    const per = Math.max(3, Math.min(12, Math.floor(PART_BYTES / avg) - 1));
+    for (let i = 0; i < list.length; i += per) {
+      const slice = list.slice(i, i + per);
+      const head = i > 0 ? [list[0]] : [];
+      parts.push({ blob: new Blob([...head, ...slice].map((c) => c.blob), { type: r.mime }), skipFirst: i > 0, startMin: minute + i });
+    }
+    minute += list.length;
+  }
+  return parts;
+}
+let transcribing = null; // רק תמלול אחד בכל פעם
+async function transcribeRecording(r, onStep) {
+  if (transcribing) throw new Error("כבר מתמללים הקלטה אחרת. רגע…");
+  transcribing = r.id;
+  try {
+    const parts = await recordingParts(r);
+    if (!parts.length) throw new Error("לא נשמר אודיו בהקלטה הזו");
+    r.transcriptParts = r.transcriptParts || [];
+    for (let i = 0; i < parts.length; i++) {
+      if (r.transcriptParts[i]) continue; // חלק שכבר תומלל (למשל אחרי שנגמרה המכסה אתמול)
+      onStep?.(`🎧 מתמלל חלק ${i + 1} מתוך ${parts.length}…`);
+      r.transcriptParts[i] = await api.transcribePart(parts[i].blob, r.mime, parts[i]);
+      await store.saveRecording(r);
+    }
+    r.transcript = r.transcriptParts.join("\n\n");
+    await store.saveRecording(r);
+    onStep?.("✨ כותב סיכום אישי…");
+    const title = `${r.course} – שיעור מ-${new Date(r.startedAt).toLocaleDateString("he-IL")}`;
+    const res = await api.summarizeText(r.transcript.slice(0, 280000), title, r.course, "rec:" + r.id);
+    await social.syncSummaries();
+    r.summaryId = "srv-" + res.id;
+    await store.saveRecording(r);
+    api.track("transcribe");
+    return r;
+  } finally { transcribing = null; }
+}
+// כרטיס "תמלול וסיכום" (בדף ההקלטה ובדף השיעור)
+function transcriptCard(r) {
+  const done = !!r.transcript, partial = (r.transcriptParts || []).filter(Boolean).length;
+  return `<section class="soft tr-card" data-trcard="${esc(r.id)}">
+    <div class="row" style="justify-content:space-between"><h3>📝 תמלול וסיכום</h3>${r.summaryId ? `<a class="btn small-btn" href="#sum-${esc(r.summaryId)}">📚 לסיכום</a>` : ""}</div>
+    ${done ? "" : `<p class="small muted">${partial ? `תומללו ${partial} חלקים. אפשר להמשיך מאיפה שעצרנו.` : "תמלול מלא בעברית, וסיכום אישי לפי איך שאת/ה לומד/ת, עם מבחן קצר. שיעור של שעה וחצי לוקח בערך 3–5 דקות."}</p>
+    <button class="btn" type="button" data-trgo="${esc(r.id)}">✨ ${partial ? "להמשיך לתמלל" : "תמלול וסיכום"}</button>`}
+    ${done && !r.summaryId ? `<button class="btn" type="button" data-trgo="${esc(r.id)}">✨ ליצור סיכום מהתמלול</button>` : ""}
+    <p class="small" data-trstate aria-live="polite"></p>
+    ${done ? `<details><summary><b>התמלול המלא</b> <span class="small muted">(${r.transcript.split(/\s+/).length} מילים)</span></summary><div class="transcript">${esc(r.transcript).replace(/\[(\d{1,3}:\d{2})\]/g, '<b class="ts">$1</b>').replace(/\n/g, "<br>")}</div>
+      <div class="row" style="margin-top:8px"><button class="btn ghost small-btn" type="button" data-trcopy="${esc(r.id)}">העתקת התמלול</button></div></details>` : ""}
+  </section>`;
+}
+function bindTranscript(after) {
+  view.querySelectorAll("[data-trgo]").forEach((b) => (b.onclick = async () => {
+    const r = await store.getRecording(b.dataset.trgo); if (!r) return;
+    const st = b.closest("[data-trcard]").querySelector("[data-trstate]");
+    b.disabled = true;
+    try { await transcribeRecording(r, (m) => (st.textContent = m)); toast("✅ התמלול והסיכום מוכנים"); after(); }
+    catch (e) { st.textContent = "❌ " + e.message; b.disabled = false; }
+  }));
+  view.querySelectorAll("[data-trcopy]").forEach((b) => (b.onclick = async () => {
+    const r = await store.getRecording(b.dataset.trcopy);
+    try { await navigator.clipboard.writeText(r.transcript); toast("התמלול הועתק"); } catch { toast("לא הצלחתי להעתיק"); }
+  }));
+}
+
 async function recordingDetail(id) {
   const r = await store.getRecording(id);
   if (!r) { view.innerHTML = '<div class="page"><p>ההקלטה לא נמצאה.</p></div>'; return; }
@@ -594,6 +668,7 @@ async function recordingDetail(id) {
     <p class="muted"><bdi>${fmtDate(r.startedAt)}</bdi> · משך <bdi>${fmtTime(r.durationMs || 0)}</bdi> · <bdi>${fmtMB(r.bytes || 0)}</bdi></p>
     ${segs.map((s, i) => `<div class="soft"><div class="row" style="justify-content:space-between"><b>${segs.length > 1 ? "חלק " + (i + 1) + " מתוך " + segs.length : "ההקלטה"}</b></div><audio controls preload="metadata" src="${urls[i]}" style="margin-top:10px"></audio>
       <div class="row" style="margin-top:10px"><button class="btn ghost" data-share="${i}">${svg("share")} שיתוף / שמירה</button></div></div>`).join("") || '<p class="notice alert">לא נשמר אודיו בהקלטה הזו.</p>'}
+    ${segs.length ? transcriptCard(r) : ""}
     ${(r.marks || []).length ? `<a class="item" href="#reels-${r.id}"><span><span class="t">🎬 ${r.marks.length} רגעים חשובים</span><br><span class="small muted">${r.marks.map((m) => "⭐ " + fmtTime(m.at)).join(" · ")}</span></span></a>` : ""}
     ${r.interruptions.length ? `<div class="soft"><h3>קטיעות</h3><ul>${r.interruptions.map((x) => `<li>${fmtDate(x.at)}: ${esc(x.what)}</li>`).join("")}</ul></div>` : ""}
     <details class="soft"><summary><b>פרטים טכניים</b> <span class="muted small">(אם משהו לא עבד)</span></summary>
@@ -609,6 +684,7 @@ async function recordingDetail(id) {
       else { const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = file.name; a.click(); }
     } catch { /* המשתמש ביטל */ }
   }));
+  bindTranscript(() => recordingDetail(id));
   $("#copy").onclick = async () => {
     try { await navigator.clipboard.writeText($("#report").textContent); toast("הדוח הועתק"); }
     catch { getSelection().selectAllChildren($("#report")); toast("סמנו והעתיקו את הדוח"); }
@@ -864,6 +940,10 @@ async function lessonPage(id) {
         <button class="btn small-btn" id="lfull">${svg("expand")} <span>מסך מלא</span></button>
       </div>
     </div>
+    ${recs.length ? `<section class="soft" id="lrecs"><h3>🎙️ ההקלטות של השיעור</h3>
+      ${recs.map((r) => `<div class="item lrec" style="margin-top:10px"><a href="#rec-${r.id}" style="flex:1;min-width:0;color:inherit;text-decoration:none"><span class="t">הקלטה מ-<bdi>${new Date(r.startedAt).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}</bdi> · <bdi>${fmtTime(r.durationMs || 0)}</bdi></span><br><span class="small muted">${r.summaryId ? "✅ תומלל וסוכם" : r.transcript ? "📝 תומלל" : "עוד לא תומלל"}</span></a>
+        ${r.summaryId ? `<a class="btn small-btn" href="#sum-${esc(r.summaryId)}">📚 סיכום</a>` : `<a class="btn ghost small-btn" href="#rec-${r.id}">✨ תמלול וסיכום</a>`}</div>`).join("")}
+    </section>` : ""}
     <div id="inkArea" ${mode === "ink" ? "" : "hidden"}>
       <div class="toolbar" role="toolbar" aria-label="כלי כתיבה">
         <div class="tgroup">
@@ -911,10 +991,6 @@ async function lessonPage(id) {
       <textarea id="ltext" name="notes" class="note-text" dir="auto" autocomplete="off" placeholder="מקלידים כאן את הסיכום של השיעור…">${esc(l.text)}</textarea>
       <p class="small muted">באייפד אפשר לכתוב כאן גם בעט, ו-Scribble יהפוך את זה לטקסט.</p>
     </div>
-    <section class="soft" id="lrecs">
-      <h3>ההקלטות של השיעור</h3>
-      ${recs.length ? recs.map((r) => `<a class="item" href="#rec-${r.id}" style="margin-top:10px"><span>הקלטה מ-<bdi>${new Date(r.startedAt).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}</bdi></span><span class="small muted"><bdi>${fmtTime(r.durationMs || 0)}</bdi></span></a>`).join("") : '<p class="muted small" style="margin-top:6px">אין הקלטה לשיעור הזה. לחצו "הקלטה" למעלה כדי להקליט בזמן שאתם כותבים.</p>'}
-    </section>
     <div class="row"><button class="btn danger" id="ldel">${svg("trash")} <span>מחיקת השיעור</span></button></div>
   </div>`;
 
@@ -1493,7 +1569,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "24";
+const APP_VERSION = "25";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

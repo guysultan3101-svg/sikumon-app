@@ -106,6 +106,32 @@ export async function summarizeFile(file, course) {
   throw new Error(msg || `תקלה (${res.status})`);
 }
 
+// ---------- תמלול הקלטות ----------
+const b64 = async (blob) => { const buf = new Uint8Array(await blob.arrayBuffer()); let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000)); return btoa(bin); };
+const AI_ERR = { limit: "הגעתם למכסה היומית. מחר אפשר להמשיך 🙂", global_cap: "השרת עמוס היום. נסו שוב מחר", too_big: "החלק גדול מדי", provider: "ה-AI לא הצליח עכשיו. נסו שוב בעוד כמה דקות", auth: "צריך להתחבר מחדש", unsupported: "סוג קובץ לא נתמך" };
+// חלק אחד של הקלטה (עד ~12 דקות) -> טקסט
+export async function transcribePart(blob, mime, { skipFirst = false, startMin = 0 } = {}) {
+  const res = await fetch(`${URL_}/functions/v1/transcribe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}`, apikey: ANON },
+    body: JSON.stringify({ data: await b64(blob), mime, skipFirst, startMin }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (res.ok) return j.text || "";
+  throw Object.assign(new Error(AI_ERR[j.error] || `תקלה (${res.status})`), { code: j.error });
+}
+// טקסט (למשל תמלול) -> סיכום אישי + מבחן, כמו מצגת
+export async function summarizeText(text, title, course, ref) {
+  const res = await fetch(`${URL_}/functions/v1/summarize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}`, apikey: ANON },
+    body: JSON.stringify({ text, filename: title, course, source: "upload", source_ref: ref }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (res.ok) return j;
+  throw Object.assign(new Error(AI_ERR[j.error] || `תקלה (${res.status})`), { code: j.error });
+}
+
 // ---------- הודעות ----------
 export async function messages() { return ok(await sb.from("messages").select("*").order("created_at", { ascending: true }).limit(1000)); }
 export async function sendMessage(recipient, body) { ok(await sb.from("messages").insert({ sender: user().id, recipient, body })); }
