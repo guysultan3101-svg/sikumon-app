@@ -223,7 +223,7 @@ bdi { unicode-bidi: isolate; }
 }
 .sheet.bg-lines { background-image: linear-gradient(transparent calc(100% - 1px), #D5DEF2 0); background-size: 100% calc(100% / 40); background-position: 0 calc(100% / 40 * 2 - 1px); }
 .sheet.bg-grid { background-image: linear-gradient(transparent calc(100% - 1px), #D5DEF2 0), linear-gradient(90deg, transparent calc(100% - 1px), #D5DEF2 0); background-size: 3.5% calc(100% / 40); }
-.sheet img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; object-position: top; pointer-events: none; }
+.sheet img { position: absolute; top: 0; left: 0; width: 100%; height: auto; pointer-events: none; }
 .sheet canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .sheet canvas.live { touch-action: none; cursor: crosshair; }
 .pno { position: absolute; bottom: 8px; left: 12px; font: 500 12px/1 var(--font-mono); color: #94A3B8; pointer-events: none; }
@@ -534,3 +534,32 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 #tabs a { position: relative; }
 .tab-n, .dm-n { position: absolute; top: 4px; inset-inline-end: 6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--red); color: #fff; font: 700 11px/18px var(--font-body); text-align: center; }
 .tool .dm-n { top: 2px; inset-inline-end: 2px; }
+
+/* ---------- v24: מחברת – הגדלה, סוג דף, עריכת תמונה ---------- */
+.sheets-wrap { overflow-x: auto; }
+.paper-sel { width: auto; min-height: 40px; padding: 4px 8px; font-size: 14px; }
+.zoom-val { min-width: 44px; text-align: center; font-family: var(--font-mono); }
+.img-edit { position: absolute; top: 8px; right: 8px; z-index: 3; border: 1.5px solid var(--ink); border-radius: 999px; background: var(--paper); color: var(--ink); font: 600 13px/1 var(--font-body); padding: 6px 10px; cursor: pointer; }
+.img-card { max-width: 560px !important; max-height: 90dvh; overflow-y: auto; }
+.ie-stage { position: relative; background: var(--grid); border-radius: 12px; padding: 8px; touch-action: none; cursor: crosshair; user-select: none; }
+.ie-stage img { display: block; max-width: 100%; max-height: 42dvh; margin: 0 auto; pointer-events: none; }
+.ie-crop { position: absolute; border: 2px dashed var(--blue); background: rgba(37, 99, 235, .12); pointer-events: none; }
+
+/* ---------- v24: פוסטים עם תמונות וקבצים, דיווח ---------- */
+.post-body { white-space: pre-wrap; }
+.post-imgs { display: grid; gap: 4px; border-radius: 14px; overflow: hidden; }
+.post-imgs.n2, .post-imgs.n4 { grid-template-columns: 1fr 1fr; }
+.post-imgs.n3 { grid-template-columns: 2fr 1fr; }
+.post-imgs img { width: 100%; height: 100%; max-height: 420px; object-fit: cover; display: block; background: var(--grid); }
+.post-imgs.n1 img { max-height: 520px; object-fit: contain; }
+.post-file { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 12px; color: var(--ink); text-decoration: none; }
+.post-file span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-prev { display: flex; flex-wrap: wrap; gap: 6px; }
+.pb-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--grid); font-size: 13px; max-width: 100%; }
+.cmt { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.msg-rep { margin-inline-start: 8px; opacity: .55; font-size: 12px; }
+.msg-rep:hover { opacity: 1; }
+
+/* נגישות: קישור "דילוג לתוכן" שמופיע רק כשמגיעים אליו במקלדת */
+.skip-link { position: fixed; top: 8px; inset-inline-start: 8px; z-index: 999; padding: 10px 16px; border-radius: 10px; background: var(--ink); color: var(--paper); font-weight: 700; transform: translateY(-200%); }
+.skip-link:focus { transform: none; }

@@ -43,9 +43,11 @@ export async function loadQuota() {
 export const quota = () => { try { const q = JSON.parse(ls.get("sikumon-quota") || "null"); const today = new Date().toLocaleDateString("en-CA"); return q && q.day === today ? q : { day: today, used: 0, limit: 5 }; } catch { return { used: 0, limit: 5 }; } };
 const saveQuota = (res) => { const u = res.headers.get("x-quota-used"), l = res.headers.get("x-quota-limit"); if (u !== null && l !== null) ls.set("sikumon-quota", JSON.stringify({ day: new Date().toLocaleDateString("en-CA"), used: +u, limit: +l })); };
 
-export const hasAI = () => builtIn() || Object.keys(PROVIDERS).some(keyOf);
+// הספקים שמוצגים באפליקציה (OpenRouter ו-Claude הוסרו מההגדרות)
+const ACTIVE = ["sikumon", "gemini", "openai"];
+export const hasAI = () => builtIn() || ACTIVE.some(keyOf);
 // הספק שבשימוש: מה שהמשתמש בחר; אחרת העוזר המובנה; אחרת הראשון שמחובר
-export const provider = () => { const c = ls.get("sikumon-ai-provider"); return c && keyOf(c) ? c : builtIn() ? "sikumon" : Object.keys(PROVIDERS).filter((p) => p !== "sikumon").find(keyOf) || ""; };
+export const provider = () => { const c = ls.get("sikumon-ai-provider"); return c && ACTIVE.includes(c) && keyOf(c) ? c : builtIn() ? "sikumon" : ACTIVE.filter((p) => p !== "sikumon").find(keyOf) || ""; };
 export const setProvider = (p) => ls.set("sikumon-ai-provider", p);
 
 // ---------- OpenRouter: התחברות בלחיצה (OAuth עם PKCE), בלי להעתיק מפתח ----------

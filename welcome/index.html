@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>סיכומון AI</title>
-<meta name="description" content="סיכומון: מעלים מצגת ומקבלים סיכום אישי לפי איך שאת/ה לומד/ת. גרסת בדיקה.">
+<meta name="description" content="סיכומון: מחברים את המודל, ומקבלים סיכום אישי לכל שיעור, מבחנים, והכיתה שלכם במקום אחד.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&family=Heebo:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap">
 <style>
@@ -194,6 +194,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 .contact { font-family: var(--font-mono); user-select: all; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+.features.big h3 { font-size: 21px; color: var(--blue); }
 </style>
 </head>
 <body>
@@ -205,9 +206,9 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
       סיכומון AI
     </a>
     <nav aria-label="ניווט">
+      <a href="#community">הכיתה</a>
+      <a href="#features">הסיכום</a>
       <a href="#how">איך זה עובד</a>
-      <a href="#features">מה מקבלים</a>
-      <a href="#need">מה צריך</a>
       <a href="#faq">שאלות</a>
     </nav>
     <a class="btn" href="https://guysultan3101-svg.github.io/sikumon-app/">לאפליקציה</a>
@@ -218,34 +219,34 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
   <section class="hero">
     <div class="wrap">
       <div>
-        <p class="eyebrow">גרסת בדיקה · לסטודנטים באריאל ובבן־גוריון</p>
-        <h1 style="margin-top:14px">מעלים את המצגת.<br>מקבלים סיכום <span class="mark">שכתוב בשבילך.</span></h1>
-        <p class="lead">סיכומון היא אפליקציה לאייפד, לאייפון ולטלפון. מעלים מצגת או PDF של שיעור (או מחברים את המודל), ותוך חצי דקה מקבלים סיכום שמותאם בדיוק לאיך שאת/ה לומד/ת, עם מבחן קצר בסוף. ועם חברים מאותה כיתה – הסיכומים של כולם אצל כולם.</p>
+        <p class="eyebrow">לסטודנטים באוניברסיטאות שעובדות עם Moodle</p>
+        <h1 style="margin-top:14px">השיעור שלכם<br><span class="mark">כבר מסוכם.</span></h1>
+        <p class="lead">מחברים את המודל פעם אחת, ואנחנו עושים את כל השאר: סיכום אישי לכל שיעור, מבחנים, והכיתה שלכם במקום אחד.</p>
         <div class="ctas">
-          <a class="btn" href="https://guysultan3101-svg.github.io/sikumon-app/">לפתוח את האפליקציה</a>
+          <a class="btn" href="https://guysultan3101-svg.github.io/sikumon-app/">לפתוח את סיכומון</a>
           <a class="btn ghost" href="#how">איך זה עובד</a>
         </div>
-        <div class="timeline" aria-label="דוגמה לציר זמן">
-          <span>מעלים מצגת</span><span class="arrow" aria-hidden="true">←</span>
-          <span>30 שניות</span><span class="arrow" aria-hidden="true">←</span>
-          <span class="hit">סיכום אישי + מבחן</span>
+        <div class="timeline" aria-label="מה קורה אחרי שיעור">
+          <span>המרצה מעלה מצגת</span><span class="arrow" aria-hidden="true">←</span>
+          <span>סיכומון מסכם</span><span class="arrow" aria-hidden="true">←</span>
+          <span class="hit">הסיכום אצלכם, עם מבחן</span>
         </div>
       </div>
 
       <div class="phone" role="img" aria-label="דוגמה לסיכום אישי באפליקציה">
         <div class="mail-head">
           <div class="mail-from"><span>סיכומון</span><span>מבוא לכלכלה מיקרו</span></div>
-          <div class="mail-subj">גמישות הביקוש והקשר לפדיון</div>
+          <div class="mail-subj">היצע, ביקוש ושיווי משקל</div>
           <span class="sample-tag">דוגמה</span>
         </div>
         <div class="mail-body">
-          <h4>מה זה גמישות הביקוש?</h4>
-          <p>בכמה אחוזים משתנה הכמות כשהמחיר עולה באחוז אחד.</p>
-          <div class="formula"><b>★</b> גמישות = % שינוי בכמות ÷ % שינוי במחיר</div>
-          <h4>דוגמה מספרית</h4>
-          <p>המחיר עלה 10%, הכמות ירדה 20% ← גמישות 2-, ביקוש גמיש.</p>
+          <h4>שיווי משקל</h4>
+          <p>המחיר שבו הכמות שהקונים רוצים שווה לכמות שהמוכרים מציעים.</p>
+          <div class="formula"><b>★</b> Qd = 100 − 2P · Qs = 20 + 2P ← P = 20, Q = 60</div>
           <h4>⭐ מה חשוב למבחן</h4>
-          <p>בביקוש גמיש העלאת מחיר מקטינה את הפדיון.</p>
+          <p>לחשב שיווי משקל, ולהסביר מה קורה כשעקומה זזה.</p>
+          <h4>🎓 גם בכיתה שלכם</h4>
+          <p>נועה ויואב שיתפו סיכומים מהשבוע.</p>
         </div>
       </div>
     </div>
@@ -253,101 +254,124 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 
   <section class="block band">
     <div class="wrap margin-line">
-      <p class="eyebrow">הבעיה</p>
+      <p class="eyebrow">מכירים את זה?</p>
       <h2 style="margin-top:10px">שלושה שיעורים ביום, ואין זמן לסכם אף אחד</h2>
       <div class="pain">
-        <div><strong>המרצה מדבר מהר</strong><p>כותבים, מפספסים, ובסוף נשארים עם חצי מחברת וחצי שקופית.</p></div>
-        <div><strong>פספסת שיעור?</strong><p>"זה יהיה במבחן", "ההגשה זזה". אם לא היית שם, צריך לרדוף אחרי סיכומים בקבוצות.</p></div>
-        <div><strong>סיכום של מישהו אחר לא מתאים לך</strong><p>אחד צריך דוגמאות, אחר טבלאות, מישהו רק את העיקר. סיכום אחד לא מתאים לכולם.</p></div>
+        <div><strong>המרצה מדבר מהר</strong><p>כותבים, מפספסים, ונשארים עם חצי מחברת וחצי שקופית.</p></div>
+        <div><strong>פספסתם שיעור</strong><p>ועכשיו רודפים אחרי סיכומים בקבוצות, ומקווים שמישהו יענה.</p></div>
+        <div><strong>הסיכום של מישהו אחר</strong><p>כתוב כמו שהוא לומד, לא כמו שאתם לומדים.</p></div>
       </div>
     </div>
   </section>
 
-  <section class="block" id="how">
+  <section class="block" id="community">
     <div class="wrap">
-      <p class="eyebrow">איך זה עובד</p>
-      <h2 style="margin-top:10px">ארבעה צעדים, ומשם זה שלך</h2>
-      <p class="sub">כל סיכום נכתב לפי התשובות שלך לשאלון "איך אני לומד/ת". לא סיכום של מישהו אחר.</p>
-      <ol class="steps">
-        <li><h3>פותחים את הקישור</h3><p>באייפד או בטלפון, ב-Safari: כפתור השיתוף ← "הוסף למסך הבית". זהו, יש אפליקציה.</p><span class="when">פעם אחת, דקה</span></li>
-        <li><h3>יוצרים חשבון ועונים על השאלון</h3><p>5 שאלות קצרות: איך הכי קל לך ללמוד, איזה אורך סיכום מתאים לך, ומה הכי קשה לך.</p><span class="when">פעם אחת, 2 דקות</span></li>
-        <li><h3>מעלים מצגת או PDF</h3><p>מהמודל או ממישהו מהכיתה. יש מחשב? תוסף קטן לכרום מביא כל קובץ חדש מהמודל לבד.</p><span class="when">כל שיעור</span></li>
-        <li><h3>מקבלים סיכום אישי + מבחן</h3><p>תוך חצי דקה. אפשר לשאול עליו את העוזר החכם, לחזור עם כרטיסיות, ולשתף עם חברים מהכיתה.</p><span class="when">אוטומטי</span></li>
-      </ol>
+      <p class="eyebrow">הכיתה שלכם</p>
+      <h2 style="margin-top:10px">עדיין מחפשים סיכומים בוואטסאפ?</h2>
+      <p class="sub">בסיכומון הסיכומים של החברים מהכיתה כבר מחכים לכם. רק באישור של שני הצדדים.</p>
+      <div class="features big">
+        <article>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 7 0 0 1 14 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 4 6"/></svg>
+          <div><h3>אותה כיתה</h3><p>מסמנים קורס משותף עם חבר, וכל סיכום של אחד מכם מופיע גם אצל השני.</p></div>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+          <div><h3>פספסתם שיעור? הכיתה כבר שלחה</h3><p>בקשה אחת, וכל החברים מהקורס מקבלים התראה.</p></div>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>
+          <div><h3>פיד של הקורס</h3><p>מעלים פוסט, תמונה של הלוח או קובץ. עושים לייק, שומרים ומגיבים.</p></div>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>
+          <div><h3>הודעות</h3><p>מדברים עם חברים מהכיתה. מי שאינו חבר נכנס ל"בקשות", ואתם מחליטים.</p></div>
+        </article>
+      </div>
     </div>
   </section>
 
   <section class="block band" id="features">
     <div class="wrap">
-      <p class="eyebrow">מה מקבלים</p>
-      <h2 style="margin-top:10px">כל מה שצריך כדי להגיע מוכן למבחן</h2>
-      <div class="features">
-        <article>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/></svg>
-          <div><h3>סיכום שכתוב בשבילך</h3><p>לפי השאלון שלך: עם דוגמאות, טבלאות או רק העיקר. כל נוסחה עם הסבר, וסעיף "⭐ מה חשוב למבחן".</p></div>
-        </article>
-        <article>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 12l3 3 5-6"/></svg>
-          <div><h3>מבחן אחרי כל סיכום</h3><p>שאלות אמריקאיות על החומר, עם הסבר לכל תשובה. ועוד: כרטיסיות זיכרון וסימולציית מבחן.</p></div>
-        </article>
-        <article>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>
-          <div><h3>העוזר החכם</h3><p>שואלים על החומר ומקבלים הסבר לפי הסיכום שלך. "לא הבנתי", "תן דוגמה", "מה חשוב למבחן".</p></div>
-        </article>
-        <article>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 7 0 0 1 14 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 4 6"/></svg>
-          <div><h3>אותה כיתה</h3><p>חברים מאותו קורס משתפים סיכומים, רק באישור של שני הצדדים. פספסת שיעור? בקשה אחת, וכל החברים מקבלים התראה.</p></div>
-        </article>
-        <article>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-          <div><h3>מחברות והקלטה</h3><p>מחברת לכל שיעור, כתיבה עם עט, הקלטה של השיעור עם ⭐ לרגעים חשובים, ויומן מבחנים והגשות.</p></div>
-        </article>
+      <p class="eyebrow">הסיכום שלכם</p>
+      <h2 style="margin-top:10px">אותה מצגת. סיכום אחר לכל אחד.</h2>
+      <p class="sub">עונים פעם אחת על 5 שאלות קצרות, וכל סיכום נכתב לפי איך שאתם לומדים.</p>
+      <div class="features big">
         <article>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
-          <div><h3>חיבור למודל <span class="opt">בחירה</span></h3><p>מי שיש לו מחשב מתקין תוסף קטן לכרום: כל מצגת חדשה במודל מסוכמת לבד ומגיעה לאפליקציה.</p></div>
+          <div><h3>מחברים את המודל, וזהו</h3><p>כל מצגת חדשה שהמרצה מעלה מסוכמת לבד ומגיעה לאפליקציה. אפשר גם להעלות קובץ או צילום של הלוח.</p></div>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/></svg>
+          <div><h3>כתוב בדיוק בשבילכם</h3><p>עם דוגמאות, טבלאות או רק העיקר. כל נוסחה עם הסבר במילים.</p></div>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg>
+          <div><h3>⭐ מה יהיה במבחן</h3><p>כל מה שהמרצים אמרו שחשוב, מכל השיעורים, במקום אחד.</p></div>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5v.01"/></svg>
+          <div><h3>לא הבנתם? שואלים</h3><p>העוזר עונה לפי החומר שלכם. ו"🪄 הסבר נוסף" ליד כל חלק בסיכום.</p></div>
         </article>
       </div>
     </div>
   </section>
 
-  <section class="block" id="need">
+  <section class="block" id="more">
     <div class="wrap">
-      <p class="eyebrow">מה צריך</p>
-      <h2 style="margin-top:10px">לפני שמתחילים</h2>
-      <div class="need">
-        <div class="card">
-          <h3>מה צריך שיהיה לך</h3>
-          <ul>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span>אייפד, אייפון או טלפון אנדרואיד (גם מחשב עובד)</span></li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span>מייל של האוניברסיטה (נגמר ב-ac.il)</span></li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span>מצגות או קבצים של השיעורים (מהמודל)</span></li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span>לא חובה: מחשב עם כרום, לחיבור האוטומטי למודל</span></li>
-          </ul>
-        </div>
-        <div class="card">
-          <h3>בתקופת הבדיקות</h3>
-          <ul>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>הכול בחינם, בלי כרטיס אשראי</span></li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>עד 10 סיכומים ו-5 שאלות לעוזר בכל יום</span></li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>האפליקציה מתעדכנת לבד – כל שיפור מגיע אלייך אוטומטית</span></li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>המשוב שלך קובע מה נבנה הלאה (פרופיל ← משוב)</span></li>
-          </ul>
-        </div>
+      <p class="eyebrow">וכל השאר</p>
+      <h2 style="margin-top:10px">כל התואר באפליקציה אחת</h2>
+      <div class="features">
+        <article>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 12l3 3 5-6"/></svg>
+          <div><h3>מגיעים מוכנים למבחן</h3><p>מבחן קצר אחרי כל סיכום, כרטיסיות לחזרה, וסימולציית מבחן עם טיימר.</p></div>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+          <div><h3>לא מפספסים הגשה</h3><p>יומן עם השיעורים, ההגשות והמבחנים, ותזכורות לפני כל מועד.</p></div>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l4-1L19 8a2.1 2.1 0 0 0-3-3L5 16z"/><path d="M14 7l3 3"/></svg>
+          <div><h3>מחברת לכל שיעור</h3><p>כותבים בעט על האייפד, מוסיפים צילום של הלוח, ומקליטים את השיעור עם ⭐ לרגעים חשובים.</p></div>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/></svg>
+          <div><h3>יודעים כמה צריך במבחן</h3><p>מחשבון ציונים לפי המשקלות, וממוצע לפי נקודות זכות.</p></div>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7"/></svg>
+          <div><h3>לומדים גם בדרך</h3><p>הקראה בקול של כל סיכום, הדפסה ל-PDF, ומצב כהה.</p></div>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <div><h3>מוצאים הכול</h3><p>חיפוש אחד בכל הסיכומים, המחברות, המבחנים והחומר מהמודל.</p></div>
+        </article>
       </div>
     </div>
   </section>
 
-  <section class="block band" id="faq">
+  <section class="block band" id="how">
+    <div class="wrap">
+      <p class="eyebrow">איך זה עובד</p>
+      <h2 style="margin-top:10px">שלושה צעדים, ומשם אנחנו ממשיכים</h2>
+      <ol class="steps">
+        <li><h3>פותחים חשבון</h3><p>באייפד, באייפון או בטלפון, עם המייל של האוניברסיטה. עונים על 5 שאלות על איך אתם לומדים.</p><span class="when">2 דקות</span></li>
+        <li><h3>מחברים את המודל</h3><p>פעם אחת. היום החיבור עובד דרך תוסף קטן לכרום במחשב, ובקרוב ישר מהטאבלט. אין מחשב? מעלים את המצגת.</p><span class="when">פעם אחת</span></li>
+        <li><h3>לומדים</h3><p>כל שיעור מגיע מסוכם, עם מבחן קצר. מוסיפים חברים מהכיתה, ושואלים את העוזר כשמשהו לא ברור.</p><span class="when">כל שיעור</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="block" id="faq">
     <div class="wrap">
       <p class="eyebrow">שאלות</p>
       <h2 style="margin-top:10px">שאלות נפוצות</h2>
       <div class="faq">
-        <details><summary>זה מתאים לקורסים שלי?</summary><p>כן. אין סיכומים מוכנים מראש: כל סיכום נכתב מהקבצים של הקורס שלך ולפי איך שאת/ה לומד/ת, ולכן זה מתאים לכל תואר.</p></details>
-        <details><summary>צריך מחשב?</summary><p>לא. מעלים מצגת או PDF מהאייפד או מהטלפון. מחשב צריך רק למי שרוצה שהקבצים מהמודל יגיעו לבד (תוסף לכרום).</p></details>
-        <details><summary>הסיסמה שלי למודל נשמרת אצלכם?</summary><p>לא. התוסף משתמש בהתחברות שלך למודל בכרום, ולא רואה ולא שומר את הסיסמה.</p></details>
-        <details><summary>מי רואה את הסיכומים שלי?</summary><p>רק את/ה. סיכומים מופיעים אצל חבר רק אם שניכם סימנתם "אותה כיתה" באותו קורס, ואפשר לבטל בכל רגע.</p></details>
-        <details><summary>מה עם חומרים של המרצים?</summary><p>הקבצים נשלחים רק כדי לכתוב לך סיכום אישי, ולא נשמרים אצלנו. משתפים רק סיכומים, אף פעם לא מצגות או מבחנים של מרצים.</p></details>
-        <details><summary>כמה זה עולה?</summary><p>בתקופת הבדיקות – כלום. המחיר ייקבע בהשקה, ובודקים יקבלו מחיר מיוחד.</p></details>
+        <details><summary>זה מתאים לקורסים שלי?</summary><p>כן. אין סיכומים מוכנים מראש. כל סיכום נכתב מהחומר של הקורס שלכם, ולפי איך שאתם לומדים.</p></details>
+        <details><summary>באיזה אוניברסיטאות זה עובד?</summary><p>בכל מוסד שעובד עם Moodle. כרגע בדקנו באוניברסיטת אריאל ובאוניברסיטת בן־גוריון.</p></details>
+        <details><summary>הסיסמה שלי למודל נשמרת אצלכם?</summary><p>לא. החיבור משתמש בהתחברות שלכם בדפדפן, ואנחנו לא רואים ולא שומרים את הסיסמה.</p></details>
+        <details><summary>מי רואה את הסיכומים שלי?</summary><p>רק אתם. סיכום מופיע אצל חבר רק אם שניכם סימנתם "אותה כיתה" באותו קורס, ואפשר לבטל בכל רגע.</p></details>
+        <details><summary>מה עם החומרים של המרצים?</summary><p>הם משמשים רק כדי לכתוב לכם סיכום אישי, ולא נשמרים אצלנו. משתפים רק סיכומים ותוכן שלכם, אף פעם לא מצגות או מבחנים של מרצים.</p></details>
+        <details><summary>כמה זה עולה?</summary><p>בתקופת הבדיקות הכול בחינם, עם מגבלה יומית על סיכומים ושאלות לעוזר. המחיר אחרי ההשקה יפורסם כאן.</p></details>
       </div>
     </div>
   </section>
@@ -355,12 +379,12 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
   <section class="cta-block" id="join">
     <div class="wrap">
       <div>
-        <h2>מוכנים?</h2>
-        <p>פותחים את הקישור באייפד או בטלפון, מוסיפים למסך הבית, ויוצרים חשבון. לוקח שתי דקות.</p>
+        <h2>השיעור הבא שלכם כבר יגיע מסוכם</h2>
+        <p>פותחים את הקישור באייפד או בטלפון, מוסיפים למסך הבית, ויוצרים חשבון. שתי דקות.</p>
       </div>
       <div class="join">
         <a class="btn" href="https://guysultan3101-svg.github.io/sikumon-app/" style="text-align:center">לפתוח את סיכומון</a>
-        <p class="notice">גרסת בדיקה. בהרשמה מאשרים את <a href="#terms">תנאי השימוש</a> ואת <a href="#privacy">מדיניות הפרטיות</a>. שאלה או תקלה? כתבו לנו: <span class="contact">guysultan3101@gmail.com</span></p>
+        <p class="notice">בהרשמה מאשרים את <a href="https://guysultan3101-svg.github.io/sikumon-app/#legal-terms">תנאי השימוש</a> ואת <a href="https://guysultan3101-svg.github.io/sikumon-app/#legal-privacy">מדיניות הפרטיות</a>. שאלה? <span class="contact">guysultan3101@gmail.com</span></p>
       </div>
     </div>
   </section>
@@ -370,52 +394,10 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
       <p class="eyebrow">מידע משפטי</p>
       <h2 style="margin-top:10px;font-size:32px">פרטיות, תנאים ונגישות</h2>
       <div class="docs">
-        <details id="privacy">
-          <summary>מדיניות פרטיות</summary>
-          <div class="doc">
-            <p>עודכן לאחרונה: 2.11.2026. מדיניות זו מסבירה איזה מידע נאסף באתר סיכומון AI, למה ומה הזכויות שלך, בהתאם לחוק הגנת הפרטיות, התשמ"א–1981.</p>
-            <h4>איזה מידע נאסף</h4>
-            <ul><li>בהרשמה לאפליקציה: שם, שם משתמש, מייל אוניברסיטה, מוסד ותואר, ויום הולדת אם בחרת למלא.</li><li>התשובות לשאלון "איך אני לומד/ת", הסיכומים, החברים, ההודעות והפוסטים שלך.</li><li>אילו מסכים פתחת (בלי תוכן), כדי לשפר את האפליקציה בתקופת הבדיקות.</li><li>האתר לא משתמש בעוגיות מעקב או בפרסום ממומן.</li></ul>
-            <h4>למה הוא משמש</h4>
-            <ul><li>כדי להפעיל את האפליקציה: לכתוב לך סיכומים אישיים, להציג אותם לחברים ששיתפת איתם, ולשלוח התראות.</li><li>לא נשלח דיוור שיווקי.</li></ul>
-            <h4>מסירת מידע</h4>
-            <p>אין חובה חוקית למסור את המידע. המידע לא נמכר ולא מועבר לצדדים שלישיים, מלבד ספקי שירות טכניים, ורק לצורך הפעלת השירות: אחסון בשרת מאובטח באירופה (Supabase), וכתיבת הסיכומים והתשובות של העוזר (Google Gemini). קבצים שמעלים לסיכום נשלחים לעיבוד ולא נשמרים אצלנו – נשמר רק הסיכום.</p>
-            <h4>המוצר עצמו</h4>
-            <p>הסיסמה ל-Moodle לא נשמרת ולא מועברת אלינו: התוסף לכרום משתמש בהתחברות שלך בדפדפן. מחברות והקלטות נשמרות במכשיר שלך בלבד.</p>
-            <h4>הזכויות שלך</h4>
-            <p>באפליקציה (הגדרות ← חשבון) אפשר להוריד את כל המידע שלך ולמחוק את החשבון לצמיתות. אפשר גם לכתוב ל-<span class="contact">guysultan3101@gmail.com</span>, ונענה תוך 30 יום.</p>
-            <h4>אבטחה</h4>
-            <p>אנחנו נוקטים אמצעים סבירים לאבטחת המידע, ושומרים אותו רק כל עוד הוא נחוץ למטרה שלשמה נאסף.</p>
-          </div>
-        </details>
-        <details id="terms">
-          <summary>תנאי שימוש</summary>
-          <div class="doc">
-            <h4>מי אנחנו</h4>
-            <p>סיכומון AI מופעל על ידי גיא סולטן, עוסק פטור מס' <span class="todo">יעודכן לאחר פתיחת העסק</span>. יצירת קשר: <span class="contact">guysultan3101@gmail.com</span>.</p>
-            <h4>מה המוצר</h4>
-            <p>כלי לשימוש אישי שמסכם שיעורים מתוך חומרים שלמשתמש יש גישה חוקית אליהם. סיכומים נוצרים בבינה מלאכותית ועלולים לכלול טעויות, ולכן אין להסתמך עליהם במקום החומר הרשמי של הקורס.</p>
-            <h4>אחריות המשתמש</h4>
-            <ul><li>להשתמש בכלי רק עבור הקורסים שלך ולצורך לימוד אישי.</li><li>לא להפיץ, למכור או לפרסם חומרים של מרצים, הקלטות או תמלולים.</li><li>לפעול לפי הכללים של המוסד שלך, ולקבל את הסכמת המרצה להקלטה בכיתה כשנדרש.</li><li>משתפים רק סיכומים שלך, לא מצגות, מבחנים או הקלטות של מרצים. אין לשתף חשבונות.</li><li>אסור להטריד או לפרסם תוכן פוגעני. אפשר לדווח ולחסום, ותוכן פוגעני יוסר.</li></ul>
-            <h4>ביטול עסקה והחזרים</h4>
-            <p>ביטול עסקה לפי חוק הגנת הצרכן, התשמ"א–1981. <span class="todo">מדיניות הביטול וההחזרים תיקבע לפני תחילת המכירה</span></p>
-            <h4>קניין רוחני וסימני מסחר</h4>
-            <p>סיכומון AI אינו קשור, ממומן או מאושר על ידי Moodle, Google, Supabase או מוסד לימודים כלשהו. השמות הם סימני מסחר של בעליהם ומוזכרים רק כדי לתאר תאימות.</p>
-            <h4>הגבלת אחריות</h4>
-            <p>המוצר ניתן "כפי שהוא" (AS IS). אין אחריות לציונים, להחלטות שמתקבלות על סמך הסיכומים, או להפסקות בשירותים חיצוניים.</p>
-          </div>
-        </details>
-        <details id="accessibility">
-          <summary>הצהרת נגישות</summary>
-          <div class="doc">
-            <p>אנחנו רוצים שהאתר יהיה נוח לכל אחד, כולל אנשים עם מוגבלות. האתר נבנה בהתאם להנחיות WCAG 2.0 ברמה AA ולתקן הישראלי 5568.</p>
-            <h4>מה עשינו</h4>
-            <ul><li>ניגודיות צבעים של 4.5:1 לפחות, במצב בהיר וגם במצב כהה.</li><li>אפשר לנווט בכל האתר עם המקלדת, ומיקוד המקלדת מסומן בבירור.</li><li>לכל שדה בטופס יש תווית, ולכל אלמנט גרפי יש תיאור לקורא מסך.</li><li>האתר מכבד את הגדרת "הפחתת תנועה" של מערכת ההפעלה ומתאים את עצמו למסך טלפון.</li></ul>
-            <h4>נתקלת בבעיה?</h4>
-            <p>אם משהו באתר לא נגיש עבורך, כתוב לרכז הנגישות, גיא סולטן: <span class="contact">guysultan3101@gmail.com</span>. נטפל בפנייה תוך 14 יום.</p>
-            <p>תאריך עדכון ההצהרה: 30.10.2026.</p>
-          </div>
-        </details>
+        <p><a class="btn ghost" href="https://guysultan3101-svg.github.io/sikumon-app/#legal-privacy">מדיניות פרטיות</a>
+          <a class="btn ghost" href="https://guysultan3101-svg.github.io/sikumon-app/#legal-terms">תנאי שימוש</a>
+          <a class="btn ghost" href="https://guysultan3101-svg.github.io/sikumon-app/#legal-access">הצהרת נגישות</a>
+          <a class="btn ghost" href="https://guysultan3101-svg.github.io/sikumon-app/#legal-support">תמיכה</a></p>
       </div>
     </div>
   </section>
@@ -423,8 +405,8 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 
 <footer>
   <div class="wrap">
-    <span>© סיכומון AI · גרסת בדיקה · לשימוש אישי ולימודי · אינו קשור למוסדות הלימוד או ל-Moodle</span>
-    <nav aria-label="מידע משפטי"><a href="#privacy">פרטיות</a><a href="#terms">תנאי שימוש</a><a href="#accessibility">נגישות</a></nav>
+    <span>© סיכומון · לשימוש אישי ולימודי · אינו קשור למוסדות הלימוד או ל-Moodle</span>
+    <nav aria-label="מידע משפטי"><a href="https://guysultan3101-svg.github.io/sikumon-app/#legal-privacy">פרטיות</a><a href="https://guysultan3101-svg.github.io/sikumon-app/#legal-terms">תנאי שימוש</a><a href="https://guysultan3101-svg.github.io/sikumon-app/#legal-access">נגישות</a></nav>
     <span>יצירת קשר: <span class="contact">guysultan3101@gmail.com</span></span>
   </div>
 </footer>

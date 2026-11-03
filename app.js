@@ -1,7 +1,7 @@
 // סיכומון AI – האפליקציה (גרסת בדיקה). ניווט לפי # בכתובת, כל מסך הוא פונקציה שמציירת HTML.
 import { LessonRecorder, store, segmentsOf, support, recoverOrphans } from "./recorder.js";
 import { demoSummary, demoQuiz, onboardingQuestions } from "./demo-data.js";
-import { InkEditor, COLORS, MARKER_COLORS, pdfToPages, makeThumb } from "./notes.js";
+import { InkEditor, COLORS, MARKER_COLORS, pdfToPages, makeThumb, imgBoxOf } from "./notes.js";
 import { initStudy } from "./study.js";
 import { initExtras } from "./extras.js";
 import { initPractice } from "./practice.js";
@@ -141,7 +141,8 @@ function onboardingCourses(answers) {
   </div>`;
   $("#done").onclick = () => {
     const courses = $("#courses").value.split("\n").map((s) => s.trim()).filter(Boolean);
-    prefs.set({ ...answers, courses: courses.length ? courses : ["קורס כללי"], createdAt: new Date().toISOString() });
+    if (!courses.length) { toast("כתבו לפחות קורס אחד (שורה לכל קורס)"); return; }
+    prefs.set({ ...answers, courses, createdAt: new Date().toISOString() });
     social.pushPrefs(); api.track("onboarding_done");
     // אם הכתובת כבר #home – אין "מעבר", אז מציירים את הבית ידנית
     if (location.hash === "#home") route(); else location.hash = "home";
@@ -287,10 +288,11 @@ async function attachAI(id) {
   const send = async (question) => {
     if (!hasKey) { location.hash = "settings-ai"; toast("קודם מחברים AI בהגדרות"); return; }
     if (ctrl) return;
-    $("#chat").scrollIntoView({ behavior: "smooth", block: "start" });
     const log = $("#chatLog");
     log.insertAdjacentHTML("beforeend", `<div class="bubble me">${esc(question)}</div><div class="bubble bot"><span class="typing">חושב…</span></div>`);
     const bot = log.lastElementChild;
+    // גוללים לשאלה החדשה, כך שהשאלה והתשובה שלה מול העיניים
+    bot.previousElementSibling.scrollIntoView({ behavior: "smooth", block: "start" });
     let text = "";
     ctrl = new AbortController();
     $("#chatSend").textContent = "עצירה";
@@ -425,7 +427,8 @@ function record() {
   view.innerHTML = `<div class="page">
     <h1 style="font-size:32px">הקלטת שיעור</h1>
     ${problems.map((x) => `<p class="notice alert">${x}</p>`).join("")}
-    <label class="field">איזה קורס?<select id="course" name="course" ${active ? "disabled" : ""}>${(p.courses || []).map((c) => `<option ${(recorder?.rec?.course || slot?.course) === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+    <label class="field">איזה קורס?<select id="course" name="course" ${active ? "disabled" : ""}><option value="" ${(recorder?.rec?.course || slot?.course) ? "" : "selected"} disabled>בחרו קורס…</option>${(p.courses || []).map((c) => `<option ${(recorder?.rec?.course || slot?.course) === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+    ${(p.courses || []).length ? "" : '<p class="notice">עוד אין קורסים. מוסיפים אותם ב<a href="#settings-study">הגדרות ← לימודים</a>.</p>'}
     <p class="small ${slot ? "" : "muted"}" style="margin-top:-12px">${active ? "" : slot ? `🕘 זוהה לפי מערכת השעות: <b>${esc(slot.course)}</b> (${DAYS[slot.day]} <bdi>${slot.start}–${slot.end}</bdi>). ההקלטה תיכנס למחברת שלו, לשיעור של היום.` : `אין שיעור במערכת השעות עכשיו, אז בוחרים קורס. <a href="#timetable">למערכת השעות</a>`}</p>
     <div class="card rec-stage">
       <div class="clock" id="clock" role="timer">${fmtTime(recorder?.elapsedMs || 0)}</div>
@@ -444,6 +447,9 @@ function record() {
     <p class="small muted">ההקלטה נכנסת אוטומטית למחברת של הקורס, לשיעור של היום. מקליטים רק כשזה מותר לפי מדיניות המרצה והמוסד. ההקלטה נשמרת רק במכשיר שלך.</p>
   </div>`;
   $("#recBtn").onclick = onRecClick;
+  // כפתור ההקלטה כבוי עד שבוחרים קורס (כדי שההקלטה תיכנס למחברת הנכונה)
+  const needCourse = () => { if (!active && !problems.length) $("#recBtn").disabled = !$("#course").value; };
+  $("#course").onchange = needCourse; needCourse();
   $("#starBtn") && ($("#starBtn").onclick = starNow);
   $("#finishPaused") && ($("#finishPaused").onclick = finish);
   bindRecorderUi();
@@ -782,6 +788,53 @@ function closeLesson() {
   editor?.destroy(); editor = null; editingLesson = null; clearInterval(lessonTimer);
 }
 
+// ✏️ עריכת תמונה בעמוד: גודל, מיקום בדף, וחיתוך (גוררים מלבן על התמונה)
+function imageEditor(editor, i) {
+  const page = editor.pages[i]; if (!page?.image) return;
+  const box = { ...imgBoxOf(page) };
+  let crop = null; // {x,y,w,h} בחלקים מהתמונה
+  document.body.insertAdjacentHTML("beforeend", `<div class="modal" id="imgModal" role="dialog" aria-labelledby="imgT"><div class="card img-card">
+    <h2 id="imgT">✏️ עריכת התמונה</h2>
+    <div class="ie-stage" id="ieStage"><img id="ieImg" src="${page.image}" alt="התמונה"><div class="ie-crop" id="ieCrop" hidden></div></div>
+    <p class="small muted">✂️ לחיתוך: גוררים מלבן על התמונה. לחיצה אחת מבטלת את החיתוך.</p>
+    <label>גודל בעמוד: <b id="ieSizeV">${Math.round(box.w * 100)}%</b><input type="range" id="ieSize" min="20" max="100" value="${Math.round(box.w * 100)}"></label>
+    <label>מיקום מלמעלה: <b id="ieTopV">${Math.round(box.y * 100)}%</b><input type="range" id="ieTop" min="0" max="90" value="${Math.round(box.y * 100)}"></label>
+    <div class="row"><span class="small">צד:</span><button class="btn ghost small-btn" data-side="right" type="button">ימין</button><button class="btn ghost small-btn" data-side="center" type="button">מרכז</button><button class="btn ghost small-btn" data-side="left" type="button">שמאל</button></div>
+    <div class="row"><button class="btn" id="ieOk" type="button">שמירה</button><button class="btn ghost" id="ieNo" type="button">ביטול</button><button class="btn ghost" id="ieDel" type="button">🗑️ הסרת התמונה</button></div>
+  </div></div>`);
+  const m = $("#imgModal"), stage = $("#ieStage"), cropEl = $("#ieCrop");
+  const close = () => m.remove();
+  $("#ieNo").onclick = close;
+  $("#ieSize").oninput = (e) => { box.w = +e.target.value / 100; box.x = Math.min(box.x, 1 - box.w); $("#ieSizeV").textContent = e.target.value + "%"; };
+  $("#ieTop").oninput = (e) => { box.y = +e.target.value / 100; $("#ieTopV").textContent = e.target.value + "%"; };
+  m.querySelectorAll("[data-side]").forEach((b) => (b.onclick = () => { box.x = b.dataset.side === "right" ? 1 - box.w : b.dataset.side === "center" ? (1 - box.w) / 2 : 0; toast("המיקום נשמר כשלוחצים שמירה"); }));
+  // חיתוך: גרירת מלבן על התמונה
+  let start = null;
+  const rel = (e) => { const r = $("#ieImg").getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; };
+  const drawCrop = () => {
+    if (!crop || crop.w < 0.03 || crop.h < 0.03) { cropEl.hidden = true; return; }
+    const r = $("#ieImg").getBoundingClientRect(), sr = stage.getBoundingClientRect();
+    Object.assign(cropEl.style, { left: r.left - sr.left + crop.x * r.width + "px", top: r.top - sr.top + crop.y * r.height + "px", width: crop.w * r.width + "px", height: crop.h * r.height + "px" });
+    cropEl.hidden = false;
+  };
+  stage.addEventListener("pointerdown", (e) => { e.preventDefault(); stage.setPointerCapture(e.pointerId); start = rel(e); crop = null; drawCrop(); });
+  stage.addEventListener("pointermove", (e) => { if (!start) return; const [x, y] = rel(e); crop = { x: Math.min(x, start[0]), y: Math.min(y, start[1]), w: Math.abs(x - start[0]), h: Math.abs(y - start[1]) }; drawCrop(); });
+  stage.addEventListener("pointerup", () => { start = null; if (crop && (crop.w < 0.03 || crop.h < 0.03)) crop = null; drawCrop(); });
+  $("#ieDel").onclick = () => { if (!confirm("להסיר את התמונה מהעמוד? מה שכתבת עליה יישאר.")) return; editor.updateImage(i, null, null); close(); };
+  $("#ieOk").onclick = async () => {
+    let url = page.image;
+    if (crop) {
+      const im = $("#ieImg");
+      const cv = document.createElement("canvas");
+      cv.width = Math.max(1, Math.round(im.naturalWidth * crop.w)); cv.height = Math.max(1, Math.round(im.naturalHeight * crop.h));
+      cv.getContext("2d").drawImage(im, im.naturalWidth * crop.x, im.naturalHeight * crop.y, cv.width, cv.height, 0, 0, cv.width, cv.height);
+      url = cv.toDataURL("image/jpeg", 0.85);
+    }
+    editor.updateImage(i, url, { ...box });
+    close(); toast("התמונה עודכנה ✓");
+  };
+}
+
 async function lessonPage(id) {
   const l = await store.getLesson(id);
   if (!l) { view.innerHTML = '<div class="page"><p>השיעור לא נמצא.</p><a href="#notebooks">חזרה למחברות</a></div>'; return; }
@@ -829,6 +882,14 @@ async function lessonPage(id) {
         <div class="tgroup">
           <label class="tool" aria-label="צילום הלוח">${svg("camera")}<input type="file" id="camIn" accept="image/*" capture="environment" hidden></label>
         </div>
+        <div class="tgroup">
+          <select id="paperSel" aria-label="סוג הדף" class="paper-sel"><option value="blank">דף חלק</option><option value="lines">שורות</option><option value="grid">משבצות</option></select>
+        </div>
+        <div class="tgroup">
+          <button class="tool" id="zoomOut" aria-label="הקטנה">−</button>
+          <span class="small zoom-val" id="zoomVal">100%</span>
+          <button class="tool" id="zoomIn" aria-label="הגדלה">+</button>
+        </div>
         <div class="tgroup" id="swatches"></div>
         <div class="tgroup">${[0, 1, 2].map((k) => `<button class="tool size" data-size="${k}" aria-label="עובי ${["דק", "בינוני", "עבה"][k]}"><i style="width:${[4, 7, 11][k]}px;height:${[4, 7, 11][k]}px"></i></button>`).join("")}</div>
         <div class="tgroup">
@@ -838,8 +899,9 @@ async function lessonPage(id) {
           <button class="tool" id="fullExit" aria-label="יציאה ממסך מלא">${svg("shrink")}</button>
         </div>
       </div>
-      <div class="sheets" id="sheets"></div>
+      <div class="sheets-wrap"><div class="sheets" id="sheets"></div></div>
       <div class="row" style="justify-content:center;margin-top:14px">
+        <button class="btn ghost" data-add="blank">${svg("plus")} עמוד חלק</button>
         <button class="btn ghost" data-add="lines">${svg("plus")} עמוד שורות</button>
         <button class="btn ghost" data-add="grid">${svg("plus")} עמוד משבצות</button>
         <label class="btn ghost">${svg("image")} תמונה / שקף<input type="file" id="addImg" accept="image/*" hidden></label>
@@ -900,6 +962,23 @@ async function lessonPage(id) {
     e.target.value = "";
   };
   paintTools();
+
+  // --- סוג הדף: משנה את העמוד שמול העיניים (וגם העמודים החדשים יהיו כאלה) ---
+  const syncPaper = () => { if (!editor || !$("#paperSel")) return; $("#paperSel").value = editor.pages[editor.currentIndex()]?.bg || "lines"; };
+  syncPaper();
+  $("#paperSel").onchange = () => { editor.setPageBg(editor.currentIndex(), $("#paperSel").value); toast("סוג הדף עודכן"); };
+  // מאזין אחד בלבד (כל פתיחה של שיעור מחליפה את הקודם)
+  if (window.__paperSync) window.removeEventListener("scroll", window.__paperSync);
+  window.__paperSync = syncPaper; window.addEventListener("scroll", syncPaper, { passive: true });
+  // --- הגדלה / הקטנה ---
+  let zoom = 1;
+  try { zoom = +localStorage.getItem("sikumon-zoom") || 1; } catch { /* */ }
+  const setZoom = (z) => { zoom = editor.setZoom(z); $("#zoomVal").textContent = Math.round(zoom * 100) + "%"; try { localStorage.setItem("sikumon-zoom", zoom); } catch { /* */ } };
+  setZoom(zoom);
+  $("#zoomIn").onclick = () => setZoom(zoom + 0.25);
+  $("#zoomOut").onclick = () => setZoom(zoom - 0.25);
+  // --- עריכת תמונה בעמוד ---
+  $("#sheets").addEventListener("click", (e) => { const b = e.target.closest("[data-imgedit]"); if (b) imageEditor(editor, +b.dataset.imgedit); });
 
   // --- מסך מלא: רק הדף וסרגל הכלים, בלי תפריטים ---
   const setFull = async (on) => {
@@ -1153,7 +1232,6 @@ async function profile(tab = "posts") {
   view.innerHTML = `<div class="page" style="max-width:760px">
     ${head}
     <section class="list">
-      <a class="item" href="#settings"><span><span class="t">⚙️ הגדרות</span><br><span class="small muted">איך אני לומד/ת, AI, חשבון, פרטיות, נגישות</span></span></a>
       <a class="item" href="#timetable"><span><span class="t">🕘 מערכת השעות</span></span></a>
       <a class="item" href="#feedback"><span><span class="t">✉️ משוב על הגרסה</span></span></a>
     </section>
@@ -1180,6 +1258,8 @@ async function routeInner() {
   try { hash = decodeURIComponent(hash); } catch { /* כתובת לא תקינה */ }
   // משתמש חדש: קודם פותחים פרופיל, ורק אז השאלון ("איך אני לומד/ת")
   // בלי חשבון (או לפני שנוצר פרופיל): הרשמה / כניסה
+  // מסמכים משפטיים ותמיכה: פתוחים גם לפני ההרשמה (צריך לקרוא את התנאים לפני שמסכימים להם)
+  if (hash.startsWith("legal-") && !api.profile()) { renderTabs(null); settings.legal(hash.slice(6)); view.querySelector(".page")?.insertAdjacentHTML("afterbegin", '<a class="back-btn" href="#home">→ חזרה</a>'); return; }
   if (!api.user() || !api.profile()) { renderTabs(null); assistant.mount(null); return social.signup(api.user() ? "signup" : undefined); }
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
@@ -1354,6 +1434,12 @@ function connectPage() {
 }
 const assistant = initAssistant({ store, esc, ai, prefs });
 settings.applyUI();
+// מסירים את "קורס כללי" הישן (ברירת מחדל מגרסאות קודמות) – אם אין בו שיעורים
+(async () => {
+  const p = prefs.get(); if (!p?.courses?.includes("קורס כללי")) return;
+  if ((await store.listLessons()).some((l) => l.course === "קורס כללי")) return;
+  p.courses = p.courses.filter((c) => c !== "קורס כללי"); prefs.set(p);
+})().catch(() => {});
 // חזרה דף אחד אחורה: אם נכנסו ישר לדף (בלי היסטוריה באפליקציה) – לבית
 let navDepth = 0, goingBack = false;
 window.addEventListener("hashchange", () => { if (goingBack) { navDepth = Math.max(0, navDepth - 1); goingBack = false; } else navDepth++; });
@@ -1407,7 +1493,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "23";
+const APP_VERSION = "24";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

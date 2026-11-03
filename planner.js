@@ -74,7 +74,8 @@ export function initPlanner(ctx) {
       }));
       $("#dayBox").querySelectorAll('.day-ev[data-kind="exam"]').forEach((a) => (a.onclick = (ev) => { ev.preventDefault(); location.hash = "deadlines"; }));
     };
-    view.querySelectorAll(".cal-d").forEach((b) => (b.onclick = () => showDay(b.dataset.k)));
+    // לחיצה על יום: מציגים את היום וגוללים אליו למטה
+    view.querySelectorAll(".cal-d").forEach((b) => (b.onclick = () => { showDay(b.dataset.k); $("#dayBox").scrollIntoView({ behavior: "smooth", block: "start" }); }));
     showDay(cells.some((d) => key(d) === today) ? today : key(first));
     $("#semSave").onclick = () => {
       const p = prefs.get(); p.semester = { start: $("#semS").value, end: $("#semE").value }; prefs.set(p);

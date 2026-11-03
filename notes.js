@@ -114,6 +114,13 @@ function drawPaper(ctx, bg) {
 }
 
 const loadImage = (src) => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
+// איפה התמונה יושבת בעמוד: x, y, w כחלק מרוחב/גובה העמוד (הגובה לפי יחס התמונה)
+export const imgBoxOf = (page) => page.imgBox || { x: 0, y: 0, w: 1 };
+function drawPageImage(ctx, page, im) {
+  const b = imgBoxOf(page);
+  const w = PAGE_W * b.w, h = w * im.height / im.width;
+  ctx.drawImage(im, PAGE_W * b.x, PAGE_H * b.y, w, h);
+}
 
 // ---------- העורך: כל העמודים של שיעור אחד ----------
 export class InkEditor extends EventTarget {
@@ -141,7 +148,8 @@ export class InkEditor extends EventTarget {
   _makeView(page, i) {
     const sheet = document.createElement("div");
     sheet.className = "sheet bg-" + page.bg;
-    sheet.innerHTML = `${page.image ? `<img alt="תמונה בעמוד ${i + 1}" src="${page.image}">` : ""}<canvas class="base"></canvas><canvas class="live"></canvas><span class="pno">${i + 1}</span>`;
+    const b = imgBoxOf(page);
+    sheet.innerHTML = `${page.image ? `<img alt="תמונה בעמוד ${i + 1}" src="${page.image}" style="left:${b.x * 100}%;top:${b.y * 100}%;width:${b.w * 100}%">` : ""}<canvas class="base"></canvas><canvas class="live"></canvas><span class="pno">${i + 1}</span>${page.image ? `<button class="img-edit" type="button" data-imgedit="${i}" aria-label="עריכת התמונה">✏️ תמונה</button>` : ""}`;
     this.host.appendChild(sheet);
     const v = { page, sheet, base: sheet.querySelector(".base"), live: sheet.querySelector(".live"), scale: 1 };
     this._bindPointer(v);
@@ -328,6 +336,34 @@ export class InkEditor extends EventTarget {
     this.dispatchEvent(new Event("penonly"));
   }
 
+  // ---------- הגדלה / הקטנה (רוחב הדפים ביחס למסך) ----------
+  setZoom(z) {
+    this.zoom = Math.min(2.5, Math.max(0.6, Math.round(z * 100) / 100));
+    this.host.style.width = this.zoom * 100 + "%";
+    this.host.style.marginInline = this.zoom < 1 ? "auto" : "";
+    this.layout();
+    return this.zoom;
+  }
+  // העמוד שהכי קרוב למרכז המסך
+  currentIndex() {
+    let best = 0, dist = Infinity;
+    this.views.forEach((v, i) => { const r = v.sheet.getBoundingClientRect(); const d = Math.abs(r.top + r.height / 2 - innerHeight / 2); if (d < dist) { dist = d; best = i; } });
+    return best;
+  }
+  // סוג הדף: blank (חלק), lines (שורות), grid (משבצות)
+  setPageBg(i, bg) {
+    const v = this.views[i]; if (!v) return;
+    v.page.bg = bg; v.sheet.className = "sheet bg-" + bg;
+    this.dispatchEvent(new Event("change"));
+  }
+  // תמונה אחרי עריכה (חיתוך / גודל / מיקום)
+  updateImage(i, dataUrl, box) {
+    const p = this.pages[i]; if (!p) return;
+    p.image = dataUrl; p.imgBox = box;
+    this.render();
+    this.dispatchEvent(new Event("change"));
+  }
+
   // ---------- עמודים ----------
   addPage(bg, image = null) {
     const p = newPage(bg); p.image = image;
@@ -360,8 +396,7 @@ export class InkEditor extends EventTarget {
     drawPaper(ctx, page.bg);
     if (page.image) {
       const im = await loadImage(page.image);
-      const k = Math.min(PAGE_W / im.width, PAGE_H / im.height);
-      ctx.drawImage(im, (PAGE_W - im.width * k) / 2, 0, im.width * k, im.height * k);
+      drawPageImage(ctx, page, im);
     }
     for (const st of page.strokes) drawStroke(ctx, st);
     return new Promise((r) => cv.toBlob(r, "image/png"));
@@ -419,8 +454,7 @@ export async function makeThumb(page) {
   drawPaper(ctx, page.bg);
   if (page.image) {
     const im = await loadImage(page.image);
-    const k = Math.min(PAGE_W / im.width, PAGE_H / im.height);
-    ctx.drawImage(im, (PAGE_W - im.width * k) / 2, 0, im.width * k, im.height * k);
+      drawPageImage(ctx, page, im);
   }
   for (const st of page.strokes) drawStroke(ctx, st);
   return cv.toDataURL("image/jpeg", 0.72);

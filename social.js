@@ -101,7 +101,7 @@ export function initSocial(ctx) {
   function restorePrefs() {
     const p = api.profile(); if (!p || prefs.get()) return;
     if (!p.learn || !Object.keys(p.learn).length) return;
-    prefs.set({ ...p.learn, name: p.full_name.split(" ")[0], inst: p.uni, courses: p.courses?.length ? p.courses : ["קורס כללי"], createdAt: p.created_at });
+    prefs.set({ ...p.learn, name: p.full_name.split(" ")[0], inst: p.uni, courses: p.courses || [], createdAt: p.created_at });
   }
   // השאלון והקורסים נשמרים גם בשרת (בשביל הסיכומים האישיים)
   async function pushPrefs() {
@@ -171,32 +171,67 @@ export function initSocial(ctx) {
   }
 
   // ---------- פיד ----------
+  const fmtSize = (b) => (b > 1e6 ? (b / 1e6).toFixed(1) + "MB" : Math.max(1, Math.round(b / 1e3)) + "KB");
+  function mediaHtml(p, d) {
+    const items = Array.isArray(p.media) ? p.media : [];
+    if (!items.length) return "";
+    const imgs = items.filter((m) => /^image\//.test(m.type)), files = items.filter((m) => !/^image\//.test(m.type));
+    return `${imgs.length ? `<div class="post-imgs n${Math.min(imgs.length, 4)}">${imgs.map((m) => d.urls[m.path] ? `<a href="${esc(d.urls[m.path])}" target="_blank" rel="noopener"><img src="${esc(d.urls[m.path])}" alt="${esc(m.name)}" loading="lazy"></a>` : "").join("")}</div>` : ""}
+      ${files.map((m) => `<a class="post-file" href="${esc(d.urls[m.path] || "#")}" target="_blank" rel="noopener" download="${esc(m.name)}">📎 <span>${esc(m.name)}</span><span class="small muted">${fmtSize(m.size || 0)}</span></a>`).join("")}`;
+  }
   function postCard(p, d) {
     const liked = d.likes.some((l) => l.post === p.id && l.user_id === meId());
     const nLikes = d.likes.filter((l) => l.post === p.id).length;
     const saved = d.saves.has(p.id), cmts = d.comments.filter((c) => c.post === p.id), mine = p.author === meId();
     return `<article class="post" data-post="${esc(p.id)}">
       <div class="post-h">${avatar(p.author)}<span style="min-width:0;flex:1"><a href="#u-${esc(unameOf(p.author))}"><b>${esc(nameOf(p.author))}</b></a> <span class="small muted" dir="ltr">@${esc(unameOf(p.author))}</span><br><span class="small muted">${esc(p.course)}${p.course ? " · " : ""}${when(p.created_at)} · ${VIS[p.visibility]}</span></span>
-        ${mine ? '<button class="tool" type="button" data-del aria-label="מחיקה">🗑️</button>' : '<button class="tool" type="button" data-rep aria-label="דיווח">⚠️</button>'}</div>
-      <h3>📄 ${esc(p.title)}</h3>${p.body ? `<p>${esc(p.body)}</p>` : ""}
+        ${mine ? '<button class="tool" type="button" data-del aria-label="מחיקת הפוסט">🗑️</button>' : '<button class="tool" type="button" data-menu aria-label="דיווח או חסימה">⋯</button>'}</div>
+      ${p.title ? `<h3>${p.md ? "📄 " : ""}${esc(p.title)}</h3>` : ""}${p.body ? `<p class="post-body">${esc(p.body)}</p>` : ""}
+      ${mediaHtml(p, d)}
       ${p.md ? `<details><summary class="small"><b>לקריאת הסיכום</b></summary><div class="md-body" style="margin-top:8px">${mdToHtml(p.md)}</div></details>` : ""}
       <div class="post-a"><button type="button" data-like aria-pressed="${liked}">${liked ? "❤️" : "🤍"} <bdi>${nLikes}</bdi></button>
         <button type="button" data-cmt>💬 <bdi>${cmts.length}</bdi></button>
         <button type="button" data-save aria-pressed="${saved}">${saved ? "🔖 נשמר" : "🔖 שמירה"}</button></div>
-      <div class="post-c" hidden>${cmts.map((c) => `<p class="small"><b>${esc(nameOf(c.author))}:</b> ${esc(c.body)}</p>`).join("")}
+      <div class="post-c" hidden>${cmts.map((c) => `<p class="small cmt"><span><b>${esc(nameOf(c.author))}:</b> ${esc(c.body)}</span>${c.author === meId() ? "" : `<button class="link" type="button" data-crep="${c.id}" data-who="${c.author}" aria-label="דיווח על התגובה">⚠️</button>`}</p>`).join("")}
         <form class="row" data-cform><input placeholder="תגובה…" aria-label="תגובה" maxlength="500" style="flex:1"><button class="btn ghost" type="submit">שליחה</button></form></div>
     </article>`;
   }
   async function feedData(filter) {
-    let ps = await api.posts();
+    const [all, bl] = await Promise.all([api.posts(), api.blocks()]);
+    const blocked = new Set(bl.map((b) => b.blocked));
+    let ps = all.filter((p) => !blocked.has(p.author)); // חסמתי? לא רואים את הפוסטים שלו
     if (filter) ps = ps.filter(filter);
     const ids = ps.map((p) => p.id);
-    const [likes, sv, comments] = await Promise.all([api.likes(ids), api.saves(), api.comments(ids)]);
+    const [likes, sv, comments, urls] = await Promise.all([api.likes(ids), api.saves(), api.comments(ids), api.mediaUrls(ps.flatMap((p) => (Array.isArray(p.media) ? p.media : []).map((m) => m.path)))]);
     await remember([...ps.map((p) => p.author), ...comments.map((c) => c.author)]);
-    return { ps, likes, saves: new Set(sv.map((s) => s.post)), comments };
+    return { ps, likes, saves: new Set(sv.map((s) => s.post)), comments: comments.filter((c) => !blocked.has(c.author)), urls };
+  }
+  // דיווח / חסימה – על כל פוסט, תגובה והודעה (חובה בפלטפורמה עם תוכן של משתמשים)
+  function reportModal({ target, post, what, after }) {
+    const m = modal(`<h2>⚠️ דיווח על ${what}</h2>
+      <fieldset class="vis"><legend>מה הבעיה?</legend>${["הטרדה או פגיעה", "תוכן לא הולם", "ספאם או פרסומת", "חומר של מרצה / זכויות יוצרים", "מידע אישי של מישהו אחר", "אחר"].map((r, i) => `<label><input type="radio" name="rr" value="${r}" ${i ? "" : "checked"}> ${r}</label>`).join("")}</fieldset>
+      <label>פרטים (לא חובה)<input id="rrTxt" maxlength="300"></label>
+      <label class="row small" style="gap:8px"><input type="checkbox" id="rrBlock" style="width:auto"> גם לחסום את ${esc(nameOf(target))}</label>
+      <p class="small muted">הדיווח נשלח אלינו בלבד, והמשתמש לא יודע מי דיווח. בודקים כל דיווח תוך 24 שעות.</p>
+      <div class="row"><button class="btn" id="rrGo" type="button">שליחת דיווח</button><button class="btn ghost" data-x type="button">ביטול</button></div>`);
+    $("#rrGo", m).onclick = async () => {
+      try {
+        const reason = `${what}: ${$('input[name="rr"]:checked', m).value}${$("#rrTxt", m).value.trim() ? " – " + $("#rrTxt", m).value.trim() : ""}`;
+        await api.report({ target, post, reason: reason.slice(0, 500) });
+        if ($("#rrBlock", m).checked) await api.block(target);
+        m.remove(); toast($("#rrBlock", m).checked ? "הדיווח נשלח והמשתמש נחסם" : "תודה, הדיווח נשלח לבדיקה"); after?.();
+      } catch (e) { toast(e.message); }
+    };
+  }
+  function postMenu(p, again) {
+    const m = modal(`<h2>${esc(nameOf(p.author))}</h2>
+      <div class="list"><button class="item" type="button" id="pmRep">⚠️ דיווח על הפוסט</button><button class="item" type="button" id="pmBlock">🚫 חסימת ${esc(nameOf(p.author))}</button><a class="item" href="#u-${esc(unameOf(p.author))}">👤 לפרופיל</a></div>
+      <button class="btn ghost" data-x type="button">סגירה</button>`);
+    $("#pmRep", m).onclick = () => { m.remove(); reportModal({ target: p.author, post: p.id, what: "פוסט", after: again }); };
+    $("#pmBlock", m).onclick = async () => { if (!confirm(`לחסום את ${nameOf(p.author)}? לא תראו את הפוסטים וההודעות שלו/ה.`)) return; await api.block(p.author); m.remove(); toast("נחסם/ה"); again(); };
   }
   function renderPosts(el, d, again) {
-    el.innerHTML = d.ps.map((p) => postCard(p, d)).join("") || '<p class="muted">עוד אין כאן פוסטים. שתפו סיכום ראשון 🙂</p>';
+    el.innerHTML = d.ps.map((p) => postCard(p, d)).join("") || '<p class="muted">עוד אין כאן פוסטים. שתפו משהו ראשון 🙂</p>';
     el.querySelectorAll("[data-post]").forEach((a) => {
       const id = a.dataset.post, p = d.ps.find((x) => x.id === id);
       const run = async (fn) => { try { await fn(); again(); } catch (e) { toast(e.message); } };
@@ -204,9 +239,10 @@ export function initSocial(ctx) {
       a.querySelector("[data-save]").onclick = () => run(() => api.save(id, !d.saves.has(id)));
       a.querySelector("[data-cmt]").onclick = () => { const c = a.querySelector(".post-c"); c.hidden = !c.hidden; };
       a.querySelector("[data-cform]").onsubmit = (e) => { e.preventDefault(); const v = e.target.querySelector("input").value.trim(); if (v) run(() => api.comment(id, v)); };
-      const del = a.querySelector("[data-del]"), rep = a.querySelector("[data-rep]");
-      if (del) del.onclick = () => { if (confirm("למחוק את הפוסט?")) run(() => api.deletePost(id)); };
-      if (rep) rep.onclick = () => run(async () => { await api.report({ post: id, target: p.author, reason: "דיווח מהפיד" }); toast("תודה, הדיווח נשלח לבדיקה"); });
+      const del = a.querySelector("[data-del]"), menu = a.querySelector("[data-menu]");
+      if (del) del.onclick = () => { if (confirm("למחוק את הפוסט?")) run(() => api.deletePost(id, Array.isArray(p.media) ? p.media : [])); };
+      if (menu) menu.onclick = () => postMenu(p, again);
+      a.querySelectorAll("[data-crep]").forEach((b) => (b.onclick = () => reportModal({ target: b.dataset.who, post: id, what: "תגובה", after: again })));
     });
   }
   async function feed() {
@@ -219,7 +255,7 @@ export function initSocial(ctx) {
       view.innerHTML = `<div class="page">${subnav("social")}
         ${bd.filter((b) => b.birthday.slice(5) === today).map((b) => `<div class="bday"><span>🎂 היום יום ההולדת של <b>${esc(b.full_name)}</b>!</span><a class="btn ghost" href="#dm-${esc(b.username)}">שליחת ברכה</a></div>`).join("")}
         ${soon.length ? `<p class="small muted">🎈 ימי הולדת בשבוע הקרוב: ${soon.map((b) => esc(b.full_name)).join(", ")}</p>` : ""}
-        <button class="btn" type="button" id="newPost">➕ שיתוף סיכום</button>
+        <button class="btn" type="button" id="newPost">➕ פוסט חדש</button>
         <div class="feed" id="feed"></div></div>`;
       renderPosts($("#feed"), d, feed);
       $("#newPost").onclick = publishModal;
@@ -235,23 +271,41 @@ export function initSocial(ctx) {
     return m;
   }
   async function mySummaries() { return (await store.listItems()).filter((x) => x.type === "summary" && x.kind !== "formulas" && !x.from).sort((a, b) => (b.date || "").localeCompare(a.date || "")); }
+  // פוסט חדש, כמו באינסטגרם: טקסט, תמונות וקבצים, ואם רוצים – גם סיכום שלכם
   async function publishModal() {
     const sums = await mySummaries();
     const def = prefs.get()?.privacy?.posts || "friends";
-    const m = modal(`<h2>שיתוף סיכום</h2>
-      ${sums.length ? `<label>איזה סיכום?<select id="pbSum">${sums.map((x) => `<option value="${esc(x.id)}">${esc(x.course || "")} – ${esc(x.title)}</option>`).join("")}</select></label>` : '<p class="notice">עוד אין לך סיכומים. העלו מצגת בלשונית "סיכומים" ותקבלו סיכום אישי.</p>'}
-      <label>כמה מילים (לא חובה)<input id="pbTxt" maxlength="300" placeholder="למשל: המרצה אמר שזה במבחן"></label>
+    let files = [];
+    const m = modal(`<h2>פוסט חדש</h2>
+      <label>מה רציתם לשתף?<textarea id="pbTxt" rows="3" maxlength="1000" placeholder="למשל: מישהו הבין את שאלה 4 בתרגיל? / טיפ למבחן במיקרו"></textarea></label>
+      <div class="row"><label class="btn ghost">🖼️ תמונות<input type="file" id="pbImg" accept="image/*" multiple hidden></label><label class="btn ghost">📎 קבצים<input type="file" id="pbFile" accept=".pdf,.pptx,.docx,.xlsx,.txt" multiple hidden></label></div>
+      <div id="pbPrev" class="pb-prev"></div>
+      <label>לצרף סיכום (לא חובה)<select id="pbSum"><option value="">בלי סיכום</option>${sums.map((x) => `<option value="${esc(x.id)}">${esc(x.course || "")} – ${esc(x.title)}</option>`).join("")}</select></label>
+      <label>קורס (לא חובה)<select id="pbCourse"><option value="">—</option>${myCourses().map((c) => `<option>${esc(c)}</option>`).join("")}</select></label>
       <fieldset class="vis"><legend>מי יראה?</legend>${Object.entries(VIS).map(([k, l]) => `<label><input type="radio" name="vis" value="${k}" ${k === def ? "checked" : ""}> ${l}</label>`).join("")}</fieldset>
-      <label class="row small" style="gap:8px;align-items:flex-start"><input type="checkbox" id="pbOwn" style="width:auto;margin-top:5px">זה סיכום שלי (לא מצגת או מבחן של המרצה)</label>
-      <div class="row"><button class="btn" id="pbGo" type="button" ${sums.length ? "" : "disabled"}>פרסום</button><button class="btn ghost" data-x type="button">ביטול</button></div>`);
+      <label class="row small" style="gap:8px;align-items:flex-start"><input type="checkbox" id="pbOwn" style="width:auto;margin-top:5px">התוכן שלי, ומותר לי לשתף אותו (לא מצגות, מבחנים או הקלטות של מרצים)</label>
+      <div class="row"><button class="btn" id="pbGo" type="button">פרסום</button><button class="btn ghost" data-x type="button">ביטול</button></div>`);
+    const drawPrev = () => {
+      $("#pbPrev", m).innerHTML = files.map((f, i) => `<span class="pb-chip">${/^image\//.test(f.type) ? "🖼️" : "📎"} ${esc(f.name)} <button type="button" class="link" data-rm="${i}" aria-label="הסרה">✕</button></span>`).join("");
+      m.querySelectorAll("[data-rm]").forEach((b) => (b.onclick = () => { files.splice(+b.dataset.rm, 1); drawPrev(); }));
+    };
+    const addFiles = async (list) => {
+      try { files = [...files, ...(await api.preparePostFiles([...list]))].slice(0, 6); if (list.length + files.length > 6) toast("עד 6 קבצים בפוסט"); drawPrev(); }
+      catch (e) { toast(e.message); }
+    };
+    $("#pbImg", m).onchange = (e) => { addFiles(e.target.files); e.target.value = ""; };
+    $("#pbFile", m).onchange = (e) => { addFiles(e.target.files); e.target.value = ""; };
+    $("#pbSum", m).onchange = () => { const sm = sums.find((x) => x.id === $("#pbSum", m).value); if (sm?.course) $("#pbCourse", m).value = myCourses().includes(sm.course) ? sm.course : ""; };
     $("#pbGo", m).onclick = async () => {
-      if (!$("#pbOwn", m).checked) return toast("אפשר לשתף רק סיכומים שלכם");
-      const sm = sums.find((x) => x.id === $("#pbSum", m).value); if (!sm) return;
-      const md = htmlToMd(sm.html).slice(0, 20000);
+      const body = $("#pbTxt", m).value.trim(), sm = sums.find((x) => x.id === $("#pbSum", m).value);
+      if (!body && !files.length && !sm) return toast("כתבו משהו, הוסיפו תמונה או צרפו סיכום");
+      if (!$("#pbOwn", m).checked) return toast("צריך לאשר שהתוכן שלכם ומותר לשתף אותו");
+      $("#pbGo", m).disabled = true; $("#pbGo", m).textContent = "מעלה…";
       try {
-        await api.addPost({ course: sm.course || "", title: sm.title.slice(0, 200), body: $("#pbTxt", m).value.trim(), md, visibility: $('input[name="vis"]:checked', m).value });
+        const post = { course: $("#pbCourse", m).value || sm?.course || "", title: sm ? sm.title.slice(0, 200) : "", body, md: sm ? htmlToMd(sm.html).slice(0, 20000) : "", visibility: $('input[name="vis"]:checked', m).value };
+        if (files.length) await api.addPostWithMedia(post, files); else await api.addPost(post);
         m.remove(); toast("פורסם ✓"); api.track("post"); feed();
-      } catch (e) { toast(e.message); }
+      } catch (e) { toast(e.message); $("#pbGo", m).disabled = false; $("#pbGo", m).textContent = "פרסום"; }
     };
   }
   // HTML של סיכום -> Markdown פשוט (לפוסט)
@@ -377,7 +431,8 @@ export function initSocial(ctx) {
         if ($("#dmDel")) $("#dmDel").onclick = async () => { await api.deleteChatFrom(p.id); location.hash = "#messages-req"; };
         if (ms.length === shown) return;
         shown = ms.length;
-        $("#dmLog").innerHTML = ms.map((m) => `<div class="bubble ${m.sender === p.id ? "bot" : "me"}">${esc(m.body)}</div>`).join("") || '<p class="muted small">עוד אין הודעות. תגידו היי 👋</p>';
+        $("#dmLog").innerHTML = ms.map((m) => `<div class="bubble ${m.sender === p.id ? "bot" : "me"}">${esc(m.body)}${m.sender === p.id ? `<button class="link msg-rep" type="button" data-mrep="${m.id}" aria-label="דיווח על ההודעה">⚠️</button>` : ""}</div>`).join("") || '<p class="muted small">עוד אין הודעות. תגידו היי 👋</p>';
+        $("#dmLog").querySelectorAll("[data-mrep]").forEach((b) => (b.onclick = () => { const msg = ms.find((x) => String(x.id) === b.dataset.mrep); reportModal({ target: p.id, what: "הודעה", after: null }); setTimeout(() => { const t = $("#rrTxt"); if (t && msg) t.value = ("ההודעה: " + msg.body).slice(0, 300); }, 0); }));
         $("#dmLog").scrollTop = $("#dmLog").scrollHeight;
       };
       $("#dmIn").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#dmForm").requestSubmit(); } };

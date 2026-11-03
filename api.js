@@ -124,7 +124,48 @@ export async function missed(course, lesson_date) { ok(await sb.from("missed_req
 // ---------- פיד ----------
 export async function posts() { return ok(await sb.from("posts").select("*").order("created_at", { ascending: false }).limit(100)); }
 export async function addPost(p) { ok(await sb.from("posts").insert({ ...p, author: user().id })); }
-export async function deletePost(id) { ok(await sb.from("posts").delete().eq("id", id)); }
+export async function deletePost(id, media = []) {
+  if (media.length) await sb.storage.from("post-media").remove(media.map((m) => m.path)).catch(() => {});
+  ok(await sb.from("posts").delete().eq("id", id));
+}
+// קבצים של פוסט: תמונות מוקטנות לפני ההעלאה (חוסך מקום ואינטרנט), קבצים אחרים כמו שהם (עד 10MB)
+async function shrinkImage(file) {
+  if (!/^image\/(jpeg|png|webp|heic)/.test(file.type)) return file;
+  const url = URL.createObjectURL(file);
+  try {
+    const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const k = Math.min(1, 1600 / Math.max(im.width, im.height));
+    const cv = document.createElement("canvas"); cv.width = Math.round(im.width * k); cv.height = Math.round(im.height * k);
+    cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height);
+    const blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", 0.85));
+    return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch { return file; } finally { URL.revokeObjectURL(url); }
+}
+export async function preparePostFiles(files) {
+  const out = [];
+  for (const f of files) {
+    const g = await shrinkImage(f);
+    if (g.size > 10 * 1024 * 1024) throw new Error(`"${f.name}" גדול מדי (עד 10MB לקובץ)`);
+    out.push(g);
+  }
+  return out;
+}
+// פוסט עם קבצים: יוצרים את הפוסט, ואז מעלים את הקבצים לתיקייה שלו
+export async function addPostWithMedia(p, files) {
+  const id = crypto.randomUUID();
+  const media = files.map((f, i) => ({ path: `${id}/${i}-${f.name.replace(/[^\w.\-א-ת]+/g, "_").slice(-80)}`, name: f.name, type: f.type, size: f.size }));
+  ok(await sb.from("posts").insert({ ...p, id, media, author: user().id }));
+  for (const [i, f] of files.entries()) {
+    const { error } = await sb.storage.from("post-media").upload(media[i].path, f, { contentType: f.type || "application/octet-stream" });
+    if (error) throw new Error("העלאת " + f.name + " נכשלה");
+  }
+}
+// קישורים זמניים (שעה) לתמונות ולקבצים של פוסטים שמותר לי לראות
+export async function mediaUrls(paths) {
+  if (!paths.length) return {};
+  const { data } = await sb.storage.from("post-media").createSignedUrls(paths, 3600);
+  return Object.fromEntries((data || []).filter((d) => d.signedUrl).map((d) => [d.path, d.signedUrl]));
+}
 export async function likes(ids) { if (!ids.length) return []; return ok(await sb.from("post_likes").select("post, user_id").in("post", ids)); }
 export async function like(post, on) { ok(on ? await sb.from("post_likes").upsert({ post, user_id: user().id }) : await sb.from("post_likes").delete().eq("post", post).eq("user_id", user().id)); }
 export async function saves() { return ok(await sb.from("post_saves").select("post")); }

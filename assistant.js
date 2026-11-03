@@ -1,5 +1,5 @@
 // 🤖 העוזר: כפתור צף במחברות, בסיכומים ובמבחנים. עונה לפי החומר שלך (הדף הפתוח, או הסיכומים הכי קשורים לשאלה),
-// ואם מסמנים "🌐 גם מהאינטרנט" – מחפש גם בגוגל (Gemini, במסלול החינמי).
+// (חיפוש באינטרנט הוסר: המודל החינמי שתמך בו כבר לא פתוח למשתמשים חדשים בגוגל)
 
 export function initAssistant(ctx) {
   const { store, esc, ai } = ctx;
@@ -45,7 +45,7 @@ export function initAssistant(ctx) {
       <div class="row" style="justify-content:space-between"><h2 id="aiPT" style="font-size:20px">🤖 העוזר</h2><button class="tool" id="aiX" aria-label="סגירה">✕</button></div>
       ${has ? `<p class="small muted" id="aiCtx">שואלים על החומר. העוזר עונה לפי הסיכומים שלך.</p>
       <div class="chat-log" id="aiLog" aria-live="polite"></div>
-      ${ai.provider() === "gemini" ? '<label class="row small" style="gap:6px"><input type="checkbox" id="aiWeb" style="width:auto"> 🌐 גם מהאינטרנט (חיפוש בגוגל)</label>' : ai.provider() === "sikumon" ? `<p class="small muted" id="aiQuota">${quotaText()}</p>` : `<p class="small muted">מחובר: ${esc(ai.PROVIDERS[ai.provider()].name)}</p>`}
+      ${ai.provider() === "sikumon" ? `<p class="small muted" id="aiQuota">${quotaText()}</p>` : `<p class="small muted">מחובר: ${esc(ai.PROVIDERS[ai.provider()].name)}</p>`}
       <form class="chat-form" id="aiForm"><textarea id="aiIn" rows="2" placeholder="למשל: מה ההבדל בין חציון לממוצע?" autocomplete="off"></textarea><button class="btn" id="aiSend">שליחה</button></form>`
       : `<p class="notice">כדי שהעוזר יעבוד, מחברים פעם אחת את ה-AI שלך: Gemini (חינם), ChatGPT, Claude או OpenRouter. לוקח 2 דקות.</p><a class="btn" href="#settings-ai" id="aiGo">לחיבור</a>`}
     </section>`);
@@ -63,11 +63,12 @@ export function initAssistant(ctx) {
       const log = document.getElementById("aiLog");
       log.insertAdjacentHTML("beforeend", `<div class="bubble me">${esc(q)}</div><div class="bubble bot"><span class="typing">חושב…</span></div>`);
       const bot = log.lastElementChild; let text = "";
+      bot.previousElementSibling.scrollIntoView({ block: "start" }); // השאלה החדשה למעלה, התשובה מתחתיה
       ctrl = new AbortController(); document.getElementById("aiSend").textContent = "עצירה";
       try {
         const c = await context(q);
         document.getElementById("aiCtx").textContent = "מבוסס על: " + c.label;
-        const full = await ai.ask({ lessonTitle: c.title, lessonText: c.text, history, question: q, web: !!document.getElementById("aiWeb")?.checked, signal: ctrl.signal, onText: (t) => { text += t; bot.innerHTML = ai.miniMd(text); log.scrollTop = log.scrollHeight; } });
+        const full = await ai.ask({ lessonTitle: c.title, lessonText: c.text, history, question: q, web: !!document.getElementById("aiWeb")?.checked, signal: ctrl.signal, onText: (t) => { text += t; bot.innerHTML = ai.miniMd(text); } });
         history.push({ role: "user", content: q }, { role: "assistant", content: full });
         bot.innerHTML = ai.miniMd(full);
       } catch (err) {
