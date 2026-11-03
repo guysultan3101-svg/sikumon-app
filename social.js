@@ -123,7 +123,10 @@ export function initSocial(ctx) {
       const id = "srv-" + r.id; keep.add(id);
       const from = r.owner === mine ? "" : nameOf(r.owner);
       if (!local.some((x) => x.id === id)) fresh++;
-      await store.putItem({ id, type: "summary", course: r.course || "כללי", title: r.title, date: r.created_at.slice(0, 10), html: mdToHtml(r.md), from, server: true, source: r.source });
+      // סיכום של הקלטה (source_ref "rec:<id>"): תאריך השיעור = תאריך ההקלטה, כדי לחשב את מספר השיעור
+      const rec = r.source_ref?.startsWith("rec:") ? await store.getRecording(r.source_ref.slice(4)).catch(() => null) : null;
+      await store.putItem({ id, type: "summary", course: r.course || "כללי", title: r.title, date: r.created_at.slice(0, 10), html: mdToHtml(r.md), from, server: true,
+        source: r.source_ref?.startsWith("rec:") ? "recording" : r.source, lessonDate: rec?.startedAt?.slice(0, 10) || (r.source_ref?.startsWith("rec:") ? r.created_at.slice(0, 10) : null) });
       if (Array.isArray(r.quiz) && r.quiz.length) {
         const qid = "srvq-" + r.id; keep.add(qid);
         await store.putItem({ id: qid, type: "quiz", summaryId: id, course: r.course || "כללי", title: r.title, questions: r.quiz.filter((q) => q?.q && Array.isArray(q.options)), from });

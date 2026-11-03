@@ -3,6 +3,9 @@
 
 export function initStudy(ctx) {
   const { view, $, esc, svg, toast, prefs, store, demoQuiz } = ctx;
+  // "שיעור 5 · 3.11.2026" לסיכום של שיעור (מזום / מהקלטה); אחרת רק התאריך
+  const when = (s) => (s.lessonDate ? ctx.lessonLabel(s.course, s.lessonDate, s.lessonNo) : fmtDay(s.date));
+  const srcIcon = (s) => (s.source === "zoom" ? "📹 " : s.source === "recording" ? "🎙️ " : "");
   const fmtDay = (iso) => new Date(iso).toLocaleDateString("he-IL", { day: "numeric", month: "numeric", year: "2-digit" });
   const byCourse = (items) => {
     const order = prefs.get().courses || [];
@@ -28,6 +31,8 @@ export function initStudy(ctx) {
     if (pack.podcasts) await store.putItem({ id: "podcasts", type: "podcasts", items: pack.podcasts, at: pack.createdAt });
     if (pack.messages) await store.putItem({ id: "pack-messages", type: "messages", items: pack.messages, at: pack.createdAt });
     for (const q of pack.quizzes || []) await store.putItem({ ...q, type: "quiz" });
+    // תמלולי שיעורים מהזום (מהמחשב) – מופיעים באזור ההקלטות של הקורס, מחוברים לסיכום של אותו שיעור
+    for (const t of pack.transcripts || []) await store.putItem({ ...t, type: "transcript" });
     // קורסים חדשים מ-Moodle נכנסים גם למחברות
     const p = prefs.get();
     const add = (pack.courses || []).filter((c) => !(p.courses || []).includes(c) && !(p.hiddenCourses || []).includes(c));
@@ -135,7 +140,7 @@ export function initStudy(ctx) {
       <h1 style="font-size:32px">הסיכומים שלי</h1>
       ${pairCard()}
       ${groups.map(([course, list]) => `<section class="soft"><h2 style="font-size:20px">${esc(course)}</h2><div class="list" style="margin-top:10px">${list.map((s) =>
-        `<a class="item" href="#sum-${esc(s.id)}"><span style="min-width:0"><span class="t">${escT(s.title)}</span><br><span class="small muted">${s.from ? "🎓 מ" + esc(s.from) : s.kind === "formulas" ? "דף נוסחאות" : "סיכום"} · <bdi>${fmtDay(s.date)}</bdi></span></span>${s.kind === "formulas" ? '<span class="chip">📐 נוסחאות</span>' : ""}</a>`).join("")}</div></section>`).join("")}
+        `<a class="item" href="#sum-${esc(s.id)}"><span style="min-width:0"><span class="t">${escT(s.title)}</span><br><span class="small muted">${s.from ? "🎓 מ" + esc(s.from) + " · " : ""}${s.kind === "formulas" ? "דף נוסחאות · " : srcIcon(s)}<bdi>${esc(when(s))}</bdi></span></span>${s.kind === "formulas" ? '<span class="chip">📐 נוסחאות</span>' : ""}</a>`).join("")}</div></section>`).join("")}
       ${items.length ? "" : `<section class="soft"><h3>עוד אין סיכומים</h3><p class="small muted">העלו מצגת או PDF של שיעור, או חברו את המודל – והסיכומים יגיעו לכאן, מותאמים לאיך שאת/ה לומד/ת.</p><div class="row" style="margin-top:8px"><a class="btn" href="#upload">📄 העלאת מצגת</a><a class="btn ghost" href="#connect">🔗 חיבור למודל</a></div></section>`}
 
     </div>`;
@@ -149,7 +154,7 @@ export function initStudy(ctx) {
     const quiz = (await lib("quiz")).find((q) => q.summaryId === id);
     view.innerHTML = `<div class="page summary">
       <a href="#summaries" class="small">→ כל הסיכומים</a>
-      <div class="row"><span class="chip">${esc(s.course)}</span><span class="chip"><bdi>${fmtDay(s.date)}</bdi></span></div>
+      <div class="row"><span class="chip">${esc(s.course)}</span><span class="chip">${srcIcon(s)}<bdi>${esc(when(s))}</bdi></span></div>
       <h1 style="font-size:clamp(24px,4vw,34px)">${escT(s.title)}</h1>
       <article class="card md-body">${s.html}</article>
       ${quiz ? `<a class="btn" href="#quiz-${esc(quiz.id)}">${svg("check")} למבחן על הסיכום (${quiz.questions.length} שאלות)</a>` : ""}

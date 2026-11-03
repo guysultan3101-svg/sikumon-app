@@ -88,7 +88,7 @@ export async function block(id) { ok(await sb.from("blocks").upsert({ owner: use
 export async function unblock(id) { ok(await sb.from("blocks").delete().eq("owner", user().id).eq("blocked", id)); }
 
 // ---------- סיכומים ----------
-export async function summaries() { return ok(await sb.from("summaries").select("id, owner, course, title, md, quiz, source, created_at").order("created_at", { ascending: false }).limit(500)); }
+export async function summaries() { return ok(await sb.from("summaries").select("id, owner, course, title, md, quiz, source, source_ref, created_at").order("created_at", { ascending: false }).limit(500)); }
 export async function deleteSummary(id) { ok(await sb.from("summaries").delete().eq("id", id)); }
 // קובץ -> סיכום אישי (השרת מסכם לפי השאלון)
 export async function summarizeFile(file, course) {

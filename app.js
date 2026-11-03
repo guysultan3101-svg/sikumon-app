@@ -547,8 +547,9 @@ async function finish(navigate = true) {
   const rec = await recorder.stop();
   busy = false;
   recorder = null;
-  toast("ההקלטה נשמרה");
+  toast("ההקלטה נשמרה ✓ מתמללים ומסכמים אותה עכשיו, לבד");
   if (navigate) location.hash = rec.lessonId ? "lesson-" + rec.lessonId : "rec-" + rec.id;
+  setTimeout(autoTranscribe, 800);
   return rec;
 }
 function bindRecorder(r) {
@@ -580,6 +581,49 @@ async function recordings() {
     if (!confirm("למחוק את ההקלטה? אי אפשר לבטל.")) return;
     await removeRecording(b.dataset.id); toast("ההקלטה נמחקה"); recordings();
   }));
+}
+
+// ---------- מספר השיעור: כמה פעמים הקורס נפגש מתחילת הסמסטר, לפי מערכת השעות ----------
+function lessonNo(course, dateISO) {
+  const p = prefs.get() || {};
+  const start = (p.semester && p.semester.start) || "2026-10-18";
+  const days = [...new Set((p.timetable || []).filter((x) => x.course === course).map((x) => x.day))];
+  if (!days.length || !dateISO) return null;
+  const end = new Date(String(dateISO).slice(0, 10) + "T12:00");
+  let n = 0;
+  for (const t = new Date(start + "T12:00"); t <= end; t.setDate(t.getDate() + 1)) if (days.includes(t.getDay())) n++;
+  return n || null;
+}
+function lessonLabel(course, dateISO, fixedNo = null) {
+  const n = fixedNo || lessonNo(course, dateISO);
+  return (n ? `שיעור ${n} · ` : "") + new Date(String(dateISO).slice(0, 10) + "T12:00").toLocaleDateString("he-IL");
+}
+
+// ---------- תמלול וסיכום אוטומטיים: ברגע שהקלטה נגמרת, וגם הקלטות שחיכו (למשל בלי אינטרנט) ----------
+const trProgress = new Map(); // recId -> "מתמלל חלק 2 מתוך 6…"
+async function autoTranscribe() {
+  if (!api.user() || transcribing || !navigator.onLine) return;
+  const today = new Date().toLocaleDateString("en-CA");
+  const waiting = (await store.listRecordings())
+    .filter((r) => r.status === "done" && !r.summaryId && (r.durationMs || 0) >= 45000 && r.autoPausedDay !== today && (r.autoTries || 0) < 3)
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  for (const r of waiting) {
+    try {
+      await transcribeRecording(r, (m) => { trProgress.set(r.id, m); paintTrProgress(r.id); });
+      trProgress.delete(r.id);
+      toast(`✅ ${r.course}: התמלול והסיכום מוכנים`);
+      refreshInbox();
+      if ([`#rec-${r.id}`, "#summaries", "#notebooks"].includes(location.hash) || location.hash.startsWith("#course-") || location.hash.startsWith("#lesson-")) route();
+    } catch (e) {
+      trProgress.set(r.id, "❌ " + e.message); paintTrProgress(r.id);
+      const fresh = await store.getRecording(r.id);
+      if (e.code === "limit" || e.code === "global_cap") { fresh.autoPausedDay = today; await store.saveRecording(fresh); break; } // ממשיכים מחר מאותו מקום
+      fresh.autoTries = (fresh.autoTries || 0) + 1; await store.saveRecording(fresh);
+    }
+  }
+}
+function paintTrProgress(id) {
+  document.querySelectorAll(`[data-trlive="${id}"]`).forEach((el) => (el.textContent = trProgress.get(id) || ""));
 }
 
 // ---------- 📝 תמלול וסיכום של הקלטה ----------
@@ -620,7 +664,7 @@ async function transcribeRecording(r, onStep) {
     r.transcript = r.transcriptParts.join("\n\n");
     await store.saveRecording(r);
     onStep?.("✨ כותב סיכום אישי…");
-    const title = `${r.course} – שיעור מ-${new Date(r.startedAt).toLocaleDateString("he-IL")}`;
+    const title = `${r.course} · ${lessonLabel(r.course, r.startedAt)}`;
     const res = await api.summarizeText(r.transcript.slice(0, 280000), title, r.course, "rec:" + r.id);
     await social.syncSummaries();
     r.summaryId = "srv-" + res.id;
@@ -634,10 +678,10 @@ function transcriptCard(r) {
   const done = !!r.transcript, partial = (r.transcriptParts || []).filter(Boolean).length;
   return `<section class="soft tr-card" data-trcard="${esc(r.id)}">
     <div class="row" style="justify-content:space-between"><h3>📝 תמלול וסיכום</h3>${r.summaryId ? `<a class="btn small-btn" href="#sum-${esc(r.summaryId)}">📚 לסיכום</a>` : ""}</div>
-    ${done ? "" : `<p class="small muted">${partial ? `תומללו ${partial} חלקים. אפשר להמשיך מאיפה שעצרנו.` : "תמלול מלא בעברית, וסיכום אישי לפי איך שאת/ה לומד/ת, עם מבחן קצר. שיעור של שעה וחצי לוקח בערך 3–5 דקות."}</p>
-    <button class="btn" type="button" data-trgo="${esc(r.id)}">✨ ${partial ? "להמשיך לתמלל" : "תמלול וסיכום"}</button>`}
+    ${done ? "" : transcribing === r.id ? '<p class="small muted">⏳ מתמלל ומסכם עכשיו, אוטומטית. אפשר להמשיך לעבוד באפליקציה.</p>' : `<p class="small muted">${partial ? `תומללו ${partial} חלקים. ממשיכים מאיפה שעצרנו.` : "ההקלטה מתומללת ומסוכמת לבד כשיש אינטרנט. אפשר גם להתחיל עכשיו."}</p>
+    <button class="btn" type="button" data-trgo="${esc(r.id)}">✨ ${partial ? "להמשיך לתמלל" : "לתמלל ולסכם עכשיו"}</button>`}
     ${done && !r.summaryId ? `<button class="btn" type="button" data-trgo="${esc(r.id)}">✨ ליצור סיכום מהתמלול</button>` : ""}
-    <p class="small" data-trstate aria-live="polite"></p>
+    <p class="small" data-trstate data-trlive="${esc(r.id)}" aria-live="polite">${esc(trProgress.get(r.id) || "")}</p>
     ${done ? `<details><summary><b>התמלול המלא</b> <span class="small muted">(${r.transcript.split(/\s+/).length} מילים)</span></summary><div class="transcript">${esc(r.transcript).replace(/\[(\d{1,3}:\d{2})\]/g, '<b class="ts">$1</b>').replace(/\n/g, "<br>")}</div>
       <div class="row" style="margin-top:8px"><button class="btn ghost small-btn" type="button" data-trcopy="${esc(r.id)}">העתקת התמלול</button></div></details>` : ""}
   </section>`;
@@ -656,6 +700,22 @@ function bindTranscript(after) {
   }));
 }
 
+async function transcriptPage(id) {
+  const t = await store.getItem(id);
+  if (!t) { view.innerHTML = '<div class="page"><p>התמלול לא נמצא.</p><a href="#notebooks">למחברות</a></div>'; return; }
+  const ci = courseIndex(t.course);
+  view.innerHTML = `<div class="page">
+    <a href="${ci >= 0 ? "#course-" + ci : "#notebooks"}" class="small">→ ${esc(t.course)}</a>
+    <h1 style="font-size:30px">📹 ${esc(t.course)}</h1>
+    <p class="chip" style="justify-self:start">${esc(lessonLabel(t.course, t.date))} · מהזום</p>
+    <section class="soft tr-card">
+      <div class="row" style="justify-content:space-between"><h3>📝 התמלול</h3>${t.summaryId ? `<a class="btn small-btn" href="#sum-${esc(t.summaryId)}">📚 לסיכום של השיעור</a>` : '<span class="small muted">⏳ הסיכום ייכנס לבד בעדכון הבא</span>'}</div>
+      <div class="transcript">${esc(t.text).replace(/\[(\d{1,3}:\d{2}(?::\d{2})?)\]/g, '<b class="ts">$1</b>').replace(/\n/g, "<br>")}</div>
+      <div class="row"><button class="btn ghost small-btn" type="button" id="trCopy">העתקת התמלול</button></div>
+    </section></div>`;
+  $("#trCopy").onclick = async () => { try { await navigator.clipboard.writeText(t.text); toast("התמלול הועתק"); } catch { toast("לא הצלחתי להעתיק"); } };
+}
+
 async function recordingDetail(id) {
   const r = await store.getRecording(id);
   if (!r) { view.innerHTML = '<div class="page"><p>ההקלטה לא נמצאה.</p></div>'; return; }
@@ -664,7 +724,8 @@ async function recordingDetail(id) {
   const ext = r.mime.includes("mp4") ? "m4a" : "webm";
   view.innerHTML = `<div class="page">
     <a href="${r.lessonId ? "#lesson-" + r.lessonId : "#recordings"}" class="small">→ ${r.lessonId ? "חזרה לשיעור" : "כל ההקלטות"}</a>
-    <h1 style="font-size:30px">${esc(r.course)}</h1>
+    <h1 style="font-size:30px">🎙️ ${esc(r.course)}</h1>
+    <p class="chip" style="justify-self:start">${esc(lessonLabel(r.course, r.startedAt))}</p>
     <p class="muted"><bdi>${fmtDate(r.startedAt)}</bdi> · משך <bdi>${fmtTime(r.durationMs || 0)}</bdi> · <bdi>${fmtMB(r.bytes || 0)}</bdi></p>
     ${segs.map((s, i) => `<div class="soft"><div class="row" style="justify-content:space-between"><b>${segs.length > 1 ? "חלק " + (i + 1) + " מתוך " + segs.length : "ההקלטה"}</b></div><audio controls preload="metadata" src="${urls[i]}" style="margin-top:10px"></audio>
       <div class="row" style="margin-top:10px"><button class="btn ghost" data-share="${i}">${svg("share")} שיתוף / שמירה</button></div></div>`).join("") || '<p class="notice alert">לא נשמר אודיו בהקלטה הזו.</p>'}
@@ -724,6 +785,21 @@ function lessonItem(l, withCourse = false) {
 // מסך המחברות בסגנון Notability: תיקיות צבעוניות בצד, חיפוש, וכרטיסים עם תצוגה מקדימה של כל שיעור
 const fmtCardDate = (key) => new Date(key + "T12:00").toLocaleDateString("he-IL", { day: "numeric", month: "short", year: "numeric" });
 
+// כל השיעורים המוקלטים של קורס: הקלטות מהאפליקציה + שיעורים מהזום, מהחדש לישן, עם מספר שיעור ומצב
+async function courseRecordings(course) {
+  const recs = (await store.listRecordings()).filter((r) => r.course === course).map((r) => ({ kind: "rec", id: r.id, date: r.startedAt, r }));
+  const zoom = (await store.listItems()).filter((x) => x.type === "transcript" && x.course === course).map((t) => ({ kind: "zoom", id: t.id, date: t.date, t }));
+  const all = [...recs, ...zoom].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  if (!all.length) return "";
+  const row = (x) => {
+    if (x.kind === "zoom") return `<a class="item" href="#tr-${esc(x.id)}"><span style="min-width:0"><span class="t">📹 ${esc(lessonLabel(course, x.date))}</span><br><span class="small muted">מהזום · ${x.t.summaryId ? "✅ תמלול וסיכום" : "📝 תמלול"}</span></span>${x.t.summaryId ? `<span class="chip ok">סוכם</span>` : ""}</a>`;
+    const r = x.r;
+    const st = r.summaryId ? "✅ תמלול וסיכום" : transcribing === r.id ? "⏳ מתמלל ומסכם…" : r.transcript ? "📝 תומלל, הסיכום בדרך" : r.status === "done" ? "⏳ ממתין לתמלול" : "🔴 בהקלטה";
+    return `<a class="item" href="#rec-${esc(r.id)}"><span style="min-width:0"><span class="t">🎙️ ${esc(lessonLabel(course, r.startedAt))}</span><br><span class="small muted">הקלטה · <bdi>${fmtTime(r.durationMs || 0)}</bdi> · <span data-trlive="${esc(r.id)}">${st}</span></span></span>${r.summaryId ? `<span class="chip ok">סוכם</span>` : ""}</a>`;
+  };
+  return `<section class="soft"><h3>🎙️ הקלטות ותמלולים (${all.length})</h3><div class="list" style="margin-top:8px">${all.map(row).join("")}</div></section>`;
+}
+
 async function notebooks(sel = null) { // sel = אינדקס הקורס, או null = כל השיעורים
   const p = prefs.get();
   const courses = p.courses || [];
@@ -763,6 +839,7 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
           <button class="btn small-btn" id="newLesson">${svg("plus")} חדש</button>
         </div>
       </div>
+      ${course ? await courseRecordings(course) : ""}
       <div class="cards" id="cards">${list.map(card).join("") || `<p class="muted">${course ? 'עוד אין שיעורים בתיקייה הזו. לחצו "חדש" כדי לפתוח דף, או "ייבוא מ-Notability" כדי להכניס את מה שכתבתם בעבר.' : "עוד אין שיעורים. בחרו תיקייה מהרשימה ולחצו \"חדש\"."}</p>`}</div>
       ${!course && list.length === 0 ? "" : ""}
       ${course ? extras.pastExamsBlock(await extras.pastExams(course), course) : ""}
@@ -1340,12 +1417,13 @@ async function routeInner() {
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
   if (hash === "social-missed") hash = "missed-lesson";
-  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
+  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
   renderTabs(tab);
   if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
   else if (hash === "record") record();
   else if (hash === "recordings") await recordings();
   else if (hash.startsWith("rec-")) await recordingDetail(hash.slice(4));
+  else if (hash.startsWith("tr-")) await transcriptPage(hash.slice(3));
   else if (hash === "summaries") {
     await study.summaries();
     const pods = await podcastsList();
@@ -1430,7 +1508,7 @@ async function routeInner() {
   view.focus({ preventScroll: true });
   window.scrollTo(0, 0);
 }
-const studyCtx = { view, $, esc, svg, toast, prefs, store, demoQuiz };
+const studyCtx = { view, $, esc, svg, toast, prefs, store, demoQuiz, lessonLabel };
 const study = initStudy(studyCtx);
 const practice = initPractice({ view, $, esc, svg, toast, prefs, store });
 studyCtx.onQuizDone = () => practice.bumpStreak();
@@ -1458,6 +1536,7 @@ async function serverSync(force = false) {
     planner.inboxStore().then(planner.paintBadge);
     if (fresh.length && location.hash !== "#inbox") toast(`🔔 ${fresh[0].title}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ""}`);
     const n = await social.syncSummaries();
+    autoTranscribe();
     if (n && ["#summaries", "#quizzes", "#home", ""].includes(location.hash)) route();
     paintCounts();
   } catch (e) { logError("serverSync", e); }
@@ -1569,7 +1648,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "25";
+const APP_VERSION = "26";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
