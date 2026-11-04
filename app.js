@@ -1685,7 +1685,7 @@ ai.finishOpenRouterLogin().then((k) => k && toast("OpenRouter חובר ✓ בח�
 recoverOrphans().then(migrateRecordings).catch(() => {})
   .then(() => api.init().catch((e) => logError("api.init", e)))
   .then(() => { social.restorePrefs(); api.touch(); ai.loadQuota(); serverSync(true); })
-  .finally(route);
+  .finally(async () => { await route(); if (api.isRecovery()) social.newPasswordModal(); });
 let lastAutoSync = 0;
 async function autoSync() {
   if (!study.getCode() || Date.now() - lastAutoSync < 10 * 60e3 || editingLesson || recorder?.running) return;
@@ -1699,7 +1699,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "32";
+const APP_VERSION = "33";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

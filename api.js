@@ -5,13 +5,16 @@ const SDK = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 export const URL_ = "https://islplhnlvaukixaglxof.supabase.co";
 export const ANON = "sb_publishable_1fDG1GIaFERhcFPiRyx46g_38BIv8HZ";
 
-let sb = null, me = null, session = null;
+let sb = null, me = null, session = null, recovering = false;
+// הגיעו מהקישור "שכחתי סיסמה" במייל – צריך לבחור סיסמה חדשה
+export const isRecovery = () => recovering;
 export async function init() {
   if (sb) return sb;
+  if (/type=recovery/.test(location.hash + location.search)) recovering = true;
   const { createClient } = await import(SDK);
   sb = createClient(URL_, ANON, { auth: { persistSession: true, autoRefreshToken: true, storageKey: "sikumon-auth" } });
   session = (await sb.auth.getSession()).data.session;
-  sb.auth.onAuthStateChange((_e, s) => { session = s; if (!s) me = null; });
+  sb.auth.onAuthStateChange((e, s) => { session = s; if (!s) me = null; if (e === "PASSWORD_RECOVERY") recovering = true; });
   if (session) await loadMe();
   return sb;
 }
@@ -77,7 +80,7 @@ export async function signIn(email, password) {
 }
 export async function signOut() { await sb.auth.signOut(); session = null; me = null; }
 export async function resetPassword(email) { ok(await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })); }
-export async function changePassword(password) { await checkPassword(password); ok(await sb.auth.updateUser({ password })); }
+export async function changePassword(password) { await checkPassword(password); ok(await sb.auth.updateUser({ password })); recovering = false; }
 export async function updateMe(fields) { ok(await sb.from("profiles").update(fields).eq("id", user().id)); return loadMe(); }
 export async function deleteAccount() {
   const res = await fetch(`${URL_}/functions/v1/delete-account`, { method: "POST", headers: { Authorization: `Bearer ${token()}`, apikey: ANON } });

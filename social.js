@@ -273,6 +273,19 @@ export function initSocial(ctx) {
     } catch (e) { fail(e); }
   }
 
+  // ---------- סיסמה חדשה (אחרי הקישור "שכחתי סיסמה" במייל) ----------
+  function newPasswordModal() {
+    const m = modal(`<h2>בחירת סיסמה חדשה</h2>
+      <p class="small muted">לפחות 12 תווים. נבדוק גם שהיא לא דלפה ברשת.</p>
+      <label>סיסמה חדשה<input type="password" id="npPass" autocomplete="new-password" minlength="12"></label>
+      <div class="row"><button class="btn" type="button" id="npGo">שמירה</button></div>`);
+    $("#npGo", m).onclick = async () => {
+      $("#npGo", m).disabled = true;
+      try { await api.changePassword($("#npPass", m).value); m.remove(); toast("הסיסמה עודכנה ✓ את/ה מחובר/ת"); }
+      catch (e) { toast(e.message); $("#npGo", m).disabled = false; }
+    };
+  }
+
   // ---------- חלונות ----------
   function modal(html) {
     document.getElementById("socModal")?.remove();
@@ -567,5 +580,5 @@ export function initSocial(ctx) {
   // העלאת קובץ -> סיכום אישי, ומיד מכניסים אותו לספרייה במכשיר
   async function upload(file, course) { const r = await api.summarizeFile(file, course); await syncSummaries(); return r; }
 
-  return { upload, feed, friends, missed, signup, messages, dm, myProfile, bindMyProfile, editMe, counts, syncSummaries, syncNotifications, pushPrefs, restorePrefs, shareFrom, profile: profileView };
+  return { newPasswordModal, upload, feed, friends, missed, signup, messages, dm, myProfile, bindMyProfile, editMe, counts, syncSummaries, syncNotifications, pushPrefs, restorePrefs, shareFrom, profile: profileView };
 }
