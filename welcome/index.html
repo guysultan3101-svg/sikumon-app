@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Clearly</title>
+<title>Clearly · סיכומים, מחברות ומערכת שעות לסטודנטים</title>
 <meta name="description" content="Clearly: מחברים את המודל, ומקבלים סיכום אישי לכל שיעור, מבחנים, והכיתה שלכם במקום אחד.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&family=Heebo:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap">
@@ -175,6 +175,8 @@ form.join { background: var(--paper); color: var(--ink); border: 2px solid var(-
 form.join label { font-weight: 700; font-size: 15px; }
 form.join input, form.join select { min-height: 46px; border: 2px solid var(--line); border-radius: 10px; padding: 0 12px; font: 400 16px var(--font-body); background: var(--bg); color: var(--ink); width: 100%; }
 form.join input:focus, form.join select:focus { border-color: var(--blue); outline: none; }
+.skip-link { position: fixed; top: 8px; inset-inline-start: 8px; z-index: 999; padding: 10px 16px; border-radius: 10px; background: var(--ink); color: var(--paper); font-weight: 700; transform: translateY(-200%); }
+.skip-link:focus { transform: none; }
 .field { display: grid; gap: 6px; }
 .ok { font-weight: 700; color: var(--blue); }
 .notice { font-size: 13.5px; color: var(--ink-soft); line-height: 1.5; }
@@ -198,6 +200,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 </style>
 </head>
 <body>
+<a class="skip-link" href="#top">דילוג לתוכן</a>
 
 <header class="top">
   <div class="wrap">

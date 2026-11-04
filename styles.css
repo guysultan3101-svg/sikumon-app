@@ -129,6 +129,7 @@ input[type="url"], input[type="tel"], input[type="number"], input[type="date"], 
   background: var(--paper); color: var(--ink); font: 400 17px var(--font-body);
 }
 select:focus, input:focus, textarea:focus { border-color: var(--blue); outline: none; }
+select:focus-visible, input:focus-visible, textarea:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 45%, transparent); }
 label.field { display: grid; gap: 6px; font-weight: 700; }
 audio { width: 100%; }
 

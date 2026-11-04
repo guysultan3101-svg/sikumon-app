@@ -64,6 +64,8 @@ export async function checkPassword(password, confirm) {
   if (confirm !== undefined && confirm !== password) throw new Error("הסיסמאות לא זהות. הקלידו את אותה סיסמה בשתי התיבות");
   if (await passwordLeaked(password)) throw new Error("הסיסמה הזו כבר דלפה ברשת ומופיעה ברשימות של האקרים. בחרו סיסמה אחרת");
 }
+// הגרסה של תנאי השימוש ומדיניות הפרטיות שהמשתמש/ת מאשר/ת בהרשמה (לעדכן יחד עם התאריך בדפים המשפטיים)
+export const TERMS_VERSION = "2026-11-04";
 export async function signUp({ email, password, username, full_name, uni, degree, birthday, uni_email }) {
   // כבר מחובר/ת אבל הפרופיל לא נוצר (למשל האינטרנט נפל באמצע) – רק משלימים את הפרופיל
   if (!session) {
@@ -72,7 +74,9 @@ export async function signUp({ email, password, username, full_name, uni, degree
     if (!r.data.session) throw new Error("צריך לאשר את המייל (בדקו את תיבת הדואר) ואז להתחבר");
     session = r.data.session;
   }
-  ok(await sb.from("profiles").insert({ id: session.user.id, username, full_name, uni, degree, birthday: birthday || null, uni_email: uni_email || null }));
+  ok(await sb.from("profiles").insert({ id: session.user.id, username, full_name, uni, degree, birthday: birthday || null, uni_email: uni_email || null,
+    // תיעוד ההסכמה לתנאים ולמדיניות (התיבה בטופס חובה ולא מסומנת מראש)
+    terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION }));
   return loadMe();
 }
 export async function signIn(email, password) {

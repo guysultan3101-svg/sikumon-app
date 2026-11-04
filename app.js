@@ -1451,6 +1451,9 @@ async function route() {
       <div class="row"><button class="btn" onclick="location.reload()">רענון</button><a class="btn ghost" href="#home">למסך הבית</a></div>
       <pre class="small muted" style="white-space:pre-wrap;direction:ltr;text-align:left">${esc(e?.message || e)}</pre></div>`;
   }
+  // כותרת הלשונית לפי המסך (קורא מסך מקריא אותה במעבר בין מסכים)
+  const h1 = view.querySelector("h1")?.textContent.trim();
+  document.title = h1 ? `${h1.slice(0, 60)} · Clearly` : "Clearly";
 }
 async function routeInner() {
   let hash = location.hash.slice(1) || "home";
@@ -1715,7 +1718,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "37";
+const APP_VERSION = "38";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
