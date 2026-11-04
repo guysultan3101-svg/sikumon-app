@@ -1586,6 +1586,7 @@ async function serverSync(force = false) {
     const fresh = await social.syncNotifications();
     planner.inboxStore().then(planner.paintBadge);
     if (fresh.length && location.hash !== "#inbox") toast(`🔔 ${fresh[0].title}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ""}`);
+    if (await applyUniSchedule() && ["#calendar", "#timetable", "#deadlines", "#home", ""].includes(location.hash)) route();
     const n = await social.syncSummaries();
     autoTranscribe();
     if (n && ["#summaries", "#quizzes", "#home", ""].includes(location.hash)) route();
@@ -1593,6 +1594,21 @@ async function serverSync(force = false) {
   } catch (e) { logError("serverSync", e); }
 }
 setInterval(() => serverSync(), 2 * 60e3);
+// מערכת השעות והמבחנים מהמידע האישי (דרך המחבר) – נכנסים לבד, כל עוד לא שינית אותם בעצמך.
+// קורסים שעוד לא במחברות נוספים, כדי שההקלטה תדע לבד לאיזה קורס להיכנס.
+async function applyUniSchedule() {
+  const row = await api.uniSchedule().catch(() => null);
+  const p = prefs.get();
+  if (!row || !p || p.uniScheduleAt === row.updated_at) return false;
+  const hidden = p.hiddenCourses || [];
+  if (!p.timetableEdited && row.timetable?.length) p.timetable = row.timetable.filter((x) => !hidden.includes(x.course));
+  if (!p.examsEdited && row.exams?.length) p.exams = row.exams.filter((x) => !hidden.includes(x.course));
+  const add = [...new Set((row.timetable || []).map((x) => x.course))].filter((c) => c && !(p.courses || []).includes(c) && !hidden.includes(c));
+  p.courses = [...(p.courses || []), ...add];
+  p.uniScheduleAt = row.updated_at;
+  prefs.set(p);
+  return true;
+}
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") serverSync(); });
 
 // ---------- 📄 העלאת מצגת / PDF -> סיכום אישי ----------
@@ -1699,7 +1715,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "36";
+const APP_VERSION = "37";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

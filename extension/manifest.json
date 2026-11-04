@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "המחבר של Clearly",
-  "description": "בודק במודל שלך אם עלו קבצים חדשים, ושולח אותם לסיכום אישי ב-Clearly.",
-  "version": "1.3.1",
+  "description": "בודק במודל שלך אם עלו קבצים חדשים, ושולח אותם לסיכום אישי ב-Clearly. מביא גם את מערכת השעות ולוח המבחנים.",
+  "version": "1.4.0",
   "permissions": [
     "storage",
-    "alarms"
+    "alarms",
+    "scripting"
   ],
   "host_permissions": [
     "https://*.ac.il/*",

@@ -14,7 +14,7 @@ export function initExtras(ctx) {
   async function deadlines() { return (await store.getItem("deadlines"))?.events || []; }
   // הדבר הבא בתור לכל קורס (או לכולם)
   async function upcoming(course = null) {
-    const ex = exams().filter((e) => daysTo(e.when) >= 0).map((e) => ({ kind: "exam", title: `מבחן ${e.course}${e.moed ? " – מועד " + e.moed : ""}`, course: e.course, when: e.when }));
+    const ex = exams().filter((e) => daysTo(e.when) >= 0).map((e) => ({ kind: "exam", title: `${e.label ? e.label + " · " : "מבחן "}${e.course}${e.moed ? " – מועד " + e.moed : ""}`, course: e.course, when: e.when }));
     const dl = (await deadlines()).filter((d) => !d.done && daysTo(d.due) >= 0).map((d) => ({ kind: "deadline", title: d.name, course: d.course, when: d.due, url: d.url }));
     return [...ex, ...dl].filter((x) => !course || x.course === course).sort((a, b) => a.when.localeCompare(b.when));
   }

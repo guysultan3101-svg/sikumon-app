@@ -163,6 +163,8 @@ export async function transcribeStep(body) {
 // ---------- הגשת עבודות ----------
 // מטלות שהתוסף במחשב מצא במודל (גם לבודקים שאין להם את המחשב של גיא)
 export async function assignItems() { return ok(await sb.from("moodle_items").select("item_key, course, name, url, status, note").eq("kind", "assign")); }
+// מערכת שעות ולוח מבחנים שהמחבר הביא מהמידע האישי של המוסד (שורה אחת, רק שלי)
+export async function uniSchedule() { return ok(await sb.from("uni_schedule").select("timetable, exams, source, updated_at").maybeSingle()); }
 export async function submissionJobs() { return ok(await sb.from("submission_jobs").select("id, cmid, file_name, status, result, created_at, updated_at").order("created_at", { ascending: false }).limit(100)); }
 const SUB_MIME = { pdf: "application/pdf", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", zip: "application/zip", txt: "text/plain", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png" };
 // הקובץ עולה לאחסון זמני ופרטי, ונוצרת משימה שהמחבר במחשב יבצע במודל (ואז ימחק את הקובץ מכאן)

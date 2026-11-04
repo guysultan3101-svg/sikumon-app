@@ -8,5 +8,5 @@ chrome.runtime.onStartup.addListener(alarms);
 chrome.alarms.onAlarm.addListener((a) => { if (a.name === "sync") syncOnce(); if (a.name === "jobs") submitJobs().catch(() => {}); });
 // הכפתור "בדיקה עכשיו" בחלון של התוסף
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
-  if (msg === "sync") { syncOnce().then(reply); return true; }
+  if (msg === "sync") { syncOnce({ manual: true }).then(reply); return true; }
 });

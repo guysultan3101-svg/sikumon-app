@@ -17,6 +17,7 @@ async function draw() {
   const st = (await get("status")) || {};
   $("#state").textContent = st.state || (cur ? "עוד לא נבדק" : "בחרו את המודל שלכם ולחצו שמירה");
   $("#error").textContent = st.error || "";
+  $("#portal").textContent = st.portal || "";
   $("#last").textContent = st.last ? `בדיקה אחרונה: ${new Date(st.last).toLocaleString("he-IL")}${st.courses ? ` · ${st.courses} קורסים` : ""}` : "";
 }
 

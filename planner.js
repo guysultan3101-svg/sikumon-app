@@ -20,7 +20,7 @@ export function initPlanner(ctx) {
       }
     }
     for (const x of dl) { const k = x.due.slice(0, 10); if (k >= key(from) && k <= key(to)) out.push({ date: k, kind: "deadline", time: x.due.slice(11, 16), title: x.name, course: x.course, url: x.url, done: x.done }); }
-    for (const e of p.exams || []) if (e.date >= key(from) && e.date <= key(to)) out.push({ date: e.date, kind: "exam", time: e.time || "09:00", title: `מבחן ${e.course}${e.moed ? " – מועד " + e.moed : ""}`, course: e.course });
+    for (const e of p.exams || []) if (e.date >= key(from) && e.date <= key(to)) out.push({ date: e.date, kind: "exam", time: e.time || "09:00", title: `${e.label ? e.label + " · " : "מבחן "}${e.course}${e.moed ? " – מועד " + e.moed : ""}`, course: e.course });
     // בכל יום: קודם מבחנים, אחר כך הגשות, ובסוף שיעורים (ובתוך כל סוג – לפי השעה)
     const rank = { exam: 0, deadline: 1, lesson: 2 };
     return out.sort((a, b) => a.date.localeCompare(b.date) || rank[a.kind] - rank[b.kind] || a.time.localeCompare(b.time));

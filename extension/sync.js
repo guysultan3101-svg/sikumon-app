@@ -1,5 +1,6 @@
 // המחבר של Clearly – הלוגיקה: התחברות ל-Clearly, קריאת הקורסים מהמודל (עם ההתחברות הרגילה של הסטודנט
 // בכרום), איתור קבצים חדשים, ושליחתם לסיכום אישי בשרת. לא רואים ולא שומרים את הסיסמה למודל.
+import { syncPortal } from "./portal.js";
 export const SB = "https://islplhnlvaukixaglxof.supabase.co";
 export const ANON = "sb_publishable_1fDG1GIaFERhcFPiRyx46g_38BIv8HZ";
 export const MOODLES = { "אוניברסיטת אריאל": "https://moodlearn.ariel.ac.il" };
@@ -94,7 +95,7 @@ async function summarize(a, blob, filename, course, ref) {
 
 // ---------- בדיקה אחת: מה חדש במודל -> סיכום ----------
 let running = false;
-export async function syncOnce() {
+export async function syncOnce({ manual = false } = {}) {
   if (running) return get("status");
   running = true;
   try {
@@ -107,6 +108,11 @@ export async function syncOnce() {
     // מטלות ומועדי הגשה (לאפליקציה), ועבודות שחיכו להגשה מהאפליקציה
     try { await syncAssignments(a, base, sesskey); } catch { /* לא חובה */ }
     try { await submitJobs(); } catch { /* ננסה בפעם הבאה */ }
+    // מערכת שעות ומבחנים מהמידע האישי (פעם ביום, או כשלוחצים "בדיקה עכשיו")
+    let portal = "";
+    try { const p = await syncPortal(a, base, courses, rest, manual); if (p) portal = `🕘 מערכת שעות: ${p.lessons} שיעורים בשבוע · ${p.exams} מבחנים`; }
+    catch (e) { portal = "🕘 " + e.message; }
+    if (portal) await status({ portal });
     const seen = (await get("seen")) || {};
     const firstRun = !Object.keys(seen).length;
     const queue = [];
