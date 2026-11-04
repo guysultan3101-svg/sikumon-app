@@ -52,7 +52,7 @@ export function initSocial(ctx) {
         <label>מוסד לימודים<select id="sgUni">${UNIS.map((u) => `<option>${u}</option>`).join("")}</select></label>
         <label>תואר ושנה<input id="sgDeg" placeholder="למשל: כלכלה ומנהל, שנה א"></label>` : ""}
         <label>מייל ${isUp ? "של האוניברסיטה" : ""}<input id="sgMail" type="email" required dir="ltr" autocomplete="email" placeholder="name@msmail.ariel.ac.il"></label>
-        <label>סיסמה<input id="sgPass" type="password" required minlength="8" autocomplete="${isUp ? "new-password" : "current-password"}"></label>
+        <label>סיסמה<input id="sgPass" type="password" required ${isUp ? 'minlength="12"' : ""} autocomplete="${isUp ? "new-password" : "current-password"}"></label>
         ${isUp ? `<label>יום הולדת (לא חובה – חברים יקבלו תזכורת)<input id="sgBday" type="date"></label>
         <label class="row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="sgTerms" style="width:auto;margin-top:6px"><span class="small">זו <b>גרסת בדיקה</b>. אני מסכים/ה ל<a href="#legal-terms" target="_blank">תנאי השימוש</a> ול<a href="#legal-privacy" target="_blank">מדיניות הפרטיות</a>: הפרופיל, החברים, ההודעות והסיכומים נשמרים בשרת מאובטח באירופה. משתפים רק סיכומים שלי, לא קבצים של מרצים.</span></label>` : ""}
         <button class="btn" type="submit" id="sgGo">${isUp ? "יצירת חשבון" : "כניסה"}</button>
@@ -80,7 +80,7 @@ export function initSocial(ctx) {
           if (!/^[a-z0-9_.]{3,20}$/.test(u)) throw new Error("בחרו שם משתמש תקין");
           if (!name) throw new Error("חסר שם מלא");
           if (!/@[^@]+\.ac\.il$/i.test(mail)) throw new Error("צריך מייל של מוסד אקדמי (נגמר ב-ac.il)");
-          if (pass.length < 8) throw new Error("סיסמה של 8 תווים לפחות");
+          if (pass.length < 12) throw new Error("סיסמה של 12 תווים לפחות");
           if (!$("#sgTerms").checked) throw new Error("צריך לאשר את התנאים");
           if (!(await api.usernameFree(u))) throw new Error("שם המשתמש תפוס");
           await api.signUp({ email: mail, password: pass, username: u, full_name: name, uni: $("#sgUni").value, degree: $("#sgDeg").value.trim(), birthday: $("#sgBday").value });

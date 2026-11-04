@@ -143,7 +143,7 @@ export function initSettings(ctx) {
     bindAI();
     // חשבון
     $("#editProf").onclick = () => social.editMe();
-    $("#chPass").onclick = () => confirmModal(`<h2>שינוי סיסמה</h2><label>סיסמה חדשה (8 תווים לפחות)<input type="password" id="newPass" autocomplete="new-password"></label>`, async (m) => {
+    $("#chPass").onclick = () => confirmModal(`<h2>שינוי סיסמה</h2><label>סיסמה חדשה (12 תווים לפחות)<input type="password" id="newPass" autocomplete="new-password"></label>`, async (m) => {
       try { await api.changePassword($("#newPass", m).value); toast("הסיסמה עודכנה ✓"); m.remove(); } catch (e) { toast(e.message); }
       return false;
     }, "שמירה", false);
