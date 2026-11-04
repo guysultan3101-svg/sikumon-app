@@ -32,7 +32,11 @@ $("#saveMoodle").onclick = async () => {
     try { const u = new URL($("#otherUrl").value.trim()); if (!u.hostname.endsWith(".ac.il")) throw 0; url = u.origin; }
     catch { alert("כתובת לא תקינה. צריך כתובת של מוסד אקדמי (נגמרת ב-ac.il)"); return; }
   }
-  await chrome.storage.local.set({ moodle: url, seen: {} });
+  // רק אם עברו למודל אחר מתחילים מחדש את רשימת הקבצים שנבדקו
+  const prev = await get("moodle");
+  await chrome.storage.local.set(prev === url ? { moodle: url } : { moodle: url, seen: {} });
+  $("#savedMsg").textContent = "✓ נשמר";
+  setTimeout(() => { $("#savedMsg").textContent = ""; }, 2500);
   draw();
 };
 $("#syncBtn").onclick = async () => {

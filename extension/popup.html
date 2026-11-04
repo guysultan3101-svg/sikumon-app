@@ -9,6 +9,7 @@
   p { margin: 6px 0; }
   .muted { color: #475569; font-size: 13px; }
   label { display: grid; gap: 4px; margin: 8px 0; font-size: 14px; }
+  [hidden] { display: none !important; }
   input, select { font: inherit; padding: 8px 10px; border: 1.5px solid #D5DEF2; border-radius: 10px; background: #fff; }
   button { font: inherit; font-weight: 700; padding: 10px 14px; border: 2px solid #0F172A; border-radius: 12px; background: #2563EB; color: #fff; cursor: pointer; width: 100%; margin-top: 8px; }
   button.ghost { background: #fff; color: #0F172A; }
@@ -35,6 +36,7 @@
       <label>המודל שלך<select id="moodle"></select></label>
       <label id="otherBox" hidden>כתובת המודל (מה שמופיע בשורת הכתובת)<input id="otherUrl" dir="ltr" placeholder="https://moodle.bgu.ac.il"></label>
       <button class="ghost" id="saveMoodle">שמירה</button>
+      <p class="small" id="savedMsg" aria-live="polite"></p>
     </div>
     <div class="box">
       <p id="state">עוד לא נבדק</p>
