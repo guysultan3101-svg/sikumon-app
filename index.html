@@ -19,14 +19,15 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&family=Heebo:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap">
   <link rel="stylesheet" href="styles.css">
   <script>
-    // מי שנכנס ל-clearlyapp.io בפעם הראשונה (בדפדפן, לא מחובר) רואה קודם את דף ההיכרות.
-    // מהאפליקציה המותקנת, אחרי התחברות, או מכפתור "לאפליקציה" (?app=1) – ישר לאפליקציה.
+    // מי שלא מחובר/ת רואה את דף הפתיחה (welcome) כדף הראשי.
+    // נשארים באפליקציה: אחרי התחברות, מכפתור "לאפליקציה" (?app=1), בקישור ממייל (אימות / איפוס סיסמה),
+    // ובקישור ישיר למסך מסוים (כמו #legal-privacy).
     try {
+      var loggedIn = !!localStorage.getItem("sikumon-auth");
       var fromLanding = /[?&]app=1/.test(location.search);
-      if (fromLanding) localStorage.setItem("clearly-app", "1");
-      var installed = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-      var known = localStorage.getItem("clearly-app") || localStorage.getItem("sikumon-auth") || localStorage.getItem("sikumon-prefs");
-      if (!installed && !known && !location.hash) location.replace("welcome/");
+      var fromMail = /access_token|error_description|type=recovery/.test(location.hash) || /[?&](code|token_hash|type)=/.test(location.search);
+      var deepLink = location.hash && location.hash !== "#home";
+      if (!loggedIn && !fromLanding && !fromMail && !deepLink) location.replace("welcome/");
     } catch (e) { /* בלי גישה לאחסון – נשארים באפליקציה */ }
   </script>
 </head>

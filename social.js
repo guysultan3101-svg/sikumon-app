@@ -49,6 +49,7 @@ export function initSocial(ctx) {
   function signup(mode = "signup") {
     const isUp = mode === "signup";
     view.innerHTML = `<div class="page" style="max-width:560px">
+      <a class="back-btn" href="welcome/">→ חזרה לדף הפתיחה</a>
       <p class="eyebrow">ברוכים הבאים ל-Clearly</p>
       <h1 style="font-size:30px">${isUp ? "יצירת חשבון" : "כניסה לחשבון"}</h1>
       ${isUp ? '<p class="muted">פותחים פרופיל, וממלאים שאלון קצר על איך שאת/ה לומד/ת. ככה הסיכומים מותאמים בדיוק אלייך, וחברים מהקורס יכולים למצוא אותך.</p>' : ""}
