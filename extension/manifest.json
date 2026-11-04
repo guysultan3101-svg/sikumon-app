@@ -2,10 +2,28 @@
   "manifest_version": 3,
   "name": "המחבר של סיכומון",
   "description": "בודק במודל שלך אם עלו קבצים חדשים, ושולח אותם לסיכום אישי בסיכומון.",
-  "version": "1.0.0",
-  "permissions": ["storage", "alarms"],
-  "host_permissions": ["https://*.ac.il/*", "https://islplhnlvaukixaglxof.supabase.co/*"],
-  "background": { "service_worker": "background.js", "type": "module" },
-  "action": { "default_popup": "popup.html", "default_title": "המחבר של סיכומון", "default_icon": { "128": "icon.png" } },
-  "icons": { "128": "icon.png" }
+  "version": "1.1.0",
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://*.ac.il/*",
+    "https://islplhnlvaukixaglxof.supabase.co/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "המחבר של סיכומון",
+    "default_icon": {
+      "128": "icon.png"
+    }
+  },
+  "icons": {
+    "128": "icon.png"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAshxA38DqwqTEHwULHAXeDmQbinMn17rDzUZuE2y8BBdxJV1IRXAFwLufnyBfvQugOf4kiR9cJg4AEyMZVeh+kFfCZWHkWH0KheojwEh8Y77Fzzi+MCrG1eFsiT7xsxEpvdOO+FXPNGj6zXtHIpiVdp36adxE0a/L0sEWrZIz+MH9b7wzANi01DqkxHMkU8XKTUTRZtwnAAbSt/lpHrnA7QMp+Gx+YW7/TEJDBZCGATxbRwGwbNAaYO8Z3BtMHHovDaBgcSRM1m1rZmAiMn9hetlv++erJ/XIGQcM+1ADoi2ZaDlE1Scvx6b4JCfClq9AdwVx1NqtiVF+cts31yWsqwIDAQAB"
 }

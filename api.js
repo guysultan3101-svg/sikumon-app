@@ -116,7 +116,7 @@ export async function summarizeFile(file, course) {
 
 // ---------- תמלול הקלטות ----------
 const b64 = async (blob) => { const buf = new Uint8Array(await blob.arrayBuffer()); let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000)); return btoa(bin); };
-const AI_ERR = { limit: "הגעתם למכסה היומית. מחר אפשר להמשיך 🙂", global_cap: "השרת עמוס היום. נסו שוב מחר", too_big: "החלק גדול מדי", provider: "ה-AI לא הצליח עכשיו. נסו שוב בעוד כמה דקות", auth: "צריך להתחבר מחדש", unsupported: "סוג קובץ לא נתמך" };
+const AI_ERR = { limit: "הגעתם למכסה היומית. מחר אפשר להמשיך 🙂", global_cap: "השרת עמוס היום. נסו שוב מחר", too_big: "החלק גדול מדי", provider: "ה-AI לא הצליח עכשיו. נסו שוב בעוד כמה דקות", auth: "צריך להתחבר מחדש", unsupported: "סוג קובץ לא נתמך", bad_input: "הבקשה לא תקינה. נסו שוב", origin: "הבקשה נחסמה" };
 // חלק אחד של הקלטה (עד ~12 דקות) -> טקסט
 export async function transcribePart(blob, mime, { skipFirst = false, startMin = 0 } = {}) {
   const res = await fetch(`${URL_}/functions/v1/transcribe`, {
