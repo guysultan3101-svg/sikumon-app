@@ -1630,8 +1630,8 @@ function connectPage() {
     <section class="card" style="display:grid;gap:10px"><h2 style="font-size:20px">התקנה (פעם אחת, 2 דקות)</h2>
       <ol class="steps">
         <li>במחשב, בכרום: מורידים את <a href="extension/sikumon-connector.zip" download>קובץ התוסף</a> ופותחים אותו (Extract / חילוץ) לתיקייה.</li>
-        <li>נכנסים לכתובת <b dir="ltr">chrome://extensions</b> ומדליקים למעלה "Developer mode" (מצב מפתח).</li>
-        <li>לוחצים "Load unpacked" (טעינת תוסף לא ארוז) ובוחרים את התיקייה שחילצתם.</li>
+        <li>נכנסים לכתובת <b dir="ltr">chrome://extensions</b> ומדליקים את המתג <b>"מצב פיתוח"</b> (באנגלית: Developer mode) – בפינה העליונה של הדף.</li>
+        <li>מופיעים כפתורים חדשים. לוחצים <b>"טעינת פריט לא ארוז"</b> (Load unpacked) ובוחרים את התיקייה <b dir="ltr">sikumon-connector</b> שחילצתם.</li>
         <li>לוחצים על סמל התוסף 📚 למעלה, מתחברים עם אותו מייל וסיסמה של Clearly, ובוחרים את המודל שלך (אריאל / בן-גוריון).</li>
         <li>נכנסים פעם אחת למודל כרגיל, עם הסיסמה שלך. זהו – מעכשיו זה עובד לבד.</li>
       </ol></section>
@@ -1699,7 +1699,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "35";
+const APP_VERSION = "36";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
