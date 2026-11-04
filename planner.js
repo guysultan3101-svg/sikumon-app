@@ -111,7 +111,7 @@ export function initPlanner(ctx) {
     // חדש במודל
     const news = (await ctx.study.moodleNew()) || [];
     if (!Array.isArray(box.seenMoodle)) box.seenMoodle = news.map((n) => n.url);
-    for (const n of news.filter((n) => !box.seenMoodle.includes(n.url))) { add({ id: "md-" + n.url, icon: "🆕", title: `חדש במודל: ${n.course}`, body: n.name, link: n.url, ext: true }); box.seenMoodle.push(n.url); }
+    for (const n of news.filter((n) => !box.seenMoodle.includes(n.url))) { add({ id: "md-" + n.url, icon: "🆕", title: `חדש במודל: ${n.course}`, body: n.name, link: "#mf-" + encodeURIComponent(n.url) }); box.seenMoodle.push(n.url); }
     // הודעות מסוכני הענן (למשל ☀️ הודעת הבוקר) שהגיעו עם העדכון מהמחשב
     for (const m of (await store.getItem("pack-messages"))?.items || []) add({ id: "pm-" + m.id, icon: m.icon || "☀️", title: m.title, body: esc(m.summary || ""), link: "#msg-" + encodeURIComponent(m.id) });
     // סיכום שבועי: ממוצאי שבת

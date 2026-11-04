@@ -298,14 +298,51 @@ export function initStudy(ctx) {
     return feed.courses.flatMap((c) => c.sections.flatMap((s) => s.items.filter(isNew).map((it) => ({ ...it, course: c.course }))))
       .sort((a, b) => b.firstSeen.localeCompare(a.firstSeen));
   }
-  const moodleItem = (it, withCourse = false) => `<a class="item" href="${esc(it.url)}" target="_blank" rel="noopener"><span style="min-width:0"><span class="t">${TYPE_ICON[it.type] || "•"} ${esc(it.name)}</span>${withCourse || it.dates ? `<br><span class="small muted">${withCourse ? esc(it.course) : ""}${withCourse && it.dates ? " · " : ""}${esc(it.dates)}</span>` : ""}</span>${isNew(it) ? '<span class="chip new">חדש</span>' : ""}</a>`;
+  // לחיצה על פריט מהמודל נפתחת בתוך האפליקציה (#mf-…): הסיכום שלנו שלו, או דף פרטים
+  const moodleItem = (it, withCourse = false) => `<a class="item" href="#mf-${encodeURIComponent(it.url)}"><span style="min-width:0"><span class="t">${TYPE_ICON[it.type] || "•"} ${esc(it.name)}</span>${withCourse || it.dates ? `<br><span class="small muted">${withCourse ? esc(it.course) : ""}${withCourse && it.dates ? " · " : ""}${esc(it.dates)}</span>` : ""}</span>${isNew(it) ? '<span class="chip new">חדש</span>' : ""}</a>`;
+  // הסיכום שלנו לקובץ מהמודל: אותו קורס, והשם של הקובץ מופיע בשם הסיכום (כמילים שלמות – "מצגת 1" ≠ "מצגת 10")
+  const norm = (s) => " " + String(s || "").toLowerCase().replace(/^g-/, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim() + " ";
+  async function summaryForMoodle(it, course) {
+    const n = norm(it.name);
+    if (n.trim().length < 3) return null;
+    const sums = (await lib("summary")).filter((s) => s.kind !== "formulas" && (!course || norm(s.course) === norm(course)));
+    return sums.find((s) => norm(s.id).includes(n) || norm(s.title).includes(n) || norm(s.file).includes(n)) || null;
+  }
+  // קישור ישיר לקובץ עצמו (ולא לדף הפעילות במודל)
+  const directUrl = (it) => it.type === "resource" ? it.url + (it.url.includes("?") ? "&" : "?") + "redirect=1" : it.url;
+  async function moodleFilePage(url) {
+    const feed = await store.getItem("moodle-feed");
+    let it = null, mc = null, sec = null;
+    for (const c of feed?.courses || []) for (const s of c.sections) { const f = s.items.find((x) => x.url === url); if (f) { it = f; mc = c; sec = s; } }
+    if (!it) { view.innerHTML = '<div class="page"><p>הפריט לא נמצא. אולי הוא הוסר מהמודל.</p><a href="#notebooks">למחברות</a></div>'; return; }
+    const sum = await summaryForMoodle(it, mc.course);
+    const open = `<a class="btn ghost" href="${esc(directUrl(it))}" target="_blank" rel="noopener">${TYPE_ICON[it.type] || "•"} ${it.type === "resource" ? "הקובץ המקורי במודל" : "פתיחה במודל"}</a>`;
+    if (sum) {
+      // יש סיכום – נפתח ישר בתוך האפליקציה, עם הקובץ המקורי כאופציה
+      await summaryPage(sum.id);
+      view.querySelector(".page")?.insertAdjacentHTML("afterbegin", `<div class="notice" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between"><span>📥 מהמודל: <b>${esc(it.name)}</b> · ${esc(mc.course)}</span>${open}</div>`);
+      return;
+    }
+    const assign = it.type === "assign";
+    view.innerHTML = `<div class="page" style="max-width:760px">
+      <a href="#notebooks" class="small">→ ${esc(mc.course)}</a>
+      <h1 style="font-size:28px">${TYPE_ICON[it.type] || "•"} ${esc(it.name)}</h1>
+      <div class="row"><span class="chip">${esc(mc.course)}</span>${sec?.title ? `<span class="chip">${esc(sec.title)}</span>` : ""}${it.dates ? `<span class="chip">${esc(it.dates)}</span>` : ""}${isNew(it) ? '<span class="chip new">חדש</span>' : ""}</div>
+      <section class="soft">
+        ${assign ? `<h3>📝 מטלה להגשה</h3><p class="small muted">כל ההגשות שלך מרוכזות ב"הגשת עבודות".</p><div class="row"><a class="btn" href="#assignments">📝 להגשת עבודות</a>${open}</div>`
+        : it.type === "resource" ? `<h3>⏳ הסיכום בדרך</h3><p class="small muted">המחבר במחשב מסכם קבצים חדשים מהמודל לבד, והסיכום ייפתח כאן. אפשר גם להעלות את הקובץ עכשיו ולקבל סיכום תוך דקה.</p><div class="row"><a class="btn" href="#upload">📄 לסכם עכשיו</a>${open}</div>`
+        : `<p class="small muted">זה פריט מסוג שנפתח רק במודל (פורום, בוחן, קישור או זום).</p><div class="row">${open}</div>`}
+        <p class="small muted" style="margin-top:8px">אם המודל מבקש להתחבר – מתחברים פעם אחת, ומשם זה נפתח ישר.</p>
+      </section></div>`;
+  }
+
   function moodleSection(mc) {
     if (!mc) return "";
     const newCount = mc.sections.reduce((a, s) => a + s.items.filter(isNew).length, 0);
     return `<section class="soft"><div class="row" style="justify-content:space-between"><h2 style="font-size:20px">מהמודל ${newCount ? `<span class="chip new">${newCount} חדשים</span>` : ""}</h2><a class="small" href="${esc(mc.url)}" target="_blank" rel="noopener">פתיחה במודל</a></div>
       ${mc.sections.map((s) => `<details class="msec" ${s.items.some(isNew) ? "open" : ""}><summary><b>${esc(s.title || "כללי")}</b> <span class="small muted">(${s.items.length})</span></summary><div class="list" style="margin-top:8px">${s.items.map((it) => moodleItem(it)).join("")}</div></details>`).join("")}
-      <p class="small muted" style="margin-top:8px">עודכן <bdi>${new Date(mc.updated).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</bdi>. הקישורים נפתחים במודל.</p></section>`;
+      <p class="small muted" style="margin-top:8px">עודכן <bdi>${new Date(mc.updated).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</bdi>. קבצים שסוכמו נפתחים כאן, באפליקציה.</p></section>`;
   }
 
-  return { podcastAudio, syncNow, getCode, pairCard, bindPair, moodleCourse, moodleNew, moodleItem, moodleSection, isNew, summaries, summaryPage, quizzes, quizById, mixQuiz, quizEditor, importPack };
+  return { podcastAudio, syncNow, getCode, pairCard, bindPair, moodleCourse, moodleNew, moodleItem, moodleSection, moodleFilePage, summaryForMoodle, isNew, summaries, summaryPage, quizzes, quizById, mixQuiz, quizEditor, importPack };
 }

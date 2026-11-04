@@ -204,7 +204,7 @@ export function initSocial(ctx) {
         <button type="button" data-cmt>💬 <bdi>${cmts.length}</bdi></button>
         <button type="button" data-save aria-pressed="${saved}">${saved ? "🔖 נשמר" : "🔖 שמירה"}</button></div>
       <div class="post-c" hidden>${cmts.map((c) => `<p class="small cmt"><span><b>${esc(nameOf(c.author))}:</b> ${esc(c.body)}</span>${c.author === meId() ? "" : `<button class="link" type="button" data-crep="${c.id}" data-who="${c.author}" aria-label="דיווח על התגובה">⚠️</button>`}</p>`).join("")}
-        <form class="row" data-cform><input placeholder="תגובה…" aria-label="תגובה" maxlength="500" style="flex:1"><button class="btn ghost" type="submit">שליחה</button></form></div>
+        <form class="cmt-form" data-cform><input type="text" placeholder="הוספת תגובה…" aria-label="תגובה" maxlength="500" enterkeyhint="send"><button class="btn" type="submit">שליחה</button></form></div>
     </article>`;
   }
   async function feedData(filter) {
@@ -369,7 +369,7 @@ export function initSocial(ctx) {
       const shareSub = (id) => { const a = g.iShare(id).length, b = g.theyShare(id).length; return a && b ? " · 🎓 אותה כיתה" : b ? " · 🎓 משתף/ת איתך – שתפו בחזרה" : a ? " · 🎓 מחכה שגם הוא/היא ישתף" : ""; };
       view.innerHTML = `<div class="page">${subnav("social-friends")}
         <section class="soft" style="display:grid;gap:10px"><h3>הוספת חבר/ה</h3>
-          <form class="row" id="frForm"><input id="frQ" dir="ltr" placeholder="שם משתמש" aria-label="שם משתמש" autocapitalize="none" style="flex:1"><button class="btn" type="submit">שליחת בקשה</button></form>
+          <form class="fr-form" id="frForm"><input type="text" id="frQ" dir="ltr" placeholder="שם המשתמש של החבר/ה" aria-label="שם משתמש של החבר/ה" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send"><button class="btn" type="submit">➕ שליחת בקשה</button></form>
           <p class="small muted">החבר/ה צריך/ה לאשר. השם שלך: <b dir="ltr">@${esc(api.profile()?.username || "")}</b> <button class="btn ghost" type="button" id="frShare" style="min-height:32px;padding:2px 10px">שיתוף השם</button></p>
         </section>
         ${g.incoming.length ? `<section style="display:grid;gap:8px"><h3>בקשות חדשות (${g.incoming.length})</h3>${g.incoming.map((f) => row(f.requester, `<button class="btn" data-ok="${f.id}" data-who="${f.requester}" type="button">אישור</button><button class="btn ghost" data-no="${f.id}" type="button">לא עכשיו</button>`)).join("")}</section>` : ""}

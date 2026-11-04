@@ -104,6 +104,9 @@ export async function syncOnce() {
     await status({ state: "בודק את המודל…", error: "" });
     const sesskey = await moodleSession(base);
     const courses = (await ajax(base, sesskey, "core_course_get_enrolled_courses_by_timeline_classification", { classification: "inprogress", limit: 0, offset: 0, sort: "fullname" })).courses || [];
+    // מטלות ומועדי הגשה (לאפליקציה), ועבודות שחיכו להגשה מהאפליקציה
+    try { await syncAssignments(a, base, sesskey); } catch { /* לא חובה */ }
+    try { await submitJobs(); } catch { /* ננסה בפעם הבאה */ }
     const seen = (await get("seen")) || {};
     const firstRun = !Object.keys(seen).length;
     const queue = [];
@@ -159,4 +162,97 @@ export async function syncOnce() {
     chrome.action.setBadgeText({ text: "!" });
     return await status({ state: "", error: e.message, needMoodle: e.code === "moodle_login" });
   } finally { running = false; }
+}
+
+// ---------- הגשת עבודות: מה שהאפליקציה שלחה -> המטלה במודל ----------
+// האפליקציה (גם בטאבלט) מעלה את הקובץ לאחסון זמני ויוצרת "משימת הגשה". כאן, בכרום עם ההתחברות למודל:
+// מורידים את הקובץ, שמים אותו בטופס ההגשה של המטלה (כמו שסטודנט עושה), שומרים, קוראים את המצב במודל,
+// ומוחקים את הקובץ מהאחסון שלנו. ב"שליחה" הסופית במודל לא נוגעים – אותה עושה הסטודנט/ית.
+const txt = (s) => s.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+function formFields(formHtml) {
+  const out = {};
+  for (const tag of formHtml.match(/<input[^>]*>/g) || []) {
+    const n = tag.match(/name="([^"]+)"/)?.[1]; if (!n) continue;
+    out[n] = (tag.match(/value="([^"]*)"/)?.[1] || "").replace(/&amp;/g, "&").replace(/&quot;/g, '"');
+  }
+  return out;
+}
+// מצב ההגשה כפי שהוא מופיע בדף המטלה
+async function assignStatus(base, cmid) {
+  const html = await (await fetch(`${base}/mod/assign/view.php?id=${cmid}`, { credentials: "include" })).text();
+  for (const [, th, td] of html.matchAll(/<tr[^>]*>\s*<th[^>]*>([\s\S]*?)<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/g)) {
+    if (/מצב ההגשה|Submission status/i.test(txt(th))) return txt(td);
+  }
+  return "";
+}
+async function uploadToMoodle(base, cmid, blob, fileName) {
+  const edit = await (await fetch(`${base}/mod/assign/view.php?id=${cmid}&action=editsubmission`, { credentials: "include" })).text();
+  const sesskey = edit.match(/"sesskey":"([^"]+)"/)?.[1];
+  if (!sesskey) throw Object.assign(new Error("צריך להיכנס למודל בכרום"), { code: "moodle_login" });
+  const form = [...edit.matchAll(/<form([^>]*)>([\s\S]*?)<\/form>/g)].find((m) => m[2].includes("files_filemanager"));
+  if (!form) throw new Error("במטלה הזו אי אפשר להעלות קובץ (אולי ההגשה סגורה או שהיא לא דרך המודל)");
+  const fields = formFields(form[2]);
+  const itemid = fields.files_filemanager;
+  const repoId = edit.match(/"id":"?(\d+)"?,"name":"[^"]*","type":"upload"/)?.[1] || "";
+  const ctx = edit.match(/"contextid":(\d+)/)?.[1] || "";
+  // 1. הקובץ לאזור הזמני של הטופס
+  const fd = new FormData();
+  for (const [k, v] of Object.entries({ sesskey, repo_id: repoId, itemid, author: "", license: "unknown", title: fileName, savepath: "/", maxbytes: "-1", areamaxbytes: "-1", ctx_id: ctx, env: "filemanager" })) fd.append(k, v);
+  fd.append("repo_upload_file", blob, fileName);
+  const up = await (await fetch(`${base}/repository/repository_ajax.php?action=upload`, { method: "POST", credentials: "include", body: fd })).json();
+  if (up.error) throw new Error("המודל לא קיבל את הקובץ: " + String(up.error).slice(0, 120));
+  // 2. שמירת הטופס (כמו "שמירת שינויים")
+  const body = new URLSearchParams(fields);
+  body.set("sesskey", sesskey); body.set("files_filemanager", itemid); body.delete("cancel");
+  if (!body.get("submitbutton")) body.set("submitbutton", "שמירת שינויים");
+  const action = (form[1].match(/action="([^"]+)"/)?.[1] || `${base}/mod/assign/view.php`).replace(/&amp;/g, "&");
+  const saved = await fetch(new URL(action, base), { method: "POST", credentials: "include", body });
+  if (!saved.ok) throw new Error(`השמירה במודל נכשלה (${saved.status})`);
+  // 3. מה המצב עכשיו במודל
+  return assignStatus(base, cmid);
+}
+export async function submitJobs() {
+  const a = await token();
+  const base = await get("moodle");
+  if (!base) return 0;
+  const jobs = await (await rest("submission_jobs?status=eq.queued&order=created_at.asc&limit=5", a)).json();
+  if (!Array.isArray(jobs) || !jobs.length) return 0;
+  const mark = (id, st, result = "") => rest(`submission_jobs?id=eq.${id}`, a, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ status: st, result: result.slice(0, 500) }) });
+  let n = 0;
+  for (const j of jobs) {
+    await mark(j.id, "uploading");
+    await status({ state: `מגיש למודל: ${j.assign_name}` });
+    const obj = `${SB}/storage/v1/object/submissions/${j.file_path.split("/").map(encodeURIComponent).join("/")}`;
+    try {
+      const fr = await fetch(obj, { headers: { apikey: ANON, Authorization: `Bearer ${a.access}` } });
+      if (!fr.ok) throw new Error("הקובץ לא נמצא בשרת");
+      const st = await uploadToMoodle(base, j.cmid, await fr.blob(), j.file_name);
+      const final = /הוגש|נשלח|submitted for grading/i.test(st) && !/טיוטה|draft/i.test(st);
+      await mark(j.id, final ? "submitted" : "draft", st || "נשמר במודל");
+      n++;
+    } catch (e) {
+      await mark(j.id, "failed", e.message);
+      if (e.code === "moodle_login") break;
+    } finally {
+      // הקובץ לא נשאר אצלנו – גם אם משהו נכשל (אפשר לשלוח שוב מהאפליקציה)
+      await fetch(obj, { method: "DELETE", headers: { apikey: ANON, Authorization: `Bearer ${a.access}` } }).catch(() => {});
+    }
+  }
+  return n;
+}
+
+// ---------- מטלות מהמודל -> לאפליקציה (גם לטאבלט) ----------
+// מועדי ההגשה מלוח הזמנים של המודל נשמרים כפריטי מודל מסוג assign, וההערה = מועד ההגשה
+async function syncAssignments(a, base, sesskey) {
+  const now = Math.floor(Date.now() / 1000);
+  const data = await ajax(base, sesskey, "core_calendar_get_action_events_by_timesort", { limitnum: 50, timesortfrom: now - 86400, timesortto: now + 90 * 86400 });
+  let n = 0;
+  for (const ev of data.events || []) {
+    if ((ev.modulename || "") !== "assign") continue;
+    const cmid = String(ev.url || "").match(/[?&]id=(\d+)/)?.[1]; if (!cmid) continue;
+    await markItem(a, { item_key: `assign:${cmid}`, course: (ev.course?.fullname || "").trim().slice(0, 200), name: String(ev.name || "").slice(0, 300), kind: "assign",
+      url: String(ev.url).slice(0, 2000), status: ev.action && ev.action.actionable === false ? "done" : "new", note: new Date(ev.timesort * 1000).toISOString() });
+    n++;
+  }
+  return n;
 }

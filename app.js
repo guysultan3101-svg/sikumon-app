@@ -10,6 +10,7 @@ import { initTools } from "./tools.js";
 import { initSocial } from "./social.js";
 import { initSettings } from "./settings.js";
 import { initAssistant } from "./assistant.js";
+import { initAssignments } from "./assignments.js";
 import * as ai from "./ai.js";
 import * as api from "./api.js";
 
@@ -60,6 +61,7 @@ const icon = {
   download: '<path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/>',
   expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   shrink: '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
+  upload: '<path d="M12 16V5M7 10l5-5 5 5"/><path d="M5 20h14"/>',
 };
 const svg = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon[name]}</svg>`;
 
@@ -71,6 +73,7 @@ const TABS = [
   { hash: "calendar", label: "יומן", icon: "cal" },
   { hash: "summaries", label: "סיכומים", icon: "book" },
   { hash: "quizzes", label: "מבחנים", icon: "check" },
+  { hash: "assignments", label: "הגשת עבודות", icon: "upload" },
   { hash: "messages", label: "הודעות", icon: "chat", cls: "hide-phone" },
   { hash: "profile", label: "פרופיל", icon: "user", cls: "hide-phone" },
 ];
@@ -626,42 +629,85 @@ function paintTrProgress(id) {
   document.querySelectorAll(`[data-trlive="${id}"]`).forEach((el) => (el.textContent = trProgress.get(id) || ""));
 }
 
-// ---------- 📝 תמלול וסיכום של הקלטה ----------
-// ההקלטה שמורה בחתיכות של דקה. מחלקים לחלקים של עד ~12 דקות (ובקבצים כבדים פחות), כדי שכל חלק ייכנס למכסה החינמית.
-// חלק שלא מתחיל בתחילת קטע מקבל את החתיכה הראשונה של הקטע (שם יושב "הראש" של הקובץ), והשרת מתבקש לדלג עליה.
-const PART_BYTES = 13 * 1024 * 1024;
-async function recordingParts(r) {
+// ---------- 📝 תמלול וסיכום של הקלטה (גם שיעור של שעתיים) ----------
+// כל קטע של ההקלטה עולה בשלמותו לאחסון זמני, השרת מעביר אותו ל-Gemini (עד 2GB לקובץ) ומוחק אותו מאצלנו,
+// ואז מתמללים חלונות של 15 דקות מתוך הקובץ. ההתקדמות נשמרת: אם נגמרה המכסה או האינטרנט – ממשיכים מאותו חלון.
+const PIECE_MAX = 45 * 1024 * 1024; // מגבלת האחסון לקובץ אחד היא 50MB
+const WINDOW_SEC = 12 * 60; // 15 דקות לקחו 92 שניות – קרוב מדי למגבלת השרת (150)
+const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+async function recordingPieces(r) {
   const chunks = (await store.chunksOf(r.id)).sort((a, b) => a.segment - b.segment || a.seq - b.seq);
   const bySeg = new Map();
   for (const c of chunks) { if (!bySeg.has(c.segment)) bySeg.set(c.segment, []); bySeg.get(c.segment).push(c); }
-  const parts = []; let minute = 0;
-  for (const list of bySeg.values()) {
-    const avg = list.reduce((n, c) => n + c.blob.size, 0) / list.length || 1;
-    const per = Math.max(3, Math.min(12, Math.floor(PART_BYTES / avg) - 1));
-    for (let i = 0; i < list.length; i += per) {
-      const slice = list.slice(i, i + per);
-      const head = i > 0 ? [list[0]] : [];
-      parts.push({ blob: new Blob([...head, ...slice].map((c) => c.blob), { type: r.mime }), skipFirst: i > 0, startMin: minute + i });
+  const pieces = [];
+  for (const [seg, list] of bySeg) {
+    const size = list.reduce((n, c) => n + c.blob.size, 0);
+    if (size <= PIECE_MAX) { pieces.push({ key: `s${seg}`, blob: new Blob(list.map((c) => c.blob), { type: r.mime }), headSec: 0, estSec: list.length * 60 }); continue; }
+    // קטע ענק (הקלטה ישנה בלי חלוקה): מפצלים לפי חתיכות. חלק שלא מתחיל בהתחלה מקבל את החתיכה הראשונה ("הראש" של הקובץ)
+    let group = [], bytes = 0, n = 0;
+    const flush = () => {
+      if (!group.length) return;
+      const head = n > 0 ? [list[0]] : [];
+      pieces.push({ key: `s${seg}p${n}`, blob: new Blob([...head, ...group].map((c) => c.blob), { type: r.mime }), headSec: n > 0 ? 60 : 0, estSec: group.length * 60 });
+      n++; group = []; bytes = list[0].blob.size;
+    };
+    for (const c of list) {
+      if (c.blob.size > PIECE_MAX) throw new Error("חלק מההקלטה גדול מדי (מעל 45MB בחתיכה אחת). הקלטות חדשות מתחלקות לבד, כך שזה לא יקרה שוב");
+      if (bytes + c.blob.size > PIECE_MAX) flush();
+      group.push(c); bytes += c.blob.size;
     }
-    minute += list.length;
+    flush();
   }
-  return parts;
+  return pieces;
 }
 let transcribing = null; // רק תמלול אחד בכל פעם
 async function transcribeRecording(r, onStep) {
   if (transcribing) throw new Error("כבר מתמללים הקלטה אחרת. רגע…");
   transcribing = r.id;
   try {
-    const parts = await recordingParts(r);
-    if (!parts.length) throw new Error("לא נשמר אודיו בהקלטה הזו");
-    r.transcriptParts = r.transcriptParts || [];
-    for (let i = 0; i < parts.length; i++) {
-      if (r.transcriptParts[i]) continue; // חלק שכבר תומלל (למשל אחרי שנגמרה המכסה אתמול)
-      onStep?.(`🎧 מתמלל חלק ${i + 1} מתוך ${parts.length}…`);
-      r.transcriptParts[i] = await api.transcribePart(parts[i].blob, r.mime, parts[i]);
-      await store.saveRecording(r);
+    if (!r.transcript) {
+      const pieces = await recordingPieces(r);
+      if (!pieces.length) throw new Error("לא נשמר אודיו בהקלטה הזו");
+      r.tr = r.tr || { files: {}, texts: {} };
+      const base = (r.mime || "audio/mp4").split(";")[0];
+      const ext = { "audio/mp4": "m4a", "audio/webm": "webm", "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/wav": "wav" }[base] || "m4a";
+      const totalSec = Math.round((r.durationMs || 0) / 1000) || pieces.reduce((n, p) => n + p.estSec, 0);
+      const order = [];
+      let offset = 0; // שניות מתחילת השיעור
+      for (let i = 0; i < pieces.length; i++) {
+        const p = pieces[i];
+        // מעלים את הקטע (אם עוד לא, או אם הקובץ אצל Gemini כבר פג – אחרי יותר מ-40 שעות)
+        const prepare = async () => {
+          onStep?.(`⬆️ מעלה את חלק ${i + 1} מתוך ${pieces.length} של ההקלטה…`);
+          const path = await api.uploadRecording(`${r.id}-${p.key}-${Date.now()}.${ext}`, p.blob, base);
+          onStep?.(`🔄 מכין את חלק ${i + 1} מתוך ${pieces.length}…`);
+          const f = await api.transcribeStep({ action: "prepare", path });
+          r.tr.files[p.key] = { file: f.file, seconds: f.seconds || p.estSec, at: Date.now() };
+          await store.saveRecording(r);
+        };
+        const fresh = (st) => st && st.file && Date.now() - st.at < 40 * 3600_000;
+        const pending = () => { for (let from = p.headSec; from < (r.tr.files[p.key]?.seconds || p.estSec); from += WINDOW_SEC) if (!r.tr.texts[`${p.key}:${from}`]) return true; return false; };
+        if (pending() && !fresh(r.tr.files[p.key])) await prepare();
+        const seconds = r.tr.files[p.key]?.seconds || p.estSec;
+        for (let from = p.headSec; from < seconds; from += WINDOW_SEC) {
+          const key = `${p.key}:${from}`, to = Math.min(from + WINDOW_SEC, seconds);
+          order.push(key);
+          if (r.tr.texts[key]) continue; // חלון שכבר תומלל (למשל אחרי שנגמרה המכסה אתמול)
+          const at = offset + (from - p.headSec);
+          onStep?.(`🎧 מתמלל דקה ${mmss(at)}–${mmss(at + to - from)} מתוך ${mmss(Math.max(totalSec, at + to - from))}…`);
+          const call = () => api.transcribeStep({ action: "window", file: r.tr.files[p.key].file, from, to, total: seconds, offsetMin: Math.max(0, Math.floor((offset - p.headSec) / 60)) });
+          let res;
+          try { res = await call(); } catch (e) { if (e.code !== "not_found") throw e; await prepare(); res = await call(); }
+          r.tr.texts[key] = res.text || "";
+          await store.saveRecording(r);
+        }
+        offset += seconds - p.headSec;
+      }
+      r.transcript = order.map((k) => r.tr.texts[k]).filter(Boolean).join("\n\n");
+      // ניקוי: הקבצים נמחקים מ-Gemini (בלי לחכות)
+      for (const st of Object.values(r.tr.files)) api.transcribeStep({ action: "cleanup", file: st.file }).catch(() => {});
+      r.tr = null;
     }
-    r.transcript = r.transcriptParts.join("\n\n");
     await store.saveRecording(r);
     onStep?.("✨ כותב סיכום אישי…");
     const title = `${r.course} · ${lessonLabel(r.course, r.startedAt)}`;
@@ -675,7 +721,7 @@ async function transcribeRecording(r, onStep) {
 }
 // כרטיס "תמלול וסיכום" (בדף ההקלטה ובדף השיעור)
 function transcriptCard(r) {
-  const done = !!r.transcript, partial = (r.transcriptParts || []).filter(Boolean).length;
+  const done = !!r.transcript, partial = Object.values(r.tr?.texts || {}).filter(Boolean).length;
   return `<section class="soft tr-card" data-trcard="${esc(r.id)}">
     <div class="row" style="justify-content:space-between"><h3>📝 תמלול וסיכום</h3>${r.summaryId ? `<a class="btn small-btn" href="#sum-${esc(r.summaryId)}">📚 לסיכום</a>` : ""}</div>
     ${done ? "" : transcribing === r.id ? '<p class="small muted">⏳ מתמלל ומסכם עכשיו, אוטומטית. אפשר להמשיך לעבוד באפליקציה.</p>' : `<p class="small muted">${partial ? `תומללו ${partial} חלקים. ממשיכים מאיפה שעצרנו.` : "ההקלטה מתומללת ומסוכמת לבד כשיש אינטרנט. אפשר גם להתחיל עכשיו."}</p>
@@ -1417,13 +1463,15 @@ async function routeInner() {
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
   if (hash === "social-missed") hash = "missed-lesson";
-  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
+  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash;
   renderTabs(tab);
   if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
   else if (hash === "record") record();
   else if (hash === "recordings") await recordings();
   else if (hash.startsWith("rec-")) await recordingDetail(hash.slice(4));
   else if (hash.startsWith("tr-")) await transcriptPage(hash.slice(3));
+  else if (hash === "assignments") await assignments.page();
+  else if (hash.startsWith("mf-")) { await study.moodleFilePage(decodeURIComponent(hash.slice(3))); tools.attachReader?.(); }
   else if (hash === "summaries") {
     await study.summaries();
     const pods = await podcastsList();
@@ -1515,14 +1563,17 @@ studyCtx.onQuizDone = () => practice.bumpStreak();
 const extras = initExtras({ view, $, esc, svg, toast, prefs, store, segmentsOf, fmtTime });
 const tools = initTools({ view, $, esc, svg, toast, prefs, store, lessonTitle, onQuizDone: () => practice.bumpStreak() });
 const social = initSocial({ view, $, esc, toast, prefs, store, api });
+const assignments = initAssignments({ view, $, esc, toast, store, api, onChange: () => paintCounts() });
 const settings = initSettings({ view, $, esc, toast, prefs, store, ai, social, api, onboardingQuestions, version: () => APP_VERSION });
 const seenTabs = new Set();
 // מספרים: בקשות חברות על לשונית "חברים", הודעות שלא נקראו על "הודעות"
 async function paintCounts() {
+  const put = (sel, n) => document.querySelectorAll(sel).forEach((el) => { el.textContent = n || ""; el.hidden = !n; });
+  document.querySelectorAll('#tabs a[href="#social"], #tabs a[href="#messages"], #tabs a[href="#assignments"]').forEach((a) => { if (!a.querySelector(".tab-n")) a.insertAdjacentHTML("beforeend", '<span class="tab-n" hidden></span>'); });
+  // עבודות פתוחות – מהמכשיר, עובד גם בלי אינטרנט
+  try { put('#tabs a[href="#assignments"] .tab-n', await assignments.openCount()); } catch { /* */ }
   try {
     const c = await social.counts();
-    const put = (sel, n) => document.querySelectorAll(sel).forEach((el) => { el.textContent = n || ""; el.hidden = !n; });
-    document.querySelectorAll('#tabs a[href="#social"], #tabs a[href="#messages"]').forEach((a) => { if (!a.querySelector(".tab-n")) a.insertAdjacentHTML("beforeend", '<span class="tab-n" hidden></span>'); });
     put('#tabs a[href="#social"] .tab-n', c.requests); put('#tabs a[href="#messages"] .tab-n', c.unread); put(".dm-n", c.unread);
   } catch { /* בלי אינטרנט */ }
 }
@@ -1648,7 +1699,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "30";
+const APP_VERSION = "31";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

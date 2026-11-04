@@ -122,7 +122,9 @@ main {
 .stat span { font-size: 13px; color: var(--ink-soft); }
 .notice { border-right: 4px solid var(--marker); background: var(--paper); padding: 12px 14px; border-radius: 10px; font-size: 15px; }
 .notice.alert { border-right-color: var(--red); }
-select, input[type="text"], textarea {
+select, textarea,
+input:not([type]), input[type="text"], input[type="email"], input[type="password"], input[type="search"],
+input[type="url"], input[type="tel"], input[type="number"], input[type="date"], input[type="time"] {
   width: 100%; min-height: 48px; border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px;
   background: var(--paper); color: var(--ink); font: 400 17px var(--font-body);
 }
@@ -556,7 +558,15 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 .post-file span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pb-prev { display: flex; flex-wrap: wrap; gap: 6px; }
 .pb-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--grid); font-size: 13px; max-width: 100%; }
-.cmt { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.cmt { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; font-size: 16px; line-height: 1.45; }
+/* שורת תגובה כמו באינסטגרם/פייסבוק: שדה רחב ומעוגל, כפתור שליחה בולט */
+.cmt-form { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+.cmt-form input { flex: 1; min-height: 52px !important; border-radius: 26px !important; padding: 12px 18px !important; font-size: 17px !important; }
+.cmt-form .btn { min-height: 52px; border-radius: 26px; padding: 0 22px; }
+/* הוספת חבר/ה: שדה גדול וברור */
+.fr-form { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+.fr-form input { flex: 1 1 260px; min-height: 58px !important; font-size: 19px !important; padding: 12px 18px !important; border-radius: 14px !important; }
+.fr-form .btn { min-height: 58px; font-size: 18px; padding: 0 26px; }
 .msg-rep { margin-inline-start: 8px; opacity: .55; font-size: 12px; }
 .msg-rep:hover { opacity: 1; }
 
@@ -569,3 +579,15 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 .transcript { margin-top: 10px; max-height: 60dvh; overflow-y: auto; line-height: 1.8; font-size: 16px; white-space: normal; }
 .transcript .ts { display: inline-block; margin-inline-end: 6px; padding: 0 6px; border-radius: 6px; background: var(--grid); font: 600 12px/1.6 var(--font-mono); color: var(--blue); direction: ltr; }
 .lrec { gap: 10px; }
+
+/* ---------- הגשת עבודות ---------- */
+.as-list { display: grid; gap: 12px; margin-top: 10px; }
+.as-card { display: grid; gap: 10px; padding: 16px; border: 2px solid var(--line); border-radius: 16px; background: var(--paper); }
+.as-card.submitted { opacity: .75; }
+.as-name { font-size: 18px; }
+.as-status { display: flex; flex-wrap: wrap; gap: 6px; }
+.as-st { border: 1.5px solid var(--line); background: none; border-radius: 999px; padding: 6px 12px; min-height: 38px; cursor: pointer; font-size: 14px; color: var(--ink); }
+.as-st.on { border-color: var(--blue); background: var(--grid); font-weight: 700; }
+.as-files { display: flex; flex-wrap: wrap; gap: 6px; }
+.as-files:empty { display: none; }
+.as-how ol { margin: 6px 0 0; padding-inline-start: 20px; display: grid; gap: 4px; }

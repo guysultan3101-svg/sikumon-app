@@ -135,18 +135,43 @@ export async function summarizeFile(file, course) {
 
 // ---------- תמלול הקלטות ----------
 const b64 = async (blob) => { const buf = new Uint8Array(await blob.arrayBuffer()); let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000)); return btoa(bin); };
-const AI_ERR = { limit: "הגעתם למכסה היומית. מחר אפשר להמשיך 🙂", global_cap: "השרת עמוס היום. נסו שוב מחר", too_big: "החלק גדול מדי", provider: "ה-AI לא הצליח עכשיו. נסו שוב בעוד כמה דקות", auth: "צריך להתחבר מחדש", unsupported: "סוג קובץ לא נתמך", bad_input: "הבקשה לא תקינה. נסו שוב", origin: "הבקשה נחסמה" };
-// חלק אחד של הקלטה (עד ~12 דקות) -> טקסט
-export async function transcribePart(blob, mime, { skipFirst = false, startMin = 0 } = {}) {
+const AI_ERR = { limit: "הגעתם למכסה היומית של תמלול. מחר ממשיכים מאותו מקום 🙂", global_cap: "השרת עמוס היום. נסו שוב מחר", too_big: "החלק גדול מדי", not_found: "הקובץ פג תוקף – מעלים שוב", forbidden: "אין הרשאה לקובץ", provider: "ה-AI לא הצליח עכשיו. נסו שוב בעוד כמה דקות", auth: "צריך להתחבר מחדש", unsupported: "סוג קובץ לא נתמך", bad_input: "הבקשה לא תקינה. נסו שוב", origin: "הבקשה נחסמה" };
+// הקלטות ארוכות: כל קטע עולה לאחסון זמני ופרטי (<משתמש>/...), והשרת מעביר אותו ל-Gemini ומוחק אותו מיד
+export async function uploadRecording(name, blob, mime) {
+  const path = `${user().id}/${name}`;
+  const { error } = await sb.storage.from("recordings").upload(path, blob, { contentType: mime, upsert: false });
+  if (error) throw new Error(/exceed|too large|maximum|size/i.test(error.message) ? "הקטע גדול מדי להעלאה (עד 50MB)" : "ההעלאה נכשלה. בדקו את האינטרנט ונסו שוב");
+  return path;
+}
+// שלב בתמלול: prepare (מהאחסון ל-Gemini) / window (תמלול חלון) / cleanup (מחיקה מ-Gemini)
+export async function transcribeStep(body) {
   const res = await fetch(`${URL_}/functions/v1/transcribe`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}`, apikey: ANON },
-    body: JSON.stringify({ data: await b64(blob), mime, skipFirst, startMin }),
+    body: JSON.stringify(body),
   });
   const j = await res.json().catch(() => ({}));
-  if (res.ok) return j.text || "";
+  if (res.ok) return j;
   throw Object.assign(new Error(AI_ERR[j.error] || `תקלה (${res.status})`), { code: j.error });
 }
+// ---------- הגשת עבודות ----------
+// מטלות שהתוסף במחשב מצא במודל (גם לבודקים שאין להם את המחשב של גיא)
+export async function assignItems() { return ok(await sb.from("moodle_items").select("item_key, course, name, url, status, note").eq("kind", "assign")); }
+export async function submissionJobs() { return ok(await sb.from("submission_jobs").select("id, cmid, file_name, status, result, created_at, updated_at").order("created_at", { ascending: false }).limit(100)); }
+const SUB_MIME = { pdf: "application/pdf", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", zip: "application/zip", txt: "text/plain", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png" };
+// הקובץ עולה לאחסון זמני ופרטי, ונוצרת משימה שהמחבר במחשב יבצע במודל (ואז ימחק את הקובץ מכאן)
+export async function submitAssignment({ cmid, name, course, file }) {
+  const ext = (file.name.split(".").pop() || "").toLowerCase();
+  const mime = SUB_MIME[ext];
+  if (!mime) throw new Error("אפשר להגיש PDF, וורד, מצגת, אקסל, ZIP, טקסט או תמונה");
+  const path = `${user().id}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await sb.storage.from("submissions").upload(path, file, { contentType: mime, upsert: false });
+  if (error) throw new Error(/exceed|size|large/i.test(error.message) ? "הקובץ גדול מדי (עד 25MB)" : "ההעלאה נכשלה. בדקו את האינטרנט ונסו שוב");
+  try { ok(await sb.from("submission_jobs").insert({ cmid: Number(cmid), assign_name: name.slice(0, 300), course: (course || "").slice(0, 200), file_path: path, file_name: file.name.slice(0, 255) })); }
+  catch (e) { await sb.storage.from("submissions").remove([path]).catch(() => {}); throw e; }
+}
+export async function cancelSubmission(id) { ok(await sb.from("submission_jobs").update({ status: "cancelled" }).eq("id", id).eq("status", "queued")); }
+
 // טקסט (למשל תמלול) -> סיכום אישי + מבחן, כמו מצגת
 export async function summarizeText(text, title, course, ref) {
   const res = await fetch(`${URL_}/functions/v1/summarize`, {
