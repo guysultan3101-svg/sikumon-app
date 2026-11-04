@@ -42,6 +42,9 @@ async function ajax(base, sesskey, methodname, args) {
     body: JSON.stringify([{ index: 0, methodname, args }]),
   });
   const j = (await r.json())[0];
+  // ההתחברות למודל פגה (קורה אחרי כמה שעות/ימים) – הודעה ברורה במקום השגיאה באנגלית של המודל
+  if (j.error && /servicerequireslogin|requirelogin|logged out|expired|sesskey/i.test(`${j.exception?.errorcode} ${j.exception?.message}`))
+    throw Object.assign(new Error("ההתחברות למודל פגה. לחצו 'פתיחת המודל', התחברו כרגיל, ואז 'בדיקה עכשיו'"), { code: "moodle_login" });
   if (j.error) throw new Error(j.exception?.message || "moodle error");
   return j.data;
 }
