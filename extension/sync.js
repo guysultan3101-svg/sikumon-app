@@ -1,7 +1,7 @@
 // המחבר של סיכומון – הלוגיקה: התחברות לסיכומון, קריאת הקורסים מהמודל (עם ההתחברות הרגילה של הסטודנט
 // בכרום), איתור קבצים חדשים, ושליחתם לסיכום אישי בשרת. לא רואים ולא שומרים את הסיסמה למודל.
 export const SB = "https://islplhnlvaukixaglxof.supabase.co";
-export const ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzbHBsaG5sdmF1a2l4YWdseG9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2MzA2OTksImV4cCI6MjEwOTIwNjY5OX0.7-E0x9NmUT1ljh7usGOGQ99bWqiSfXFFP1w4qk_lXys";
+export const ANON = "sb_publishable_1fDG1GIaFERhcFPiRyx46g_38BIv8HZ";
 export const MOODLES = { "אוניברסיטת אריאל": "https://moodlearn.ariel.ac.il" };
 const FIRST_RUN_MAX = 4;   // בפעם הראשונה: רק הקבצים האחרונים, לא כל הסמסטר
 const PER_RUN_MAX = 5;     // בכל בדיקה – עד 5 קבצים חדשים (המכסה היומית בשרת: 10)

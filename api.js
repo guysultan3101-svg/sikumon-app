@@ -1,9 +1,9 @@
 // חיבור לשרת של סיכומון (Supabase): חשבונות, חברים, סיכומים, הודעות, התראות, פיד, משוב.
-// הכתובת והמפתח הציבורי (anon) אינם סודות – ההרשאות נאכפות בשרת (RLS): כל משתמש רואה רק את מה שמותר לו.
+// הכתובת והמפתח הציבורי (publishable) אינם סודות – ההרשאות נאכפות בשרת (RLS): כל משתמש רואה רק את מה שמותר לו.
 
 const SDK = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 export const URL_ = "https://islplhnlvaukixaglxof.supabase.co";
-export const ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzbHBsaG5sdmF1a2l4YWdseG9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2MzA2OTksImV4cCI6MjEwOTIwNjY5OX0.7-E0x9NmUT1ljh7usGOGQ99bWqiSfXFFP1w4qk_lXys";
+export const ANON = "sb_publishable_1fDG1GIaFERhcFPiRyx46g_38BIv8HZ";
 
 let sb = null, me = null, session = null;
 export async function init() {
