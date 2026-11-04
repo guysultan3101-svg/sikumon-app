@@ -5,7 +5,14 @@ import { mdToHtml } from "./md.js";
 
 export function initSocial(ctx) {
   const { view, $, esc, toast, prefs, store, api } = ctx;
-  const VIS = { friends: "👥 חברים", course: "🎓 כל מי שלומד את הקורס", public: "🌍 כולם" };
+  const VIS = { friends: "👥 כל החברים שלי", course_friends: "🎓 החברים שלי מהקורס", course: "🏫 כל מי שרשום לקורס", public: "🌍 כולם" };
+  // הסבר קצר מתחת לכל אפשרות – שהכותב יידע בדיוק למי זה הולך
+  const VIS_HINT = {
+    friends: "רק מי שאישר/ת כחבר/ה",
+    course_friends: "רק חברים שרשומים לקורס שבחרת",
+    course: "כל מי שכתב את הקורס בפרופיל שלו – גם מי שלא מכיר/ה אותך. הרישום לקורס לא מאומת",
+    public: "כל מי שמשתמש באפליקציה",
+  };
   const UNIS = ["אוניברסיטת אריאל", "אוניברסיטת בן־גוריון", "אוניברסיטת בר־אילן", "אחר"];
   const COLORS = ["#DB2777", "#2563EB", "#16A34A", "#6D28D9", "#EA580C", "#0891B2", "#CA8A04", "#475569"];
   const color = (id = "") => COLORS[[...id].reduce((n, c) => n + c.charCodeAt(0), 0) % COLORS.length];
@@ -65,7 +72,7 @@ export function initSocial(ctx) {
       $("#sgUser").oninput = () => {
         const v = $("#sgUser").value.trim().toLowerCase(); clearTimeout(t);
         if (!/^[a-z0-9_.]{3,20}$/.test(v)) { $("#sgUserHint").textContent = v ? "3–20 תווים: אותיות באנגלית, מספרים, _ ונקודה" : "אותיות באנגלית, מספרים, _ ונקודה"; return; }
-        t = setTimeout(async () => { $("#sgUserHint").textContent = (await api.usernameFree(v)) ? "✅ פנוי" : "❌ השם הזה תפוס"; }, 400);
+        t = setTimeout(async () => { try { $("#sgUserHint").textContent = (await api.usernameFree(v)) ? "✅ פנוי" : "❌ השם הזה תפוס או שמור – בחרו שם אחר"; } catch (e) { $("#sgUserHint").textContent = e.message; } }, 400);
       };
     } else {
       $("#sgReset").onclick = async () => { const m = $("#sgMail").value.trim(); if (!m) return toast("כתבו קודם את המייל"); try { await api.resetPassword(m); toast("שלחנו קישור לאיפוס למייל"); } catch (e) { toast(e.message); } };
@@ -80,9 +87,10 @@ export function initSocial(ctx) {
           if (!/^[a-z0-9_.]{3,20}$/.test(u)) throw new Error("בחרו שם משתמש תקין");
           if (!name) throw new Error("חסר שם מלא");
           if (!/@[^@]+\.ac\.il$/i.test(mail)) throw new Error("צריך מייל של מוסד אקדמי (נגמר ב-ac.il)");
-          if (pass.length < 12) throw new Error("סיסמה של 12 תווים לפחות");
           if (!$("#sgTerms").checked) throw new Error("צריך לאשר את התנאים");
-          if (!(await api.usernameFree(u))) throw new Error("שם המשתמש תפוס");
+          // לפני שנוצר חשבון: השם פנוי, והסיסמה ארוכה מספיק ולא דלפה. מייל כפול – השרת חוסם ("כבר יש חשבון")
+          if (!(await api.usernameFree(u))) throw new Error("שם המשתמש תפוס או שמור – בחרו שם אחר");
+          await api.checkPassword(pass);
           await api.signUp({ email: mail, password: pass, username: u, full_name: name, uni: $("#sgUni").value, degree: $("#sgDeg").value.trim(), birthday: $("#sgBday").value });
           // השאלון מתחיל מאפס במכשיר הזה
           try { localStorage.removeItem("sikumon-prefs"); } catch { /* */ }
@@ -285,7 +293,7 @@ export function initSocial(ctx) {
       <div id="pbPrev" class="pb-prev"></div>
       <label>לצרף סיכום (לא חובה)<select id="pbSum"><option value="">בלי סיכום</option>${sums.map((x) => `<option value="${esc(x.id)}">${esc(x.course || "")} – ${esc(x.title)}</option>`).join("")}</select></label>
       <label>קורס (לא חובה)<select id="pbCourse"><option value="">—</option>${myCourses().map((c) => `<option>${esc(c)}</option>`).join("")}</select></label>
-      <fieldset class="vis"><legend>מי יראה?</legend>${Object.entries(VIS).map(([k, l]) => `<label><input type="radio" name="vis" value="${k}" ${k === def ? "checked" : ""}> ${l}</label>`).join("")}</fieldset>
+      <fieldset class="vis"><legend>מי יראה?</legend>${Object.entries(VIS).map(([k, l]) => `<label><input type="radio" name="vis" value="${k}" ${k === def ? "checked" : ""}> ${l}<br><span class="small muted">${VIS_HINT[k]}</span></label>`).join("")}</fieldset>
       <label class="row small" style="gap:8px;align-items:flex-start"><input type="checkbox" id="pbOwn" style="width:auto;margin-top:5px">התוכן שלי, ומותר לי לשתף אותו (לא מצגות, מבחנים או הקלטות של מרצים)</label>
       <div class="row"><button class="btn" id="pbGo" type="button">פרסום</button><button class="btn ghost" data-x type="button">ביטול</button></div>`);
     const drawPrev = () => {
@@ -303,9 +311,11 @@ export function initSocial(ctx) {
       const body = $("#pbTxt", m).value.trim(), sm = sums.find((x) => x.id === $("#pbSum", m).value);
       if (!body && !files.length && !sm) return toast("כתבו משהו, הוסיפו תמונה או צרפו סיכום");
       if (!$("#pbOwn", m).checked) return toast("צריך לאשר שהתוכן שלכם ומותר לשתף אותו");
+      const vis = $('input[name="vis"]:checked', m).value;
+      if ((vis === "course" || vis === "course_friends") && !($("#pbCourse", m).value || sm?.course)) return toast("בחרו לאיזה קורס הפוסט");
       $("#pbGo", m).disabled = true; $("#pbGo", m).textContent = "מעלה…";
       try {
-        const post = { course: $("#pbCourse", m).value || sm?.course || "", title: sm ? sm.title.slice(0, 200) : "", body, md: sm ? htmlToMd(sm.html).slice(0, 20000) : "", visibility: $('input[name="vis"]:checked', m).value };
+        const post = { course: $("#pbCourse", m).value || sm?.course || "", title: sm ? sm.title.slice(0, 200) : "", body, md: sm ? htmlToMd(sm.html).slice(0, 20000) : "", visibility: vis };
         if (files.length) await api.addPostWithMedia(post, files); else await api.addPost(post);
         m.remove(); toast("פורסם ✓"); api.track("post"); feed();
       } catch (e) { toast(e.message); $("#pbGo", m).disabled = false; $("#pbGo", m).textContent = "פרסום"; }

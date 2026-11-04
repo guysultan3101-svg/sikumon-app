@@ -68,7 +68,7 @@ export function initSettings(ctx) {
       </section>
 
       <section class="soft set" id="set-privacy"><h2>🔒 פרטיות ובטיחות</h2>
-        ${select("pvPosts", "ברירת מחדל לפוסט חדש", [["friends", "👥 חברים"], ["course", "🎓 כל מי שלומד את הקורס"], ["public", "🌍 כולם"]], priv.posts || "friends")}
+        ${select("pvPosts", "ברירת מחדל לפוסט חדש", [["friends", "👥 כל החברים שלי"], ["course_friends", "🎓 החברים שלי מהקורס"], ["course", "🏫 כל מי שרשום לקורס"], ["public", "🌍 כולם"]], priv.posts || "friends")}
         <p class="small muted">יום ההולדת שלך מוצג רק לחברים. הודעה ממי שאינו חבר נכנסת ל"בקשות", והוא לא יודע שקראת עד שתאשר/י. הסיכומים שלך מוצגים רק לחברים ששיתפת איתם קורס ב"אותה כיתה", ורק אם גם הם שיתפו איתך.</p>
         <h3>חסומים (${blocked.length})</h3>
         <div class="list">${blocked.map((b) => `<div class="item"><span dir="ltr">@${esc(b.username)}</span><button class="btn ghost" type="button" data-unblock="${esc(b.id)}">ביטול חסימה</button></div>`).join("") || '<p class="small muted">אין משתמשים חסומים</p>'}</div>

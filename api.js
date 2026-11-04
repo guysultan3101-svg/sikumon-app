@@ -35,9 +35,28 @@ function heb(e) {
 const ok = ({ data, error }) => { if (error) throw new Error(heb(error)); return data; };
 
 // ---------- חשבון ----------
+// השם פנוי? (גם לפני התחברות). השרת מחזיר רק כן/לא, וחוסם שמות שמתחזים לצוות
 export async function usernameFree(u) {
-  const { data } = await sb.from("profiles").select("id").eq("username", u).maybeSingle();
-  return !data;
+  const { data, error } = await sb.rpc("username_available", { p_username: u });
+  if (error) throw new Error("לא הצלחנו לבדוק את שם המשתמש. נסו שוב");
+  return data === true;
+}
+// סיסמה שכבר דלפה ברשת? (Have I Been Pwned, בשיטת k-anonymity: רק 5 התווים הראשונים של
+// ה-SHA-1 יוצאים מהמכשיר – הסיסמה עצמה לא נשלחת לאף אחד). אם השירות לא זמין – לא חוסמים.
+export async function passwordLeaked(password) {
+  try {
+    const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(password));
+    const hex = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${hex.slice(0, 5)}`, { headers: { "Add-Padding": "true" } });
+    if (!res.ok) return false;
+    const line = (await res.text()).split("\n").find((l) => l.startsWith(hex.slice(5)));
+    return !!line && Number(line.split(":")[1]) > 0;
+  } catch { return false; }
+}
+// כל בדיקות הסיסמה במקום אחד (הרשמה ושינוי סיסמה)
+export async function checkPassword(password) {
+  if (password.length < 12) throw new Error("סיסמה של 12 תווים לפחות");
+  if (await passwordLeaked(password)) throw new Error("הסיסמה הזו כבר דלפה ברשת ומופיעה ברשימות של האקרים. בחרו סיסמה אחרת");
 }
 export async function signUp({ email, password, username, full_name, uni, degree, birthday }) {
   // כבר מחובר/ת אבל הפרופיל לא נוצר (למשל האינטרנט נפל באמצע) – רק משלימים את הפרופיל
@@ -58,7 +77,7 @@ export async function signIn(email, password) {
 }
 export async function signOut() { await sb.auth.signOut(); session = null; me = null; }
 export async function resetPassword(email) { ok(await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })); }
-export async function changePassword(password) { if (password.length < 12) throw new Error("סיסמה של 12 תווים לפחות"); ok(await sb.auth.updateUser({ password })); }
+export async function changePassword(password) { await checkPassword(password); ok(await sb.auth.updateUser({ password })); }
 export async function updateMe(fields) { ok(await sb.from("profiles").update(fields).eq("id", user().id)); return loadMe(); }
 export async function deleteAccount() {
   const res = await fetch(`${URL_}/functions/v1/delete-account`, { method: "POST", headers: { Authorization: `Bearer ${token()}`, apikey: ANON } });
