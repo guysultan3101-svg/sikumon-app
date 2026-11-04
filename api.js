@@ -32,7 +32,7 @@ function heb(e) {
   if (/profiles_username_key|duplicate key.*username/i.test(m)) return "שם המשתמש תפוס. בחרו שם אחר";
   if (/profiles_uni_email_key/i.test(m)) return "המייל של המוסד כבר רשום בחשבון אחר";
   if (/uni_email_check|profiles_uni_email/i.test(m)) return "המייל של המוסד צריך להיגמר ב-ac.il";
-  if (/Password should be/i.test(m)) return "סיסמה של 12 תווים לפחות";
+  if (/Password should be/i.test(m)) return "סיסמה של 8 תווים לפחות";
   if (/rate limit|too many/i.test(m)) return "יותר מדי ניסיונות. חכו דקה ונסו שוב";
   if (/Failed to fetch|NetworkError/i.test(m)) return "אין חיבור לאינטרנט";
   return m;
@@ -59,8 +59,9 @@ export async function passwordLeaked(password) {
   } catch { return false; }
 }
 // כל בדיקות הסיסמה במקום אחד (הרשמה ושינוי סיסמה)
-export async function checkPassword(password) {
-  if (password.length < 12) throw new Error("סיסמה של 12 תווים לפחות");
+export async function checkPassword(password, confirm) {
+  if (password.length < 8) throw new Error("סיסמה של 8 תווים לפחות");
+  if (confirm !== undefined && confirm !== password) throw new Error("הסיסמאות לא זהות. הקלידו את אותה סיסמה בשתי התיבות");
   if (await passwordLeaked(password)) throw new Error("הסיסמה הזו כבר דלפה ברשת ומופיעה ברשימות של האקרים. בחרו סיסמה אחרת");
 }
 export async function signUp({ email, password, username, full_name, uni, degree, birthday, uni_email }) {
@@ -82,7 +83,7 @@ export async function signIn(email, password) {
 }
 export async function signOut() { await sb.auth.signOut(); session = null; me = null; }
 export async function resetPassword(email) { ok(await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })); }
-export async function changePassword(password) { await checkPassword(password); ok(await sb.auth.updateUser({ password })); recovering = false; }
+export async function changePassword(password, confirm) { await checkPassword(password, confirm); ok(await sb.auth.updateUser({ password })); recovering = false; }
 export async function updateMe(fields) { ok(await sb.from("profiles").update(fields).eq("id", user().id)); return loadMe(); }
 export async function deleteAccount() {
   const res = await fetch(`${URL_}/functions/v1/delete-account`, { method: "POST", headers: { Authorization: `Bearer ${token()}`, apikey: ANON } });

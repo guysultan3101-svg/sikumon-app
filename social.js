@@ -59,9 +59,10 @@ export function initSocial(ctx) {
         <label>מוסד לימודים<select id="sgUni">${UNIS.map((u) => `<option>${u}</option>`).join("")}</select></label>
         <label>תואר ושנה<input id="sgDeg" placeholder="למשל: כלכלה ומנהל, שנה א"></label>` : ""}
         <label>${isUp ? "מייל אישי – להתחברות ולשחזור סיסמה" : "המייל האישי שאיתו נרשמת"}<input id="sgMail" type="email" required dir="ltr" autocomplete="email" placeholder="name@gmail.com"></label>
-        ${isUp ? `<label>מייל של מוסד הלימודים – רק כדי לאמת שאת/ה סטודנט/ית<input id="sgUniMail" type="email" required dir="ltr" autocomplete="off" placeholder="name@msmail.ariel.ac.il"></label>
+        ${isUp ? `<label>מייל של מוסד הלימודים – לאימות ולחיבור למודל<input id="sgUniMail" type="email" required dir="ltr" autocomplete="off" placeholder="name@msmail.ariel.ac.il"></label>
         <span class="small muted">המייל של המוסד לא מוצג לאף אחד. מיילים מאיתנו (כמו שחזור סיסמה) מגיעים למייל האישי.</span>` : ""}
-        <label>סיסמה<input id="sgPass" type="password" required ${isUp ? 'minlength="12"' : ""} autocomplete="${isUp ? "new-password" : "current-password"}"></label>
+        <label>סיסמה${isUp ? " (8 תווים לפחות)" : ""}<input id="sgPass" type="password" required ${isUp ? 'minlength="8"' : ""} autocomplete="${isUp ? "new-password" : "current-password"}"></label>
+        ${isUp ? '<label>אימות סיסמה – אותה סיסמה שוב<input id="sgPass2" type="password" required minlength="8" autocomplete="new-password"></label>' : ""}
         ${isUp ? `<label>יום הולדת (לא חובה – חברים יקבלו תזכורת)<input id="sgBday" type="date"></label>
         <label class="row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="sgTerms" style="width:auto;margin-top:6px"><span class="small">זו <b>גרסת בדיקה</b>. אני מסכים/ה ל<a href="#legal-terms" target="_blank">תנאי השימוש</a> ול<a href="#legal-privacy" target="_blank">מדיניות הפרטיות</a>: הפרופיל, החברים, ההודעות והסיכומים נשמרים בשרת מאובטח באירופה. משתפים רק סיכומים שלי, לא קבצים של מרצים.</span></label>` : ""}
         <button class="btn" type="submit" id="sgGo">${isUp ? "יצירת חשבון" : "כניסה"}</button>
@@ -95,7 +96,7 @@ export function initSocial(ctx) {
           if (!$("#sgTerms").checked) throw new Error("צריך לאשר את התנאים");
           // לפני שנוצר חשבון: השם פנוי, והסיסמה ארוכה מספיק ולא דלפה. מייל כפול – השרת חוסם ("כבר יש חשבון")
           if (!(await api.usernameFree(u))) throw new Error("שם המשתמש תפוס או שמור – בחרו שם אחר");
-          await api.checkPassword(pass);
+          await api.checkPassword(pass, $("#sgPass2").value);
           await api.signUp({ email: mail, password: pass, username: u, full_name: name, uni: $("#sgUni").value, degree: $("#sgDeg").value.trim(), birthday: $("#sgBday").value, uni_email: uniMail });
           // השאלון מתחיל מאפס במכשיר הזה
           try { localStorage.removeItem("sikumon-prefs"); } catch { /* */ }
@@ -281,12 +282,13 @@ export function initSocial(ctx) {
   // ---------- סיסמה חדשה (אחרי הקישור "שכחתי סיסמה" במייל) ----------
   function newPasswordModal() {
     const m = modal(`<h2>בחירת סיסמה חדשה</h2>
-      <p class="small muted">לפחות 12 תווים. נבדוק גם שהיא לא דלפה ברשת.</p>
-      <label>סיסמה חדשה<input type="password" id="npPass" autocomplete="new-password" minlength="12"></label>
+      <p class="small muted">לפחות 8 תווים. נבדוק גם שהיא לא דלפה ברשת.</p>
+      <label>סיסמה חדשה<input type="password" id="npPass" autocomplete="new-password" minlength="8"></label>
+      <label>אימות סיסמה – אותה סיסמה שוב<input type="password" id="npPass2" autocomplete="new-password" minlength="8"></label>
       <div class="row"><button class="btn" type="button" id="npGo">שמירה</button></div>`);
     $("#npGo", m).onclick = async () => {
       $("#npGo", m).disabled = true;
-      try { await api.changePassword($("#npPass", m).value); m.remove(); toast("הסיסמה עודכנה ✓ את/ה מחובר/ת"); }
+      try { await api.changePassword($("#npPass", m).value, $("#npPass2", m).value); m.remove(); toast("הסיסמה עודכנה ✓ את/ה מחובר/ת"); }
       catch (e) { toast(e.message); $("#npGo", m).disabled = false; }
     };
   }
