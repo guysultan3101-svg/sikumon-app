@@ -30,6 +30,8 @@ function heb(e) {
   if (/Invalid login credentials/i.test(m)) return "המייל או הסיסמה לא נכונים";
   if (/already registered|already exists/i.test(m)) return "כבר יש חשבון עם המייל הזה. נסו להתחבר";
   if (/profiles_username_key|duplicate key.*username/i.test(m)) return "שם המשתמש תפוס. בחרו שם אחר";
+  if (/profiles_uni_email_key/i.test(m)) return "המייל של המוסד כבר רשום בחשבון אחר";
+  if (/uni_email_check|profiles_uni_email/i.test(m)) return "המייל של המוסד צריך להיגמר ב-ac.il";
   if (/Password should be/i.test(m)) return "סיסמה של 12 תווים לפחות";
   if (/rate limit|too many/i.test(m)) return "יותר מדי ניסיונות. חכו דקה ונסו שוב";
   if (/Failed to fetch|NetworkError/i.test(m)) return "אין חיבור לאינטרנט";
@@ -61,7 +63,7 @@ export async function checkPassword(password) {
   if (password.length < 12) throw new Error("סיסמה של 12 תווים לפחות");
   if (await passwordLeaked(password)) throw new Error("הסיסמה הזו כבר דלפה ברשת ומופיעה ברשימות של האקרים. בחרו סיסמה אחרת");
 }
-export async function signUp({ email, password, username, full_name, uni, degree, birthday }) {
+export async function signUp({ email, password, username, full_name, uni, degree, birthday, uni_email }) {
   // כבר מחובר/ת אבל הפרופיל לא נוצר (למשל האינטרנט נפל באמצע) – רק משלימים את הפרופיל
   if (!session) {
     const r = await sb.auth.signUp({ email, password });
@@ -69,7 +71,7 @@ export async function signUp({ email, password, username, full_name, uni, degree
     if (!r.data.session) throw new Error("צריך לאשר את המייל (בדקו את תיבת הדואר) ואז להתחבר");
     session = r.data.session;
   }
-  ok(await sb.from("profiles").insert({ id: session.user.id, username, full_name, uni, degree, birthday: birthday || null }));
+  ok(await sb.from("profiles").insert({ id: session.user.id, username, full_name, uni, degree, birthday: birthday || null, uni_email: uni_email || null }));
   return loadMe();
 }
 export async function signIn(email, password) {

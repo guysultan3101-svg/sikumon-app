@@ -58,7 +58,9 @@ export function initSocial(ctx) {
         <label>שם מלא<input id="sgName" required autocomplete="name"></label>
         <label>מוסד לימודים<select id="sgUni">${UNIS.map((u) => `<option>${u}</option>`).join("")}</select></label>
         <label>תואר ושנה<input id="sgDeg" placeholder="למשל: כלכלה ומנהל, שנה א"></label>` : ""}
-        <label>מייל ${isUp ? "של האוניברסיטה" : ""}<input id="sgMail" type="email" required dir="ltr" autocomplete="email" placeholder="name@msmail.ariel.ac.il"></label>
+        <label>${isUp ? "מייל אישי – להתחברות ולשחזור סיסמה" : "המייל האישי שאיתו נרשמת"}<input id="sgMail" type="email" required dir="ltr" autocomplete="email" placeholder="name@gmail.com"></label>
+        ${isUp ? `<label>מייל של מוסד הלימודים – רק כדי לאמת שאת/ה סטודנט/ית<input id="sgUniMail" type="email" required dir="ltr" autocomplete="off" placeholder="name@msmail.ariel.ac.il"></label>
+        <span class="small muted">המייל של המוסד לא מוצג לאף אחד. מיילים מאיתנו (כמו שחזור סיסמה) מגיעים למייל האישי.</span>` : ""}
         <label>סיסמה<input id="sgPass" type="password" required ${isUp ? 'minlength="12"' : ""} autocomplete="${isUp ? "new-password" : "current-password"}"></label>
         ${isUp ? `<label>יום הולדת (לא חובה – חברים יקבלו תזכורת)<input id="sgBday" type="date"></label>
         <label class="row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="sgTerms" style="width:auto;margin-top:6px"><span class="small">זו <b>גרסת בדיקה</b>. אני מסכים/ה ל<a href="#legal-terms" target="_blank">תנאי השימוש</a> ול<a href="#legal-privacy" target="_blank">מדיניות הפרטיות</a>: הפרופיל, החברים, ההודעות והסיכומים נשמרים בשרת מאובטח באירופה. משתפים רק סיכומים שלי, לא קבצים של מרצים.</span></label>` : ""}
@@ -86,12 +88,15 @@ export function initSocial(ctx) {
           const u = $("#sgUser").value.trim().toLowerCase(), name = $("#sgName").value.trim();
           if (!/^[a-z0-9_.]{3,20}$/.test(u)) throw new Error("בחרו שם משתמש תקין");
           if (!name) throw new Error("חסר שם מלא");
-          if (!/@[^@]+\.ac\.il$/i.test(mail)) throw new Error("צריך מייל של מוסד אקדמי (נגמר ב-ac.il)");
+          const uniMail = $("#sgUniMail").value.trim().toLowerCase();
+          if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) throw new Error("כתבו מייל אישי תקין (למשל ג'ימייל)");
+          if (/\.ac\.il$/i.test(mail)) throw new Error("בשדה הראשון כותבים את המייל האישי (למשל ג'ימייל). את המייל של המוסד – בשדה השני");
+          if (!/^[^@\s]+@[^@\s]+\.ac\.il$/i.test(uniMail)) throw new Error("המייל של מוסד הלימודים צריך להיגמר ב-ac.il");
           if (!$("#sgTerms").checked) throw new Error("צריך לאשר את התנאים");
           // לפני שנוצר חשבון: השם פנוי, והסיסמה ארוכה מספיק ולא דלפה. מייל כפול – השרת חוסם ("כבר יש חשבון")
           if (!(await api.usernameFree(u))) throw new Error("שם המשתמש תפוס או שמור – בחרו שם אחר");
           await api.checkPassword(pass);
-          await api.signUp({ email: mail, password: pass, username: u, full_name: name, uni: $("#sgUni").value, degree: $("#sgDeg").value.trim(), birthday: $("#sgBday").value });
+          await api.signUp({ email: mail, password: pass, username: u, full_name: name, uni: $("#sgUni").value, degree: $("#sgDeg").value.trim(), birthday: $("#sgBday").value, uni_email: uniMail });
           // השאלון מתחיל מאפס במכשיר הזה
           try { localStorage.removeItem("sikumon-prefs"); } catch { /* */ }
           toast("החשבון נוצר 🎉 עכשיו כמה שאלות קצרות");
@@ -562,6 +567,8 @@ export function initSocial(ctx) {
       <label>על עצמי<textarea id="eBio" rows="3" maxlength="300">${esc(me.bio)}</textarea></label>
       <label>מוסד<select id="eUni">${UNIS.map((u) => `<option ${u === me.uni ? "selected" : ""}>${u}</option>`).join("")}</select></label>
       <label>תואר ושנה<input id="eDeg" value="${esc(me.degree)}" maxlength="80"></label>
+      <label>מייל של מוסד הלימודים (רק את/ה רואה)<input id="eUniMail" type="email" dir="ltr" value="${esc(me.uni_email || "")}" placeholder="name@msmail.ariel.ac.il"></label>
+      <p class="small muted">המייל האישי (להתחברות ולשחזור סיסמה): <b dir="ltr">${esc(api.user()?.email || "")}</b></p>
       <label>יום הולדת<input id="eBday" type="date" value="${esc(me.birthday || "")}"></label>
       <label>קישור לאינסטגרם<input id="eIg" dir="ltr" value="${esc(me.ig)}" placeholder="https://instagram.com/..."></label>
       <label>קישור ללינקדאין<input id="eLi" dir="ltr" value="${esc(me.li)}" placeholder="https://linkedin.com/in/..."></label>
@@ -570,8 +577,10 @@ export function initSocial(ctx) {
       const ig = $("#eIg", m).value.trim(), li = $("#eLi", m).value.trim();
       if (ig && !safeLink(ig, "instagram.com")) return toast("קישור אינסטגרם צריך להתחיל ב-https://instagram.com");
       if (li && !safeLink(li, "linkedin.com")) return toast("קישור לינקדאין צריך להתחיל ב-https://linkedin.com");
+      const uniMail = $("#eUniMail", m).value.trim().toLowerCase();
+      if (uniMail && !/^[^@\s]+@[^@\s]+\.ac\.il$/i.test(uniMail)) return toast("המייל של מוסד הלימודים צריך להיגמר ב-ac.il");
       try {
-        await api.updateMe({ full_name: $("#eName", m).value.trim() || me.full_name, bio: $("#eBio", m).value.trim(), uni: $("#eUni", m).value, degree: $("#eDeg", m).value.trim(), birthday: $("#eBday", m).value || null, ig: safeLink(ig, "instagram.com"), li: safeLink(li, "linkedin.com") });
+        await api.updateMe({ full_name: $("#eName", m).value.trim() || me.full_name, bio: $("#eBio", m).value.trim(), uni: $("#eUni", m).value, degree: $("#eDeg", m).value.trim(), birthday: $("#eBday", m).value || null, ig: safeLink(ig, "instagram.com"), li: safeLink(li, "linkedin.com"), uni_email: uniMail || null });
         m.remove(); toast("נשמר ✓"); dispatchEvent(new HashChangeEvent("hashchange"));
       } catch (e) { toast(e.message); }
     };
