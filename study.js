@@ -24,7 +24,7 @@ export function initStudy(ctx) {
     return applyPack(pack);
   }
   async function applyPack(pack) {
-    if (pack?.type !== "sikumon-pack") throw new Error("זה לא קובץ של סיכומון.");
+    if (pack?.type !== "sikumon-pack") throw new Error("זה לא קובץ של Clearly.");
     for (const s of pack.summaries || []) await store.putItem({ ...s, type: "summary" });
     if (pack.moodle) await store.putItem({ id: "moodle-feed", type: "moodle", courses: pack.moodle, at: pack.createdAt });
     if (pack.deadlines) await store.putItem({ id: "deadlines", type: "deadlines", events: pack.deadlines, at: pack.createdAt });

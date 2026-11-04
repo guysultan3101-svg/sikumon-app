@@ -1,4 +1,4 @@
-// החלון של התוסף: התחברות לסיכומון, בחירת המודל, ובדיקה עכשיו
+// החלון של התוסף: התחברות ל-Clearly, בחירת המודל, ובדיקה עכשיו
 import { login, logout, MOODLES } from "./sync.js";
 
 const $ = (s) => document.querySelector(s);

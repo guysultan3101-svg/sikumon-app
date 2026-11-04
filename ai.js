@@ -18,7 +18,7 @@ export const getGeminiKey = () => ls.get(GKEY);
 export const setGeminiKey = (k) => ls.set(GKEY, k);
 // כל הספקים: איפה נשמר המפתח
 export const PROVIDERS = {
-  sikumon: { name: "העוזר של סיכומון", key: "" },
+  sikumon: { name: "העוזר של Clearly", key: "" },
   gemini: { name: "Gemini (גוגל)", key: GKEY },
   openrouter: { name: "OpenRouter (GPT, Claude, Gemini ועוד)", key: "sikumon-openrouter-key" },
   openai: { name: "ChatGPT (OpenAI)", key: "sikumon-openai-key" },
@@ -29,7 +29,7 @@ export const setKeyOf = (p, k) => ls.set(PROVIDERS[p].key, k);
 export const modelOf = (p) => ls.get("sikumon-ai-model-" + p);
 export const setModelOf = (p, m) => ls.set("sikumon-ai-model-" + p, m);
 
-// ---------- העוזר המובנה של סיכומון: דרך השרת שלנו (Gemini חינמי), 5 שאלות ביום למשתמש ----------
+// ---------- העוזר המובנה של Clearly: דרך השרת שלנו (Gemini חינמי), 5 שאלות ביום למשתמש ----------
 // מפתח ה-AI נמצא רק בשרת; המשתמש מזוהה לפי ההתחברות שלו לאפליקציה.
 export const builtIn = () => !!api.user();
 const callServer = (payload, signal) => api.askStream(payload, signal);

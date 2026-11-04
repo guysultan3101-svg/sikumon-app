@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "המחבר של סיכומון",
-  "description": "בודק במודל שלך אם עלו קבצים חדשים, ושולח אותם לסיכום אישי בסיכומון.",
-  "version": "1.3.0",
+  "name": "המחבר של Clearly",
+  "description": "בודק במודל שלך אם עלו קבצים חדשים, ושולח אותם לסיכום אישי ב-Clearly.",
+  "version": "1.3.1",
   "permissions": [
     "storage",
     "alarms"
@@ -17,7 +17,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "המחבר של סיכומון",
+    "default_title": "המחבר של Clearly",
     "default_icon": {
       "128": "icon.png"
     }

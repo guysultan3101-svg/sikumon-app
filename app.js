@@ -1,4 +1,4 @@
-// סיכומון AI – האפליקציה (גרסת בדיקה). ניווט לפי # בכתובת, כל מסך הוא פונקציה שמציירת HTML.
+// Clearly – האפליקציה (גרסת בדיקה). ניווט לפי # בכתובת, כל מסך הוא פונקציה שמציירת HTML.
 import { LessonRecorder, store, segmentsOf, support, recoverOrphans } from "./recorder.js";
 import { demoSummary, demoQuiz, onboardingQuestions } from "./demo-data.js";
 import { InkEditor, COLORS, MARKER_COLORS, pdfToPages, makeThumb, imgBoxOf } from "./notes.js";
@@ -114,7 +114,7 @@ function onboarding(step = 0, answers = {}) {
   if (step === 0) {
     view.innerHTML = `<div class="page">
       <p class="eyebrow">ברוכים הבאים</p>
-      <h1 style="font-size:clamp(32px,5vw,48px)">נתאים את <span class="mark">סיכומון</span> בדיוק אלייך</h1>
+      <h1 style="font-size:clamp(32px,5vw,48px)">נתאים את <span class="mark">Clearly</span> בדיוק אלייך</h1>
       <p class="muted">חמש שאלות קצרות על איך שאת/ה לומד/ת, ואז כמה פרטים על הקורסים. לוקח פחות מדקה.</p>
       <label class="field">איך לקרוא לך?<input type="text" id="name" name="name" autocomplete="given-name" placeholder="השם הפרטי שלך" value="${esc((api.profile()?.full_name || "").split(" ")[0])}"></label>
       <label class="field">מוסד לימודים<select id="inst" name="inst"><option>אוניברסיטת אריאל</option><option>אוניברסיטת בן־גוריון</option><option>אוניברסיטת בר־אילן</option><option>אחר</option></select></label>
@@ -233,7 +233,7 @@ function feedback() {
     const p = prefs.get(); const s = support();
     const recs = await store.listRecordings();
     const longest = recs.reduce((m, r) => Math.max(m, r.durationMs || 0), 0);
-    const text = ["משוב על סיכומון (גרסת בדיקה)", `מוסד: ${p.inst || "–"}`,
+    const text = ["משוב על Clearly (גרסת בדיקה)", `מוסד: ${p.inst || "–"}`,
       ...feedbackQs.map((q) => `${q.q} ${ans[q.id] || "–"}`),
       `חופשי: ${$("#free").value.trim() || "–"}`,
       `הקלטות: ${recs.length}, הארוכה: ${fmtTime(longest)}, קטיעות: ${recs.reduce((a, r) => a + (r.interruptions?.length || 0), 0)}`,
@@ -253,7 +253,7 @@ function installHint() {
   const how = ios
     ? 'ב-Safari לוחצים על כפתור השיתוף <span aria-hidden="true">(ריבוע עם חץ למעלה)</span> ובוחרים <b>"הוסף למסך הבית"</b>.'
     : 'בתפריט הדפדפן בוחרים <b>"התקנת אפליקציה"</b> או <b>"הוספה למסך הבית"</b>.';
-  return `<div class="notice install"><div><b>טיפ: התקינו את סיכומון כמו אפליקציה.</b> ${how}</div><button class="link" id="hideInstall">הבנתי</button></div>`;
+  return `<div class="notice install"><div><b>טיפ: התקינו את Clearly כמו אפליקציה.</b> ${how}</div><button class="link" id="hideInstall">הבנתי</button></div>`;
 }
 
 function recItem(r) {
@@ -445,7 +445,7 @@ function record() {
       ${paused ? '<p class="notice alert" style="text-align:right">ההקלטה נעצרה. לחצו "המשך" כדי להמשיך מאותה נקודה, או סיימו ושמרו את מה שכבר הוקלט.</p><button class="btn ghost" id="finishPaused">לסיים ולשמור</button>' : ""}
     </div>
     <div class="notice"><strong>כדי שההקלטה תחזיק את כל השיעור:</strong>
-      <ul class="tips"><li>השאירו את סיכומון פתוח על המסך. אפשר לכתוב במקביל במסך מפוצל.</li><li>לא לנעול את המסך. ${s.wakeLock ? "האפליקציה מנסה להשאיר אותו דלוק לבד." : "כדאי לכבות נעילה אוטומטית בהגדרות."}</li><li>חברו למטען אם השיעור ארוך.</li></ul>
+      <ul class="tips"><li>השאירו את Clearly פתוח על המסך. אפשר לכתוב במקביל במסך מפוצל.</li><li>לא לנעול את המסך. ${s.wakeLock ? "האפליקציה מנסה להשאיר אותו דלוק לבד." : "כדאי לכבות נעילה אוטומטית בהגדרות."}</li><li>חברו למטען אם השיעור ארוך.</li></ul>
     </div>
     <p class="small muted">ההקלטה נכנסת אוטומטית למחברת של הקורס, לשיעור של היום. מקליטים רק כשזה מותר לפי מדיניות המרצה והמוסד. ההקלטה נשמרת רק במכשיר שלך.</p>
   </div>`;
@@ -1302,7 +1302,7 @@ async function diag() {
   view.innerHTML = `<div class="page">
     <a href="#profile" class="small">→ פרופיל</a>
     <h1 style="font-size:30px">בדיקת מכשיר</h1>
-    <p class="muted">לחיצה אחת בודקת את כל מה שסיכומון צריך במכשיר הזה. בסוף שולחים את הדוח, וככה אפשר לראות מרחוק מה עובד ומה לא.</p>
+    <p class="muted">לחיצה אחת בודקת את כל מה ש-Clearly צריך במכשיר הזה. בסוף שולחים את הדוח, וככה אפשר לראות מרחוק מה עובד ומה לא.</p>
     <div class="row"><button class="btn" id="runDiag">התחלת בדיקה</button></div>
     <div class="list" id="diagList"></div>
     <section class="soft" id="penBox" hidden><h3>בדיקת עט / אצבע</h3><p class="small muted">כתבו קו קטן בתוך המסגרת, עם העט ואחר כך עם האצבע.</p>
@@ -1321,7 +1321,7 @@ async function diag() {
     const ios = (ua.match(/OS (\d+)_(\d+)/) || ua.match(/Version\/(\d+)\.(\d+)/) || []).slice(1, 3).join(".");
     let errs = [];
     try { errs = JSON.parse(localStorage.getItem("sikumon-errors") || "[]"); } catch { /* */ }
-    return [`דוח בדיקת מכשיר – סיכומון (${new Date().toLocaleString("he-IL")})`, `מכשיר: ${dev}, גרסה ${ios || "?"}, מסך ${screen.width}×${screen.height}`,
+    return [`דוח בדיקת מכשיר – Clearly (${new Date().toLocaleString("he-IL")})`, `מכשיר: ${dev}, גרסה ${ios || "?"}, מסך ${screen.width}×${screen.height}`,
       ...rows.map((r) => `${r.ok === true ? "✅" : r.ok === false ? "❌" : "⚠️"} ${r.name}: ${r.detail}`),
       `עט: נגיעות עט ${pen.pen}, אצבע ${pen.touch}, לחץ ${pen.pen ? pen.minP.toFixed(2) + "–" + pen.maxP.toFixed(2) : "-"}`,
       `תקלות אחרונות: ${errs.length ? errs.slice(-5).map((x) => `[${x.at.slice(5, 16)}] ${x.where}: ${x.msg.split("\n")[0]}`).join(" | ") : "אין"}`,
@@ -1386,7 +1386,7 @@ async function diag() {
   };
   $("#sendDiag").onclick = async () => {
     const text = report();
-    try { if (navigator.share) { await navigator.share({ title: "דוח בדיקת מכשיר – סיכומון", text }); return; } } catch (e) { if (e.name === "AbortError") return; }
+    try { if (navigator.share) { await navigator.share({ title: "דוח בדיקת מכשיר – Clearly", text }); return; } } catch (e) { if (e.name === "AbortError") return; }
     try { await navigator.clipboard.writeText(text); toast("הדוח הועתק"); } catch { toast("לא הצלחתי לשתף. צלמו מסך"); }
   };
   $("#copyDiag").onclick = async () => { try { await navigator.clipboard.writeText(report()); toast("הדוח הועתק. הדביקו אותו לקלוד"); } catch { toast("לא הצלחתי להעתיק"); } };
@@ -1626,13 +1626,13 @@ function uploadPage() {
 function connectPage() {
   view.innerHTML = `<div class="page" style="max-width:680px">
     <h1 style="font-size:30px">🔗 חיבור למודל</h1>
-    <p class="muted">"המחבר של סיכומון" הוא תוסף קטן לכרום במחשב. כשכרום פתוח, הוא בודק במודל שלך (פעם בכמה שעות) אם עלו מצגות או קבצים חדשים, ושולח אותם לסיכום אישי. הסיכומים מופיעים כאן, בכל המכשירים שלך.</p>
+    <p class="muted">"המחבר של Clearly" הוא תוסף קטן לכרום במחשב. כשכרום פתוח, הוא בודק במודל שלך (פעם בכמה שעות) אם עלו מצגות או קבצים חדשים, ושולח אותם לסיכום אישי. הסיכומים מופיעים כאן, בכל המכשירים שלך.</p>
     <section class="card" style="display:grid;gap:10px"><h2 style="font-size:20px">התקנה (פעם אחת, 2 דקות)</h2>
       <ol class="steps">
         <li>במחשב, בכרום: מורידים את <a href="extension/sikumon-connector.zip" download>קובץ התוסף</a> ופותחים אותו (Extract / חילוץ) לתיקייה.</li>
         <li>נכנסים לכתובת <b dir="ltr">chrome://extensions</b> ומדליקים למעלה "Developer mode" (מצב מפתח).</li>
         <li>לוחצים "Load unpacked" (טעינת תוסף לא ארוז) ובוחרים את התיקייה שחילצתם.</li>
-        <li>לוחצים על סמל התוסף 📚 למעלה, מתחברים עם אותו מייל וסיסמה של סיכומון, ובוחרים את המודל שלך (אריאל / בן-גוריון).</li>
+        <li>לוחצים על סמל התוסף 📚 למעלה, מתחברים עם אותו מייל וסיסמה של Clearly, ובוחרים את המודל שלך (אריאל / בן-גוריון).</li>
         <li>נכנסים פעם אחת למודל כרגיל, עם הסיסמה שלך. זהו – מעכשיו זה עובד לבד.</li>
       </ol></section>
     <p class="small muted">🔒 התוסף לא רואה ולא שומר את הסיסמה שלך למודל. הוא קורא רק את הקורסים שלך, ושולח לסיכום רק קבצים שמותר לך להוריד. אין לך מחשב? אפשר תמיד <a href="#upload">להעלות מצגת</a> מהאייפד או מהטלפון.</p>
@@ -1699,7 +1699,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "31";
+const APP_VERSION = "32";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

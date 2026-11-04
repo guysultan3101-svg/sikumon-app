@@ -49,7 +49,7 @@ export function initSocial(ctx) {
   function signup(mode = "signup") {
     const isUp = mode === "signup";
     view.innerHTML = `<div class="page" style="max-width:560px">
-      <p class="eyebrow">ברוכים הבאים לסיכומון</p>
+      <p class="eyebrow">ברוכים הבאים ל-Clearly</p>
       <h1 style="font-size:30px">${isUp ? "יצירת חשבון" : "כניסה לחשבון"}</h1>
       ${isUp ? '<p class="muted">פותחים פרופיל, וממלאים שאלון קצר על איך שאת/ה לומד/ת. ככה הסיכומים מותאמים בדיוק אלייך, וחברים מהקורס יכולים למצוא אותך.</p>' : ""}
       <form id="sgForm" class="card" style="display:grid;gap:12px" novalidate>
@@ -387,7 +387,7 @@ export function initSocial(ctx) {
           toast(`הבקשה נשלחה ל${p.full_name}`); api.track("friend_request"); friends();
         } catch (err) { toast(err.message); }
       };
-      $("#frShare").onclick = () => { const t = `הוסיפו אותי בסיכומון: @${api.profile()?.username}\n${location.origin + location.pathname}`; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else { navigator.clipboard?.writeText(t); toast("הועתק"); } };
+      $("#frShare").onclick = () => { const t = `הוסיפו אותי ב-Clearly: @${api.profile()?.username}\n${location.origin + location.pathname}`; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else { navigator.clipboard?.writeText(t); toast("הועתק"); } };
       view.querySelectorAll("[data-ok]").forEach((b) => (b.onclick = async () => {
         try { await api.acceptFriend(+b.dataset.ok); toast("אתם חברים עכשיו 🙌"); await friends(); shareModal(b.dataset.who); } catch (e) { toast(e.message); }
       }));

@@ -30,7 +30,7 @@ export function initExtras(ctx) {
   function addToCalendar(items) {
     if (!items.length) { toast("אין מועדים להוסיף"); return; }
     const url = URL.createObjectURL(new Blob([ics(items)], { type: "text/calendar" }));
-    const a = document.createElement("a"); a.href = url; a.download = "סיכומון-מועדים.ics"; a.click();
+    const a = document.createElement("a"); a.href = url; a.download = "Clearly-מועדים.ics"; a.click();
     toast("נפתח קובץ יומן. לוחצים \"הוספה ליומן\" והתזכורות נכנסות לטלפון");
   }
 

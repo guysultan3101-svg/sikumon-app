@@ -1,4 +1,4 @@
-// המחבר של סיכומון – הלוגיקה: התחברות לסיכומון, קריאת הקורסים מהמודל (עם ההתחברות הרגילה של הסטודנט
+// המחבר של Clearly – הלוגיקה: התחברות ל-Clearly, קריאת הקורסים מהמודל (עם ההתחברות הרגילה של הסטודנט
 // בכרום), איתור קבצים חדשים, ושליחתם לסיכום אישי בשרת. לא רואים ולא שומרים את הסיסמה למודל.
 export const SB = "https://islplhnlvaukixaglxof.supabase.co";
 export const ANON = "sb_publishable_1fDG1GIaFERhcFPiRyx46g_38BIv8HZ";
@@ -11,11 +11,11 @@ const get = (k) => chrome.storage.local.get(k).then((o) => o[k]);
 const set = (o) => chrome.storage.local.set(o);
 export async function status(patch) { const s = { ...(await get("status")), ...patch, at: new Date().toISOString() }; await set({ status: s }); return s; }
 
-// ---------- התחברות לסיכומון ----------
+// ---------- התחברות ל-Clearly ----------
 async function authCall(grant, body) {
   const r = await fetch(`${SB}/auth/v1/token?grant_type=${grant}`, { method: "POST", headers: { apikey: ANON, "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(/Invalid login/i.test(j.error_description || j.msg || "") ? "המייל או הסיסמה לא נכונים" : "ההתחברות לסיכומון נכשלה");
+  if (!r.ok) throw new Error(/Invalid login/i.test(j.error_description || j.msg || "") ? "המייל או הסיסמה לא נכונים" : "ההתחברות ל-Clearly נכשלה");
   const auth = { access: j.access_token, refresh: j.refresh_token, exp: Date.now() + (j.expires_in - 60) * 1000, user: j.user.id, email: j.user.email };
   await set({ auth });
   return auth;
@@ -23,7 +23,7 @@ async function authCall(grant, body) {
 export const login = (email, password) => authCall("password", { email, password });
 export async function logout() { await chrome.storage.local.remove(["auth", "seen", "status"]); }
 async function token() {
-  let a = await get("auth"); if (!a) throw new Error("צריך להתחבר לסיכומון (לחצו על סמל התוסף)");
+  let a = await get("auth"); if (!a) throw new Error("צריך להתחבר ל-Clearly (לחצו על סמל התוסף)");
   if (Date.now() > a.exp) a = await authCall("refresh_token", { refresh_token: a.refresh });
   return a;
 }
@@ -73,7 +73,7 @@ async function fileUrls(base, item) {
   return [...new Set([...html.matchAll(/https?:\/\/[^"'\s]+pluginfile\.php[^"'\s]+/g)].map((m) => m[0].replace(/&amp;/g, "&").split("?")[0]))].map((url) => ({ url }));
 }
 
-// ---------- שרת סיכומון ----------
+// ---------- שרת Clearly ----------
 async function rest(path, a, opts = {}) {
   return fetch(`${SB}/rest/v1/${path}`, { ...opts, headers: { apikey: ANON, Authorization: `Bearer ${a.access}`, "Content-Type": "application/json", ...(opts.headers || {}) } });
 }
