@@ -39,7 +39,7 @@ button { font: inherit; color: inherit; }
   padding: calc(20px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px)) 16px;
 }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font: 900 21px/1 var(--font-display); }
-.brand svg { width: 32px; height: 32px; }
+.brand svg, .brand img { width: 32px; height: 32px; }
 .tabs { display: grid; gap: 6px; }
 .tabs a {
   display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 14px; border-radius: 12px;

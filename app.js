@@ -1651,7 +1651,7 @@ function connectPage() {
         <li>במחשב, בכרום: מורידים את <a href="extension/sikumon-connector.zip" download>קובץ התוסף</a> ופותחים אותו (Extract / חילוץ) לתיקייה.</li>
         <li>נכנסים לכתובת <b dir="ltr">chrome://extensions</b> ומדליקים את המתג <b>"מצב פיתוח"</b> (באנגלית: Developer mode) – בפינה העליונה של הדף.</li>
         <li>מופיעים כפתורים חדשים. לוחצים <b>"טעינת פריט לא ארוז"</b> (Load unpacked) ובוחרים את התיקייה <b dir="ltr">sikumon-connector</b> שחילצתם.</li>
-        <li>לוחצים על סמל התוסף 📚 למעלה, מתחברים עם אותו מייל וסיסמה של Clearly, ובוחרים את המודל שלך (אריאל / בן-גוריון).</li>
+        <li>לוחצים על סמל התוסף (ה-C הסגול) למעלה, מתחברים עם אותו מייל וסיסמה של Clearly, ובוחרים את המודל שלך (אריאל / בן-גוריון).</li>
         <li>נכנסים פעם אחת למודל כרגיל, עם הסיסמה שלך. זהו – מעכשיו זה עובד לבד.</li>
       </ol></section>
     <p class="small muted">🔒 התוסף לא רואה ולא שומר את הסיסמה שלך למודל. הוא קורא רק את הקורסים שלך, ושולח לסיכום רק קבצים שמותר לך להוריד. אין לך מחשב? אפשר תמיד <a href="#upload">להעלות מצגת</a> מהאייפד או מהטלפון.</p>
@@ -1718,7 +1718,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "39";
+const APP_VERSION = "40";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

@@ -71,7 +71,7 @@ a { color: var(--blue); }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--paper); }
 .top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 12px; }
 .logo { display: flex; align-items: center; gap: 10px; font: 900 22px/1 var(--font-display); color: var(--ink); text-decoration: none; }
-.logo svg { width: 30px; height: 30px; }
+.logo svg, .logo img { width: 30px; height: 30px; }
 .top nav { display: flex; gap: 20px; flex-wrap: wrap; }
 .top nav a { color: var(--ink-soft); text-decoration: none; font-weight: 500; font-size: 15px; }
 .top nav a:hover { color: var(--blue); }
@@ -208,7 +208,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 <header class="top">
   <div class="wrap">
     <a class="logo" href="#top" aria-label="Clearly – לראש הדף">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="3" width="26" height="26" rx="7" fill="var(--blue)" stroke="var(--ink)" stroke-width="2"/><path d="M10 12h12M10 17h12M10 22h7" stroke="var(--blue-ink)" stroke-width="2.4" stroke-linecap="round"/><circle cx="23.5" cy="22" r="3" fill="var(--marker)" stroke="var(--ink)" stroke-width="1.5"/></svg>
+      <img src="../icons/logo-mark.png" alt="" width="32" height="32">
       Clearly
     </a>
     <nav aria-label="ניווט">
