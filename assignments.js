@@ -43,8 +43,8 @@ export function initAssignments(ctx) {
         for (const m of await api.assignItems()) {
           const key = moodleId(m.url);
           const prev = byKey.get(key);
-          if (prev) { prev.due = prev.due || m.note; prev.moodleDone = prev.moodleDone || m.status === "done"; continue; }
-          byKey.set(key, { key, name: m.name, course: m.course, due: m.note || null, url: m.url, moodleDone: m.status === "done" });
+          if (prev) { prev.due = prev.due || m.note; prev.moodleDone = prev.moodleDone || m.status === "done"; prev.intro = prev.intro || m.intro; if ((m.files || []).length && !(prev.attach || []).length) prev.attach = m.files; continue; }
+          byKey.set(key, { key, name: m.name, course: m.course, due: m.note || null, url: m.url, moodleDone: m.status === "done", intro: m.intro || null, attach: m.files || [] });
         }
         jobs = await api.submissionJobs();
       } catch { /* בלי אינטרנט – מה שבמכשיר */ }
@@ -82,23 +82,61 @@ export function initAssignments(ctx) {
     return L ? `<p class="notice small ${j.status === "failed" ? "alert" : ""}">${L}${j.result && j.status !== "failed" ? `<br><span class="muted">במודל: ${esc(j.result)}</span>` : ""}</p>` : "";
   }
 
-  function card(a) {
+  // כפתורי העבודה (מצב, הקובץ שלי, העלאה למודל) – משותפים לכרטיס ולמסך המטלה
+  function workControls(a) {
     const files = a.work?.files || [];
-    const open = a.url ? `<a class="btn ghost small-btn" href="${esc(a.url)}" target="_blank" rel="noopener">פתיחה במודל</a>` : "";
-    return `<article class="as-card ${a.status}" data-key="${esc(a.key)}">
-      <div class="row" style="justify-content:space-between;align-items:flex-start">
-        <span style="min-width:0;flex:1"><b class="as-name">${esc(a.name)}</b><br><span class="small muted">${a.section ? esc(a.section) + " · " : ""}${a.due ? `עד <bdi>${fmtWhen(a.due)}</bdi>` : "בלי מועד במודל"}</span></span>
-        ${a.due && a.status !== "submitted" ? `<span class="cd ${urgency(a.due)}">${left(a.due)}</span>` : ""}
-      </div>
-      <div class="as-status">${Object.entries(STATUS).map(([k, l]) => `<button type="button" class="as-st ${a.status === k ? "on" : ""}" data-st="${k}" aria-pressed="${a.status === k}">${l}</button>`).join("")}</div>
+    return `<div class="as-status">${Object.entries(STATUS).map(([k, l]) => `<button type="button" class="as-st ${a.status === k ? "on" : ""}" data-st="${k}" aria-pressed="${a.status === k}">${l}</button>`).join("")}</div>
       ${jobLine(a)}
       <div class="as-files">${files.map((f, i) => `<span class="pb-chip">📎 ${esc(f.name)} <span class="small muted">${fmtSize(f.size)}</span> <button type="button" class="link" data-open="${i}">פתיחה</button> <button type="button" class="link" data-rm="${i}" aria-label="הסרה">✕</button></span>`).join("")}</div>
       <div class="row">
         <label class="btn small-btn">📎 ${files.length ? "עוד קובץ" : "הקובץ שלי"}<input type="file" data-up hidden accept=".pdf,.docx,.doc,.pptx,.xlsx,.txt,.zip,.jpg,.jpeg,.png"></label>
         <button type="button" class="btn ghost small-btn" data-moodle ${files.length && /^\d+$/.test(a.key) && !["queued", "uploading"].includes(a.job?.status) ? "" : "disabled"}>🚀 להעלות למודל</button>
-        ${open}
+      </div>`;
+  }
+
+  function card(a) {
+    return `<article class="as-card ${a.status}" data-key="${esc(a.key)}">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <span style="min-width:0;flex:1"><a class="as-name" href="#assign-${esc(a.key)}">${esc(a.name)}</a><br><span class="small muted">${a.section ? esc(a.section) + " · " : ""}${a.due ? `עד <bdi>${fmtWhen(a.due)}</bdi>` : "בלי מועד במודל"}</span></span>
+        ${a.due && a.status !== "submitted" ? `<span class="cd ${urgency(a.due)}">${left(a.due)}</span>` : ""}
       </div>
+      ${workControls(a)}
+      <div class="row"><a class="btn ghost small-btn" href="#assign-${esc(a.key)}">📖 ההוראות והפרטים ←</a>${a.url ? `<a class="small muted" href="${esc(a.url)}" target="_blank" rel="noopener" style="align-self:center">פתיחה במודל ↗</a>` : ""}</div>
     </article>`;
+  }
+
+  // מסך מטלה בתוך Clearly: ההוראות של המרצה, הקבצים המצורפים, והגשה – בלי לקפוץ למודל
+  async function detail(key) {
+    const a = (await all()).find((x) => x.key === key);
+    if (!a) { view.innerHTML = `<div class="page"><p class="muted">המטלה לא נמצאה. אולי כבר אינה פתוחה.</p><a href="#assignments">לכל המטלות</a></div>`; return; }
+    const attach = a.attach || [];
+    view.innerHTML = `<div class="page" style="max-width:760px">
+      <h1 style="font-size:28px;margin-top:8px">${esc(a.name)}</h1>
+      <p class="muted">${esc(a.course)}${a.section ? " · " + esc(a.section) : ""}</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin:4px 0 6px">
+        ${a.due ? `<span class="chip">⏰ עד <bdi>${fmtWhen(a.due)}</bdi></span>${a.status !== "submitted" ? `<span class="cd ${urgency(a.due)}">${left(a.due)}</span>` : ""}` : '<span class="chip">בלי מועד במודל</span>'}
+        ${a.status === "submitted" ? '<span class="chip ok">✅ הוגש</span>' : ""}
+      </div>
+      <section class="card" style="display:grid;gap:10px">
+        <h2 style="font-size:19px;margin:0">📖 מה צריך לעשות</h2>
+        ${a.intro ? `<div class="as-intro" style="white-space:pre-wrap">${esc(a.intro)}</div>`
+          : `<p class="muted">ההוראות ייקראו מהמודל אוטומטית בבדיקה הבאה של המחבר בכרום (צריך שהמחשב יהיה דלוק פעם אחת). בינתיים אפשר <a href="${esc(a.url || "#")}" target="_blank" rel="noopener">לפתוח במודל</a>.</p>`}
+        ${attach.length ? `<div class="as-files">${attach.map((f, i) => `<button type="button" class="pb-chip" data-afile="${i}">📎 ${esc(f.name)}</button>`).join("")}</div>` : ""}
+      </section>
+      <section class="card" style="display:grid;gap:10px;margin-top:14px">
+        <h2 style="font-size:19px;margin:0">📤 ההגשה שלי</h2>
+        <div class="as-card ${a.status}" data-key="${esc(a.key)}" style="border:0;padding:0">${workControls(a)}</div>
+        <p class="small muted">העוזר יכול להסביר ולבדוק, אבל לא כותב עבודה להגשה במקומכם. ההעלאה למודל נעשית דרך המחבר בכרום, ואתם לוחצים שם "הגשת המטלה".</p>
+      </section>
+    </div>`;
+    bind([a]);
+    view.querySelectorAll("[data-afile]").forEach((b) => (b.onclick = async () => {
+      const f = attach[+b.dataset.afile];
+      b.disabled = true;
+      try { window.open(await api.assignmentFileUrl(f.path), "_blank", "noopener"); }
+      catch { toast("הקובץ עוד לא מוכן. נסו שוב אחרי בדיקה של המחבר במחשב"); }
+      finally { b.disabled = false; }
+    }));
   }
 
   async function page() {
@@ -154,5 +192,5 @@ export function initAssignments(ctx) {
     if (list.some((a) => ["queued", "uploading"].includes(a.job?.status))) bind._t = setTimeout(() => { if (location.hash === "#assignments") page(); }, 20000);
   }
 
-  return { page, openCount, all };
+  return { page, detail, openCount, all };
 }

@@ -251,17 +251,56 @@ export async function submitJobs() {
 }
 
 // ---------- מטלות מהמודל -> לאפליקציה (גם לטאבלט) ----------
+// העלאת קובץ מצורף של מטלה לאחסון הפרטי (assignment-files/<uid>/<cmid>/<name>)
+async function uploadAssignFile(a, path, blob) {
+  const r = await fetch(`${SB}/storage/v1/object/assignment-files/${path.split("/").map(encodeURIComponent).join("/")}`, {
+    method: "POST", headers: { apikey: ANON, Authorization: `Bearer ${a.access}`, "x-upsert": "true", "Content-Type": blob.type || "application/octet-stream" }, body: blob,
+  });
+  return r.ok;
+}
+// ההוראות של המרצה (intro) והקבצים המצורפים, מתוך דף המטלה
+async function assignDetail(base, cmid) {
+  const html = await (await fetch(`${base}/mod/assign/view.php?id=${cmid}`, { credentials: "include" })).text();
+  // אזור התיאור (id="intro") -> טקסט עם שורות
+  let intro = "";
+  const m = html.match(/id="intro"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/);
+  if (m) intro = m[1].replace(/<\s*br\s*\/?>/gi, "\n").replace(/<\/(p|li|div|h\d|tr)>/gi, "\n").replace(/<li[^>]*>/gi, "• ").replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").replace(/^\s+|\s+$/g, "").slice(0, 8000);
+  // קבצים מצורפים לתיאור
+  const urls = [...new Set([...html.matchAll(/https?:\/\/[^"'\s]+pluginfile\.php\/[^"'\s]*mod_assign\/intro[^"'\s]+/g)].map((x) => x[0].replace(/&amp;/g, "&")))];
+  return { intro, urls };
+}
 // מועדי ההגשה מלוח הזמנים של המודל נשמרים כפריטי מודל מסוג assign, וההערה = מועד ההגשה
 async function syncAssignments(a, base, sesskey) {
   const now = Math.floor(Date.now() / 1000);
   const data = await ajax(base, sesskey, "core_calendar_get_action_events_by_timesort", { limitnum: 50, timesortfrom: now - 86400, timesortto: now + 90 * 86400 });
+  const seen = (await get("seen")) || {};
   let n = 0;
   for (const ev of data.events || []) {
     if ((ev.modulename || "") !== "assign") continue;
     const cmid = String(ev.url || "").match(/[?&]id=(\d+)/)?.[1]; if (!cmid) continue;
+    // ההוראות והקבצים – כדי שאפשר יהיה לפתוח את המטלה בתוך Clearly (גם בטאבלט)
+    let intro = "", files = [];
+    try {
+      const d = await assignDetail(base, cmid);
+      intro = d.intro;
+      for (const url of d.urls.slice(0, 5)) {
+        const fname = decodeURIComponent(url.split("?")[0].split("/").pop() || "קובץ");
+        const path = `${a.user}/${cmid}/${fname}`;
+        const fkey = `af:${cmid}:${fname}`;
+        if (!seen[fkey]) {
+          const blob = await (await fetch(url, { credentials: "include" })).blob();
+          if (blob.size <= 25 * 1024 * 1024 && await uploadAssignFile(a, path, blob)) { seen[fkey] = "done"; }
+        }
+        files.push({ name: fname, path });
+      }
+    } catch { /* אם דף המטלה לא נפתח – לפחות השם והמועד */ }
     await markItem(a, { item_key: `assign:${cmid}`, course: (ev.course?.fullname || "").trim().slice(0, 200), name: String(ev.name || "").slice(0, 300), kind: "assign",
-      url: String(ev.url).slice(0, 2000), status: ev.action && ev.action.actionable === false ? "done" : "new", note: new Date(ev.timesort * 1000).toISOString() });
+      url: String(ev.url).slice(0, 2000), status: ev.action && ev.action.actionable === false ? "done" : "new", note: new Date(ev.timesort * 1000).toISOString(),
+      intro: intro || null, files });
     n++;
   }
+  await set({ seen });
   return n;
 }

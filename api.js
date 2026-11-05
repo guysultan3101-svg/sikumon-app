@@ -166,7 +166,9 @@ export async function transcribeStep(body) {
 }
 // ---------- הגשת עבודות ----------
 // מטלות שהתוסף במחשב מצא במודל (גם לבודקים שאין להם את המחשב של גיא)
-export async function assignItems() { return ok(await sb.from("moodle_items").select("item_key, course, name, url, status, note").eq("kind", "assign")); }
+export async function assignItems() { return ok(await sb.from("moodle_items").select("item_key, course, name, url, status, note, intro, files").eq("kind", "assign")); }
+// קישור חתום לקובץ מצורף של מטלה (אחסון פרטי) – תקף לשעה
+export async function assignmentFileUrl(path) { const { data, error } = await sb.storage.from("assignment-files").createSignedUrl(path, 3600); if (error) throw error; return data.signedUrl; }
 // מערכת שעות ולוח מבחנים שהמחבר הביא מהמידע האישי של המוסד (שורה אחת, רק שלי)
 export async function uniSchedule() { return ok(await sb.from("uni_schedule").select("timetable, exams, source, updated_at").maybeSingle()); }
 export async function submissionJobs() { return ok(await sb.from("submission_jobs").select("id, cmid, file_name, status, result, created_at, updated_at").order("created_at", { ascending: false }).limit(100)); }
