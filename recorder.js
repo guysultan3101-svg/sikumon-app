@@ -118,6 +118,7 @@ export function support() {
     recorder: typeof MediaRecorder !== "undefined",
     mime: pickMime(),
     wakeLock: "wakeLock" in navigator,
+    display: !!navigator.mediaDevices?.getDisplayMedia,
     secure: window.isSecureContext,
     standalone: window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true,
   };
@@ -131,6 +132,7 @@ export class LessonRecorder extends EventTarget {
     this.segment = 0; this.bytes = 0; this.chunkCount = 0;
     this.elapsedBefore = 0; this.segmentStart = 0; this.segActive = false;
     this.analyser = null; this.level = 0; this.lastDataAt = 0; this.watchdog = null;
+    this.source = "mic"; this.capture = null; this._disp = null; this._mic = null; this._mixCtx = null;
     this._onVisibility = this._onVisibility.bind(this);
   }
 
@@ -138,14 +140,16 @@ export class LessonRecorder extends EventTarget {
   // הזמן נספר מתחילת הקטע ועד שהוא נעצר או נקטע
   get elapsedMs() { return this.elapsedBefore + (this.segActive ? Date.now() - this.segmentStart : 0); }
 
-  async start(course, lessonId = null) {
+  async start(course, lessonId = null, { source = "mic" } = {}) {
+    this.source = source;
     const mime = pickMime();
     this.rec = {
       id: "rec-" + Date.now(), course, startedAt: new Date().toISOString(), endedAt: null,
       mime: mime || "audio/webm", segments: 0, durationMs: 0, bytes: 0, interruptions: [],
-      device: navigator.userAgent, status: "recording", lessonId,
+      device: navigator.userAgent, status: "recording", lessonId, source,
     };
-    await this._startSegment(); // קודם המיקרופון: אם אין אישור, לא נשמרת הקלטה ריקה
+    if (source !== "mic") await this._acquireCapture(); // קול המחשב (זום): שיתוף חלון פעם אחת
+    await this._startSegment(); // אם אין אישור/קול, לא נשמרת הקלטה ריקה
     await store.saveRecording(this.rec);
     // מבקשים מהדפדפן לא למחוק את ההקלטות לבד כשחסר מקום
     try { await navigator.storage?.persist?.(); } catch { /* לא חובה */ }
@@ -153,13 +157,17 @@ export class LessonRecorder extends EventTarget {
   }
 
   async _startSegment() {
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
-    });
-    const track = this.stream.getAudioTracks()[0];
-    track.addEventListener("ended", () => this._interrupted("המיקרופון נסגר"));
-    // באייפון: שיחת טלפון או Siri "משתיקים" את המיקרופון לזמן מה
-    track.addEventListener("mute", () => this._note("המיקרופון הושתק (למשל שיחה נכנסת)"));
+    if (this.source === "mic") {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      });
+      const track = this.stream.getAudioTracks()[0];
+      track.addEventListener("ended", () => this._interrupted("המיקרופון נסגר"));
+      // באייפון: שיחת טלפון או Siri "משתיקים" את המיקרופון לזמן מה
+      track.addEventListener("mute", () => this._note("המיקרופון הושתק (למשל שיחה נכנסת)"));
+    } else {
+      this.stream = this.capture; // אותו מקור קול בין הקטעים – בלי לבקש שיתוף שוב כל 12 דקות
+    }
     this.mr = new MediaRecorder(this.stream, this.rec.mime ? { mimeType: this.rec.mime, audioBitsPerSecond: 48000 } : undefined);
     const segment = this.segment;
     let seq = 0;
@@ -213,6 +221,32 @@ export class LessonRecorder extends EventTarget {
     } catch { /* מד עוצמה הוא תוספת, לא חובה */ }
   }
 
+  // קול המחשב (זום/וידאו) דרך שיתוף חלון/לשונית – מחשב בלבד. נרכש פעם אחת ומשמש את כל ההקלטה.
+  async _acquireCapture() {
+    const disp = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    disp.getVideoTracks().forEach((t) => t.stop()); // את התמונה לא שומרים, רק הקול
+    const da = disp.getAudioTracks();
+    if (!da.length) { disp.getTracks().forEach((t) => t.stop()); throw Object.assign(new Error("לא סומן שיתוף אודיו. נסו שוב, ובחלון השיתוף סמנו את התיבה 'שיתוף אודיו'."), { code: "noaudio" }); }
+    da[0].addEventListener("ended", () => this._interrupted("שיתוף הקול של המחשב הופסק"));
+    this._disp = disp;
+    if (this.source === "both") {
+      this._mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const dest = ctx.createMediaStreamDestination();
+      ctx.createMediaStreamSource(new MediaStream(da)).connect(dest);
+      ctx.createMediaStreamSource(this._mic).connect(dest);
+      this._mixCtx = ctx; this.capture = dest.stream;
+    } else {
+      this.capture = new MediaStream(da);
+    }
+  }
+  _releaseCapture() {
+    try { this._disp?.getTracks().forEach((t) => t.stop()); } catch { /* */ }
+    try { this._mic?.getTracks().forEach((t) => t.stop()); } catch { /* */ }
+    try { this._mixCtx?.close(); } catch { /* */ }
+    this._disp = this._mic = this._mixCtx = this.capture = null;
+  }
+
   async _keepAwake() {
     try {
       if ("wakeLock" in navigator && document.visibilityState === "visible") {
@@ -250,7 +284,7 @@ export class LessonRecorder extends EventTarget {
       await done;
       await new Promise((r) => setTimeout(r, 400)); // לתת לחתיכה האחרונה להישמר
     }
-    this.stream?.getTracks().forEach((t) => t.stop());
+    if (this.source === "mic") this.stream?.getTracks().forEach((t) => t.stop()); // קול המחשב משותף בין הקטעים – לא עוצרים כאן
     try { await this._ctx?.close(); } catch { /* */ }
     this._ctx = null; this.analyser = null; this.level = 0;
   }
@@ -263,6 +297,7 @@ export class LessonRecorder extends EventTarget {
     this.rec.status = "paused";
     this.rec.interruptions.push({ at: new Date().toISOString(), what: reason });
     store.saveRecording(this.rec);
+    this._releaseCapture();
     this.dispatchEvent(new CustomEvent("interrupted", { detail: reason }));
     this.dispatchEvent(new Event("change"));
   }
@@ -289,6 +324,7 @@ export class LessonRecorder extends EventTarget {
     this.segment += 1;
     this.rec.status = "recording";
     try {
+      if (this.source !== "mic" && !this.capture) await this._acquireCapture();
       await this._startSegment();
     } catch (e) {
       this.rec.status = "paused";
@@ -302,6 +338,7 @@ export class LessonRecorder extends EventTarget {
     document.removeEventListener("visibilitychange", this._onVisibility);
     this.rec.status = "stopping"; // כדי שהעצירה לא תיחשב כקטיעה
     await this._closeSegment();
+    this._releaseCapture();
     try { await this.wake?.release(); } catch { /* */ }
     this.rec.status = "done";
     this.rec.endedAt = new Date().toISOString();

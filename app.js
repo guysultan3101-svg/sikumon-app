@@ -433,6 +433,12 @@ function record() {
     <label class="field">איזה קורס?<select id="course" name="course" ${active ? "disabled" : ""}><option value="" ${(recorder?.rec?.course || slot?.course) ? "" : "selected"} disabled>בחרו קורס…</option>${(p.courses || []).map((c) => `<option ${(recorder?.rec?.course || slot?.course) === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
     ${(p.courses || []).length ? "" : '<p class="notice">עוד אין קורסים. מוסיפים אותם ב<a href="#settings-study">הגדרות ← לימודים</a>.</p>'}
     <p class="small ${slot ? "" : "muted"}" style="margin-top:-12px">${active ? "" : slot ? `🕘 זוהה לפי מערכת השעות: <b>${esc(slot.course)}</b> (${DAYS[slot.day]} <bdi>${slot.start}–${slot.end}</bdi>). ההקלטה תיכנס למחברת שלו, לשיעור של היום.` : `אין שיעור במערכת השעות עכשיו, אז בוחרים קורס. <a href="#timetable">למערכת השעות</a>`}</p>
+    ${s.display && !active ? `<label class="field">מה להקליט?<select id="recSrc" name="recSrc">
+      <option value="mic">🎤 מיקרופון – שיעור בכיתה</option>
+      <option value="system">💻 הקול מהמחשב – שיעור בזום / וידאו</option>
+      <option value="both">🎤 ➕ 💻 גם וגם</option>
+    </select></label>
+    <p class="small muted" id="recSrcHint" style="margin-top:-10px"></p>` : ""}
     <div class="card rec-stage">
       <div class="clock" id="clock" role="timer">${fmtTime(recorder?.elapsedMs || 0)}</div>
       <div class="meter" aria-hidden="true"><i id="lvl"></i></div>
@@ -453,6 +459,8 @@ function record() {
   // כפתור ההקלטה כבוי עד שבוחרים קורס (כדי שההקלטה תיכנס למחברת הנכונה)
   const needCourse = () => { if (!active && !problems.length) $("#recBtn").disabled = !$("#course").value; };
   $("#course").onchange = needCourse; needCourse();
+  const srcSel = $("#recSrc");
+  if (srcSel) { const srcHint = () => { $("#recSrcHint").textContent = srcSel.value === "mic" ? "" : 'כשתלחצו "הקלט", ייפתח חלון של כרום — בחרו את חלון/לשונית הזום, וסמנו למטה את "שיתוף אודיו". אפשר אז לעבור לזום, ההקלטה ממשיכה.'; }; srcSel.onchange = srcHint; srcHint(); }
   $("#starBtn") && ($("#starBtn").onclick = starNow);
   $("#finishPaused") && ($("#finishPaused").onclick = finish);
   bindRecorderUi();
@@ -483,6 +491,11 @@ function beep() {
   try { const a = new (window.AudioContext || window.webkitAudioContext)(); const o = a.createOscillator(); o.frequency.value = 880; o.connect(a.destination); o.start(); o.stop(a.currentTime + 0.25); setTimeout(() => a.close(), 600); } catch { /* */ }
 }
 setInterval(async () => {
+  const r0 = recorder;
+  if (r0?.running && r0.rec.slotEnd && !r0.rec.warned15) {
+    const e0 = new Date(r0.rec.slotEnd).getTime();
+    if (Date.now() >= e0 - 15 * 60e3 && Date.now() < e0) { r0.rec.warned15 = true; toast("🕘 השיעור נגמר בעוד ~15 דקות. ההקלטה תיעצר לבד בסוף, ותוכלו להאריך."); }
+  }
   const end = recorder?.running && recorder.rec.slotEnd ? new Date(recorder.rec.slotEnd) : null;
   if (!end || Date.now() < end || endPrompt) return;
   beep(); navigator.vibrate?.([200, 100, 200]);
@@ -501,11 +514,11 @@ setInterval(async () => {
 }, 20000);
 
 // מתחיל הקלטה ומשייך אותה לשיעור (של היום בקורס הזה, או לשיעור שפתוח במחברת)
-async function startRecording(course, lessonId = null) {
+async function startRecording(course, lessonId = null, source = "mic") {
   const lesson = lessonId ? await store.getLesson(lessonId) : await lessonForToday(course);
   const r = new LessonRecorder();
   bindRecorder(r);
-  await r.start(course, lesson.id);
+  await r.start(course, lesson.id, { source });
   recorder = r; // רק אחרי שהמיקרופון באמת נפתח
   // אם השיעור במערכת השעות – זוכרים מתי הוא נגמר, כדי להציע לעצור לבד
   const slot = currentSlot();
@@ -525,7 +538,7 @@ async function onRecClick() {
   busy = true; $("#recBtn").disabled = true;
   try {
     if (!recorder || recorder.rec?.status === "done" || !recorder.rec) {
-      await startRecording($("#course").value);
+      await startRecording($("#course").value, null, $("#recSrc")?.value || "mic");
     } else if (recorder.rec.status === "paused") {
       await recorder.resume();
       toast("ההקלטה ממשיכה");
@@ -539,7 +552,7 @@ async function onRecClick() {
   } catch (e) {
     busy = false;
     if ($("#recBtn")) $("#recBtn").disabled = false;
-    toast(e.name === "NotAllowedError" ? "צריך לאשר גישה למיקרופון. באייפון: הגדרות ← Safari ← מיקרופון ← לאפשר." : "לא הצלחתי להתחיל להקליט (" + e.name + "). נסו שוב.");
+    toast(e.code === "noaudio" ? e.message : e.name === "NotAllowedError" ? "צריך לאשר גישה למיקרופון/לשיתוף. באייפון: הגדרות ← Safari ← מיקרופון ← לאפשר." : "לא הצלחתי להתחיל להקליט (" + e.name + "). נסו שוב.");
   }
 }
 
@@ -1719,7 +1732,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "46";
+const APP_VERSION = "47";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
