@@ -179,7 +179,7 @@ async function home() {
     ${tq.length ? `<a class="item" href="#questions"><span style="min-width:0"><span class="t">🙋 ${tq.length} שאלות למתרגל</span><br><span class="small muted">${esc(tq[0].course)}: ${esc(tq[0].text)}</span></span></a>` : ""}
     ${gaps.length ? `<a class="item" href="#missing"><span style="min-width:0"><span class="t">📋 להשלים: ${gaps.length} דברים</span><br><span class="small muted">${esc(gaps[0].text)}</span></span></a>` : ""}
     ${hasMarks ? `<a class="item" href="#reels"><span><span class="t">🎬 הרגעים החשובים מהשיעורים</span><br><span class="small muted">קטע של דקה סביב כל ⭐ שסימנת</span></span></a>` : ""}
-    ${study.getCode() ? "" : `<div class="grid2"><a class="card" href="#upload"><h3>📄 סיכום ממצגת</h3><p class="small muted">מעלים מצגת או PDF של שיעור ומקבלים סיכום אישי + מבחן</p></a><a class="card" href="#connect"><h3>🔗 חיבור למודל</h3><p class="small muted">תוסף לכרום במחשב – כל קובץ חדש במודל מסוכם לבד</p></a></div>`}
+    ${study.getCode() ? "" : `<div class="grid2"><a class="card" href="#upload"><b class="card-t">📄 סיכום ממצגת</b><p class="small muted">מעלים מצגת או PDF של שיעור ומקבלים סיכום אישי + מבחן</p></a><a class="card" href="#connect"><b class="card-t">🔗 חיבור למודל</b><p class="small muted">תוסף לכרום במחשב – כל קובץ חדש במודל מסוכם לבד</p></a></div>`}
     ${installHint()}
     <section class="soft">
       <h3>מה בודקים בגרסה הזו?</h3>
@@ -1480,11 +1480,11 @@ async function routeInner() {
     const pods = await podcastsList();
     const nx = (await extras.upcoming())[0];
     view.querySelector(".page h1")?.insertAdjacentHTML("afterend", `<div class="grid2">
-      <a class="card" href="#upload"><h3>📄 סיכום ממצגת / PDF</h3><p class="small muted">מעלים קובץ של שיעור, ומקבלים סיכום לפי איך שאת/ה לומד/ת</p></a>
-      <a class="card star-card" href="#exam-focus"><h3>⭐ מה יהיה במבחן</h3><p class="small muted">כל מה שהמרצים אמרו שחשוב, מכל הסיכומים</p></a>
+      <a class="card" href="#upload"><b class="card-t">📄 סיכום ממצגת / PDF</b><p class="small muted">מעלים קובץ של שיעור, ומקבלים סיכום לפי איך שאת/ה לומד/ת</p></a>
+      <a class="card star-card" href="#exam-focus"><b class="card-t">⭐ מה יהיה במבחן</b><p class="small muted">כל מה שהמרצים אמרו שחשוב, מכל הסיכומים</p></a>
       ${pods.length ? `<a class="card" href="#podcasts"><h3>🎧 פודקאסטים</h3><p class="small muted">${pods.length} פרקים קצרים על השיעורים – נועה ואיתי מסבירים</p></a>` : ""}
-      <a class="card" href="#missed-lesson"><h3>🙋 פספסתי שיעור</h3><p class="small muted">מבקשים מהחברים בקורס סיכום, תמונה של הלוח או הקלטה</p></a>
-      <a class="card" href="#deadlines"><h3>⏳ לוח מבחנים והגשות</h3><p class="small muted">${nx ? esc(nx.title) + " · " + extras.inDays(extras.daysTo(nx.when)) : "הוסיפו את תאריכי המבחנים"}</p></a></div>`);
+      <a class="card" href="#missed-lesson"><b class="card-t">🙋 פספסתי שיעור</b><p class="small muted">מבקשים מהחברים בקורס סיכום, תמונה של הלוח או הקלטה</p></a>
+      <a class="card" href="#deadlines"><b class="card-t">⏳ לוח מבחנים והגשות</b><p class="small muted">${nx ? esc(nx.title) + " · " + extras.inDays(extras.daysTo(nx.when)) : "הוסיפו את תאריכי המבחנים"}</p></a></div>`);
     if (pods.length) {
       view.querySelector(".page .grid2")?.insertAdjacentHTML("afterend", `<section class="pod-strip"><h2 style="font-size:20px">🎧 האחרונים</h2><div class="list">${pods.slice(-3).reverse().map((p) => podCard(p)).join("")}</div><a class="small" href="#podcasts">כל הפודקאסטים (${pods.length})</a></section>`);
       // ▶ קטן ליד כל סיכום שיש לו פודקאסט
@@ -1513,7 +1513,7 @@ async function routeInner() {
   else if (hash.startsWith("msg-")) await planner.message(hash.slice(4), ai.miniMd);
   else if (hash === "quizzes") {
     await study.quizzes();
-    view.querySelector(".page > .row")?.insertAdjacentHTML("afterend", `<div class="grid2"><a class="card" href="#cards"><h3>🃏 כרטיסיות זיכרון</h3><p class="small muted">חזרה מרווחת מכל המבחנים ודפי הנוסחאות</p></a><a class="card" href="#progress"><h3>📈 ההתקדמות שלי</h3><p class="small muted">ציונים לאורך זמן, ובמה כדאי לחזור</p></a><a class="card" href="#sim"><h3>⏱️ סימולציית מבחן</h3><p class="small muted">טיימר, שאלות מכל הקורס, ציון בסוף</p></a><a class="card" href="#grades"><h3>🎯 כמה אני צריך במבחן?</h3><p class="small muted">לפי המשקלות והציונים שכבר יש</p></a></div>`);
+    view.querySelector(".page > .row")?.insertAdjacentHTML("afterend", `<div class="grid2"><a class="card" href="#cards"><b class="card-t">🃏 כרטיסיות זיכרון</b><p class="small muted">חזרה מרווחת מכל המבחנים ודפי הנוסחאות</p></a><a class="card" href="#progress"><b class="card-t">📈 ההתקדמות שלי</b><p class="small muted">ציונים לאורך זמן, ובמה כדאי לחזור</p></a><a class="card" href="#sim"><b class="card-t">⏱️ סימולציית מבחן</b><p class="small muted">טיימר, שאלות מכל הקורס, ציון בסוף</p></a><a class="card" href="#grades"><b class="card-t">🎯 כמה אני צריך במבחן?</b><p class="small muted">לפי המשקלות והציונים שכבר יש</p></a></div>`);
   }
   else if (hash === "quiz-new") study.quizEditor();
   else if (hash.startsWith("quiz-mix-")) await study.mixQuiz(+hash.slice(9));
@@ -1718,7 +1718,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "44";
+const APP_VERSION = "45";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

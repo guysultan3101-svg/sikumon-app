@@ -114,7 +114,7 @@ export function initAssignments(ctx) {
         <li>"להעלות למודל" – המחבר לכרום במחשב שם את הקובץ במטלה (בדרך כלל כטיוטה), ואתם רק לוחצים שם "הגשת המטלה".</li></ol>
         <p class="small muted">העוזר החכם יכול להסביר את המטלה, לבדוק ולתת הערות – אבל לא כותב עבודה להגשה במקומכם. זה הכלל באוניברסיטה.</p></section>
       ${[...byCourse].map(([c, l]) => `<section><h2 style="font-size:20px">${esc(c)} <span class="chip">${l.length}</span></h2><div class="as-list">${l.map(card).join("")}</div></section>`).join("")}
-      ${open.length ? "" : `<section class="soft"><h3>🎉 אין עבודות פתוחות</h3><p class="small muted">${list.length ? "כל מה שהיה פתוח הוגש או שהמועד עבר." : "כשמרצה יפתח מטלה במודל, היא תופיע כאן לבד (דרך החיבור למודל)."}</p></section>`}
+      ${open.length ? "" : `<section class="soft"><h2 style="font-size:20px;margin:0">🎉 אין עבודות פתוחות</h2><p class="small muted">${list.length ? "כל מה שהיה פתוח הוגש או שהמועד עבר." : "כשמרצה יפתח מטלה במודל, היא תופיע כאן לבד (דרך החיבור למודל)."}</p></section>`}
       ${rest.length ? `<details class="soft"><summary><b>הוגשו / עבר המועד (${rest.length})</b></summary><div class="as-list" style="margin-top:10px">${rest.map(card).join("")}</div></details>` : ""}
     </div>`;
     bind(list);

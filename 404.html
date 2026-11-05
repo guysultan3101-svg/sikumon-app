@@ -25,6 +25,7 @@
     --blue: #5B8DEF; --blue-ink: #0B1120; --violet: #A78BFA; --marker: #FACC15; --pink: #F472B6;
     --margin: #FB7185; --line: #24304a; --brand: #8B8FF0; color-scheme: dark;
   }
+  :root:not([data-theme="light"]) .grade { color: var(--margin); }
 }
 * { box-sizing: border-box; }
 html, body { min-height: 100%; }
@@ -58,7 +59,7 @@ body { overflow-x: hidden; }
   font: 900 clamp(64px, 18vw, 120px)/1 var(--font-display); color: var(--brand); letter-spacing: -.02em;
 }
 .grade {
-  font: 700 18px/1 var(--font-display); color: var(--margin); border: 2.5px solid var(--margin);
+  font: 700 18px/1 var(--font-display); color: #BE123C; border: 2.5px solid var(--margin);
   border-radius: 999px; padding: 10px 16px; transform: rotate(-8deg); white-space: nowrap; letter-spacing: 0; word-spacing: .25em;
 }
 h1 { font: 900 clamp(26px, 5vw, 34px)/1.2 var(--font-display); margin: 6px 0 12px; text-wrap: balance; }

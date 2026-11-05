@@ -153,8 +153,8 @@ export function initPractice(ctx) {
       <a href="#quizzes" class="small">→ מבחנים</a>
       <h1 style="font-size:30px">📈 ההתקדמות שלי</h1>
       <div class="grid3"><div class="stat"><b>${p.streak || 0} 🔥</b><span>ימים ברצף</span></div><div class="stat"><b>${at.length}</b><span>מבחנים שעשית</span></div><div class="stat"><b>${Object.values(st.boxes).filter((b) => b.box >= 4).length}</b><span>כרטיסיות שיושבות טוב</span></div></div>
-      ${weak.length ? `<section class="soft"><h3>כדאי לחזור על</h3><div class="list" style="margin-top:8px">${weak.map((w) => `<a class="item" href="#quiz-${esc(w.quizId)}"><span style="min-width:0"><span class="t">${esc(w.title)}</span><br><span class="small muted">${esc(w.course)}</span></span><b class="score"><bdi>${w.score}/${w.total}</bdi></b></a>`).join("")}</div></section>` : ""}
-      ${rows.map((r) => `<section class="soft prog-row"><div><h3>${esc(r.c)}</h3><p class="small muted">${r.lessons} שיעורים במחברת · ${r.sums} סיכומים · ${r.a.length} מבחנים · כרטיסיות ${r.mastered}/${r.cards}</p></div>
+      ${weak.length ? `<section class="soft"><h2 style="font-size:20px;margin:0">כדאי לחזור על</h2><div class="list" style="margin-top:8px">${weak.map((w) => `<a class="item" href="#quiz-${esc(w.quizId)}"><span style="min-width:0"><span class="t">${esc(w.title)}</span><br><span class="small muted">${esc(w.course)}</span></span><b class="score"><bdi>${w.score}/${w.total}</bdi></b></a>`).join("")}</div></section>` : ""}
+      ${rows.map((r) => `<section class="soft prog-row"><div><h2 style="font-size:18px;margin:0">${esc(r.c)}</h2><p class="small muted">${r.lessons} שיעורים במחברת · ${r.sums} סיכומים · ${r.a.length} מבחנים · כרטיסיות ${r.mastered}/${r.cards}</p></div>
         <div class="prog-side">${r.avg !== null ? `<b class="score ${r.avg >= 80 ? "full" : ""}">${r.avg}%</b>` : '<span class="small muted">עוד אין ציונים</span>'}${spark(r.pts)}</div></section>`).join("") || '<p class="muted">עוד אין נתונים. עשו מבחן או כרטיסיות, וההתקדמות תופיע כאן.</p>'}
     </div>`;
   }

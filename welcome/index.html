@@ -221,7 +221,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .mail-subj { font: 700 17px/1.3 var(--font-display); margin-top: 6px; }
 .sample-tag { display: inline-block; font: 500 11px/1 var(--font-mono); background: var(--grid); color: var(--ink-soft); border-radius: 6px; padding: 5px 7px; margin-top: 8px; }
 .mail-body { padding-top: 12px; font-size: 14.5px; line-height: 1.55; display: grid; gap: 10px; }
-.mail-body h4 { margin: 0; font: 700 14px/1.2 var(--font-display); color: var(--blue); }
+.mail-body .mail-h { margin: 0; font: 700 14px/1.2 var(--font-display); color: var(--blue); }
 .mail-body ol { margin: 0; padding-inline-start: 18px; display: grid; gap: 4px; }
 .formula { font-family: var(--font-mono); font-size: 13px; background: var(--grid); border-radius: 8px; padding: 8px 10px; direction: ltr; text-align: left; }
 .formula b { color: var(--pink); }
@@ -357,12 +357,12 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
           <span class="sample-tag">דוגמה</span>
         </div>
         <div class="mail-body">
-          <h4>שיווי משקל</h4>
+          <p class="mail-h">שיווי משקל</p>
           <p>המחיר שבו הכמות שהקונים רוצים שווה לכמות שהמוכרים מציעים.</p>
           <div class="formula"><b>★</b> Qd = 100 − 2P · Qs = 20 + 2P ← P = 20, Q = 60</div>
-          <h4>⭐ מה חשוב למבחן</h4>
+          <p class="mail-h">⭐ מה חשוב למבחן</p>
           <p>לחשב שיווי משקל, ולהסביר מה קורה כשעקומה זזה.</p>
-          <h4>🎓 גם בכיתה שלכם</h4>
+          <p class="mail-h">🎓 גם בכיתה שלכם</p>
           <p>נועה ויואב שיתפו סיכומים מהשבוע.</p>
         </div>
       </div>

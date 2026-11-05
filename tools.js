@@ -158,7 +158,7 @@ export function initTools(ctx) {
       const d = g[c] || { credits: "", target: 60, items: [{ name: "תרגילים", w: 20, g: "" }, { name: "מבחן", w: 80, g: "" }] };
       const r = calc(d);
       const msg = r.wSum !== 100 ? `<span class="cd warm">סכום המשקלות ${r.wSum}% (צריך 100%)</span>` : r.final !== null ? `<span class="cd ${r.final >= r.target ? "" : "hot"}">ציון סופי: ${r.final}</span>` : r.need === null ? "" : r.need <= 0 ? `<span class="cd">כבר עברת את היעד 🎉</span>` : r.need > 100 ? `<span class="cd hot">צריך ${Math.ceil(r.need)} – לא אפשרי, אולי מועד ב׳/שקלול</span>` : `<span class="cd ${r.need > 85 ? "hot" : r.need > 70 ? "warm" : ""}">צריך לפחות ${Math.ceil(r.need)} במה שנשאר</span>`;
-      return `<section class="soft gr-card" data-c="${ci}"><div class="row" style="justify-content:space-between"><h3>${esc(c)}</h3>${msg}</div>
+      return `<section class="soft gr-card" data-c="${ci}"><div class="row" style="justify-content:space-between"><h2 style="font-size:18px;margin:0">${esc(c)}</h2>${msg}</div>
         <div class="row small" style="gap:8px;margin-top:6px"><label>יעד <input type="number" class="gr-t" value="${d.target}" min="0" max="100" style="width:80px" inputmode="decimal"></label><label>נ״ז <input type="number" class="gr-c" value="${d.credits}" min="0" step="0.5" style="width:80px" inputmode="decimal"></label>${r.sofar !== null ? `<span class="muted">ממוצע עד עכשיו: ${r.sofar}</span>` : ""}</div>
         <div class="gr-items">${d.items.map(row).join("")}</div><button class="btn ghost small-btn gr-add">${svg("plus")} רכיב</button></section>`;
     }).join("");

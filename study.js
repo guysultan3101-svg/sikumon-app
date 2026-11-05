@@ -96,7 +96,7 @@ export function initStudy(ctx) {
     if (code) return `<div class="soft small row" style="justify-content:space-between"><span>🔗 <b>מחובר למודל דרך המחשב.</b> ${p.lastSync ? `עודכן <bdi>${new Date(p.lastSync).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</bdi>` : ""}</span><button class="btn ghost small-btn" id="syncBtn">רענון</button></div>`;
     // קוד צימוד מהמחשב – רק דרך הקישור המיוחד (#summaries?pair). לבודקים זה מבלבל
     if (!/pair/.test(location.href)) return "";
-    return `<details class="soft small"><summary>יש לך קוד צימוד מהמחשב?</summary><section class="pair" style="margin-top:8px"><h3>🔗 חיבור בקוד צימוד</h3>
+    return `<details class="soft small"><summary>יש לך קוד צימוד מהמחשב?</summary><section class="pair" style="margin-top:8px"><h2 style="font-size:19px;margin:0">🔗 חיבור בקוד צימוד</h2>
       <p class="small muted">מקלידים פעם אחת את קוד הצימוד מהמחשב. מאותו רגע, כל מה שחדש במודל, כל סיכום וכל מבחן נכנסים לאפליקציה לבד.</p>
       <div class="row" style="margin-top:10px"><input type="text" id="pairCode" name="pairCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX" style="flex:1;min-width:180px;direction:ltr;text-align:center;font-family:var(--font-mono);letter-spacing:.1em"><button class="btn" id="pairGo">חיבור</button></div></section></details>`;
   }
@@ -141,7 +141,7 @@ export function initStudy(ctx) {
       ${pairCard()}
       ${groups.map(([course, list]) => `<section class="soft"><h2 style="font-size:20px">${esc(course)}</h2><div class="list" style="margin-top:10px">${list.map((s) =>
         `<a class="item" href="#sum-${esc(s.id)}"><span style="min-width:0"><span class="t">${escT(s.title)}</span><br><span class="small muted">${s.from ? "🎓 מ" + esc(s.from) + " · " : ""}${s.kind === "formulas" ? "דף נוסחאות · " : srcIcon(s)}<bdi>${esc(when(s))}</bdi></span></span>${s.kind === "formulas" ? '<span class="chip">📐 נוסחאות</span>' : ""}</a>`).join("")}</div></section>`).join("")}
-      ${items.length ? "" : `<section class="soft"><h3>עוד אין סיכומים</h3><p class="small muted">העלו מצגת או PDF של שיעור, או חברו את המודל – והסיכומים יגיעו לכאן, מותאמים לאיך שאת/ה לומד/ת.</p><div class="row" style="margin-top:8px"><a class="btn" href="#upload">📄 העלאת מצגת</a><a class="btn ghost" href="#connect">🔗 חיבור למודל</a></div></section>`}
+      ${items.length ? "" : `<section class="soft"><h2 style="font-size:20px;margin:0">עוד אין סיכומים</h2><p class="small muted">העלו מצגת או PDF של שיעור, או חברו את המודל – והסיכומים יגיעו לכאן, מותאמים לאיך שאת/ה לומד/ת.</p><div class="row" style="margin-top:8px"><a class="btn" href="#upload">📄 העלאת מצגת</a><a class="btn ghost" href="#connect">🔗 חיבור למודל</a></div></section>`}
 
     </div>`;
     bindImport(summaries);
@@ -174,7 +174,7 @@ export function initStudy(ctx) {
     const list = qs;
     view.innerHTML = `<div class="page">
       <div class="row" style="justify-content:space-between"><h1 style="font-size:32px">המבחנים שלי</h1><a class="btn" href="#quiz-new">${svg("plus")} מבחן חדש</a></div>
-      ${courses.length ? `<section class="card"><h3>חזרה למבחן</h3><p class="small muted">שאלות מעורבבות מכל המבחנים של הקורס, כמו במבחן אמיתי.</p>
+      ${courses.length ? `<section class="card"><h2 style="font-size:20px;margin:0">חזרה למבחן</h2><p class="small muted">שאלות מעורבבות מכל המבחנים של הקורס, כמו במבחן אמיתי.</p>
         <div class="row" style="margin-top:10px"><select id="mixCourse" name="mixCourse" style="flex:1;min-width:200px">${courses.map((c, i) => `<option value="${i}">${esc(c)}</option>`).join("")}</select><button class="btn" id="mixGo">התחלה</button></div></section>` : ""}
       ${byCourse(list).map(([course, items]) => `<section class="soft"><h2 style="font-size:20px">${esc(course)}</h2><div class="list" style="margin-top:10px">${items.map((q) => {
         const st = stats(q.id);
@@ -185,7 +185,7 @@ export function initStudy(ctx) {
       <section class="soft"><h2 style="font-size:20px">היסטוריה</h2>
         ${attempts.length ? `<div class="list" style="margin-top:10px">${attempts.slice(0, 30).map((a) => `<div class="item"><span style="min-width:0"><span class="t">${escT(a.title)}</span><br><span class="small muted">${esc(a.course)} · <bdi>${new Date(a.at).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</bdi></span></span><b class="score ${a.score === a.total ? "full" : ""}"><bdi>${a.score}/${a.total}</bdi></b></div>`).join("")}</div>` : '<p class="muted small" style="margin-top:6px">עוד לא עשית מבחנים. כל מבחן שתעשה יישמר כאן, עם הציון והתאריך.</p>'}
       </section>
-      ${qs.length ? "" : `<section class="soft"><h3>עוד אין מבחנים</h3><p class="small muted">מבחן קצר נוצר לבד עם כל סיכום. העלו מצגת של שיעור כדי להתחיל.</p><a class="btn" href="#upload" style="margin-top:8px">📄 העלאת מצגת</a></section>`}
+      ${qs.length ? "" : `<section class="soft"><h2 style="font-size:20px;margin:0">עוד אין מבחנים</h2><p class="small muted">מבחן קצר נוצר לבד עם כל סיכום. העלו מצגת של שיעור כדי להתחיל.</p><a class="btn" href="#upload" style="margin-top:8px">📄 העלאת מצגת</a></section>`}
     </div>`;
     $("#mixGo") && ($("#mixGo").onclick = () => { location.hash = "quiz-mix-" + $("#mixCourse").value; });
     view.querySelectorAll(".del-quiz").forEach((b) => (b.onclick = async () => {

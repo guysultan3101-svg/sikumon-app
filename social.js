@@ -204,7 +204,7 @@ export function initSocial(ctx) {
     return `<article class="post" data-post="${esc(p.id)}">
       <div class="post-h">${avatar(p.author)}<span style="min-width:0;flex:1"><a href="#u-${esc(unameOf(p.author))}"><b>${esc(nameOf(p.author))}</b></a> <span class="small muted" dir="ltr">@${esc(unameOf(p.author))}</span><br><span class="small muted">${esc(p.course)}${p.course ? " · " : ""}${when(p.created_at)} · ${VIS[p.visibility]}</span></span>
         ${mine ? '<button class="tool" type="button" data-del aria-label="מחיקת הפוסט">🗑️</button>' : '<button class="tool" type="button" data-menu aria-label="דיווח או חסימה">⋯</button>'}</div>
-      ${p.title ? `<h3>${p.md ? "📄 " : ""}${esc(p.title)}</h3>` : ""}${p.body ? `<p class="post-body">${esc(p.body)}</p>` : ""}
+      ${p.title ? `<h2 style="font-size:18px;margin:0">${p.md ? "📄 " : ""}${esc(p.title)}</h2>` : ""}${p.body ? `<p class="post-body">${esc(p.body)}</p>` : ""}
       ${mediaHtml(p, d)}
       ${p.md ? `<details><summary class="small"><b>לקריאת הסיכום</b></summary><div class="md-body" style="margin-top:8px">${mdToHtml(p.md)}</div></details>` : ""}
       <div class="post-a"><button type="button" data-like aria-pressed="${liked}">${liked ? "❤️" : "🤍"} <bdi>${nLikes}</bdi></button>
@@ -270,7 +270,7 @@ export function initSocial(ctx) {
       const today = new Date().toLocaleDateString("en-CA").slice(5);
       const midnight = new Date(new Date().toDateString());
       const soon = bd.filter((b) => { const n = (new Date(midnight.getFullYear() + "-" + b.birthday.slice(5) + "T00:00") - midnight) / 864e5; return n > 0 && n <= 7; });
-      view.innerHTML = `<div class="page">${subnav("social")}
+      view.innerHTML = `<div class="page"><h1 class="vh">הפיד שלי</h1>${subnav("social")}
         ${bd.filter((b) => b.birthday.slice(5) === today).map((b) => `<div class="bday"><span>🎂 היום יום ההולדת של <b>${esc(b.full_name)}</b>!</span><a class="btn ghost" href="#dm-${esc(b.username)}">שליחת ברכה</a></div>`).join("")}
         ${soon.length ? `<p class="small muted">🎈 ימי הולדת בשבוע הקרוב: ${soon.map((b) => esc(b.full_name)).join(", ")}</p>` : ""}
         <button class="btn" type="button" id="newPost">➕ פוסט חדש</button>
@@ -388,14 +388,14 @@ export function initSocial(ctx) {
       const g = await graph();
       const row = (id, btns, sub = "") => `<div class="item">${avatar(id)}<a href="#u-${esc(unameOf(id))}" style="flex:1;min-width:0;color:inherit;text-decoration:none"><span class="t">${esc(nameOf(id))}</span><br><span class="small muted"><span dir="ltr">@${esc(unameOf(id))}</span>${sub}</span></a>${btns}</div>`;
       const shareSub = (id) => { const a = g.iShare(id).length, b = g.theyShare(id).length; return a && b ? " · 🎓 אותה כיתה" : b ? " · 🎓 משתף/ת איתך – שתפו בחזרה" : a ? " · 🎓 מחכה שגם הוא/היא ישתף" : ""; };
-      view.innerHTML = `<div class="page">${subnav("social-friends")}
-        <section class="soft" style="display:grid;gap:10px"><h3>הוספת חבר/ה</h3>
+      view.innerHTML = `<div class="page"><h1 class="vh">החברים שלי</h1>${subnav("social-friends")}
+        <section class="soft" style="display:grid;gap:10px"><h2 style="font-size:18px;margin:0">הוספת חבר/ה</h2>
           <form class="fr-form" id="frForm"><input type="text" id="frQ" dir="ltr" placeholder="שם המשתמש של החבר/ה" aria-label="שם משתמש של החבר/ה" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send"><button class="btn" type="submit">➕ שליחת בקשה</button></form>
           <p class="small muted">החבר/ה צריך/ה לאשר. השם שלך: <b dir="ltr">@${esc(api.profile()?.username || "")}</b> <button class="btn ghost" type="button" id="frShare" style="min-height:32px;padding:2px 10px">שיתוף השם</button></p>
         </section>
-        ${g.incoming.length ? `<section style="display:grid;gap:8px"><h3>בקשות חדשות (${g.incoming.length})</h3>${g.incoming.map((f) => row(f.requester, `<button class="btn" data-ok="${f.id}" data-who="${f.requester}" type="button">אישור</button><button class="btn ghost" data-no="${f.id}" type="button">לא עכשיו</button>`)).join("")}</section>` : ""}
-        ${g.outgoing.length ? `<section style="display:grid;gap:8px"><h3>ממתינים לאישור</h3>${g.outgoing.map((f) => row(f.addressee, `<button class="btn ghost" data-no="${f.id}" type="button">ביטול</button>`)).join("")}</section>` : ""}
-        <section style="display:grid;gap:8px"><h3>החברים שלי (${g.friends.length})</h3>${g.friends.map((f) => { const id = g.other(f); return row(id, `<button class="btn ghost" data-share="${id}" type="button" aria-label="אותה כיתה">🎓</button><a class="btn ghost" href="#dm-${esc(unameOf(id))}" aria-label="הודעה">💬</a>`, shareSub(id)); }).join("") || '<p class="muted small">עוד אין חברים. הוסיפו לפי שם משתמש 👆</p>'}</section></div>`;
+        ${g.incoming.length ? `<section style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">בקשות חדשות (${g.incoming.length})</h2>${g.incoming.map((f) => row(f.requester, `<button class="btn" data-ok="${f.id}" data-who="${f.requester}" type="button">אישור</button><button class="btn ghost" data-no="${f.id}" type="button">לא עכשיו</button>`)).join("")}</section>` : ""}
+        ${g.outgoing.length ? `<section style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">ממתינים לאישור</h2>${g.outgoing.map((f) => row(f.addressee, `<button class="btn ghost" data-no="${f.id}" type="button">ביטול</button>`)).join("")}</section>` : ""}
+        <section style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">החברים שלי (${g.friends.length})</h2>${g.friends.map((f) => { const id = g.other(f); return row(id, `<button class="btn ghost" data-share="${id}" type="button" aria-label="אותה כיתה">🎓</button><a class="btn ghost" href="#dm-${esc(unameOf(id))}" aria-label="הודעה">💬</a>`, shareSub(id)); }).join("") || '<p class="muted small">עוד אין חברים. הוסיפו לפי שם משתמש 👆</p>'}</section></div>`;
       $("#frForm").onsubmit = async (e) => {
         e.preventDefault();
         const u = $("#frQ").value.trim().replace(/^@/, "").toLowerCase(); if (!u) return;
@@ -435,11 +435,11 @@ export function initSocial(ctx) {
       const all = [...t.by.entries()].sort((a, b) => b[1].at(-1).created_at.localeCompare(a[1].at(-1).created_at));
       const reqs = all.filter(([o]) => t.isReq(o)), main = all.filter(([o]) => !t.isReq(o));
       const list = box === "req" ? reqs : main;
-      view.innerHTML = `<div class="page" style="max-width:720px">${subnav("messages")}
+      view.innerHTML = `<div class="page" style="max-width:720px"><h1 class="vh">ההודעות שלי</h1>${subnav("messages")}
         <div class="row"><a class="btn ${box === "req" ? "ghost" : ""}" href="#messages">ראשי</a><a class="btn ${box === "req" ? "" : "ghost"}" href="#messages-req">בקשות${reqs.length ? ` (${reqs.length})` : ""}</a></div>
         ${box === "req" ? '<p class="small muted">הודעות ממי שאינו חבר שלך. הוא לא יודע שקראת עד שתאשר/י.</p>' : ""}
         <div class="list">${list.map(([o, ms]) => { const m = ms.at(-1), un = ms.some((x) => x.recipient === me && !x.read_at); return `<a class="item" href="#dm-${esc(unameOf(o))}">${avatar(o)}<span style="flex:1;min-width:0"><span class="t">${esc(nameOf(o))}</span>${un ? ' <span class="chip new">חדש</span>' : ""}<br><span class="small muted" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.sender === me ? "את/ה: " : ""}${esc(m.body)}</span></span><span class="small muted">${when(m.created_at)}</span></a>`; }).join("") || '<p class="muted">אין כאן הודעות</p>'}</div>
-        ${box === "req" ? "" : `<section class="soft"><h3>הודעה חדשה לחבר/ה</h3><div class="stories" style="margin-top:8px">${[...t.friendIds].map((id) => `<a class="story" href="#dm-${esc(unameOf(id))}">${avatar(id)}<span class="small">${esc(nameOf(id).split(" ")[0])}</span></a>`).join("") || '<p class="small muted">עוד אין חברים</p>'}</div><p class="small muted">אפשר גם לשלוח הודעה למי שאינו חבר – מהפרופיל שלו.</p></section>`}</div>`;
+        ${box === "req" ? "" : `<section class="soft"><h2 style="font-size:18px;margin:0">הודעה חדשה לחבר/ה</h2><div class="stories" style="margin-top:8px">${[...t.friendIds].map((id) => `<a class="story" href="#dm-${esc(unameOf(id))}">${avatar(id)}<span class="small">${esc(nameOf(id).split(" ")[0])}</span></a>`).join("") || '<p class="small muted">עוד אין חברים</p>'}</div><p class="small muted">אפשר גם לשלוח הודעה למי שאינו חבר – מהפרופיל שלו.</p></section>`}</div>`;
     } catch (e) { fail(e); }
   }
   let dmTimer = null;
@@ -451,7 +451,7 @@ export function initSocial(ctx) {
       if (!p) { view.innerHTML = `<div class="page"><p>לא מצאנו את @${esc(username)}</p></div>`; return; }
       people.set(p.id, p);
       const here = () => decodeURIComponent(location.hash.slice(1)) === "dm-" + username;
-      view.innerHTML = `<div class="page dm" style="max-width:720px">
+      view.innerHTML = `<div class="page dm" style="max-width:720px"><h1 class="vh">שיחה עם ${esc(p.full_name)}</h1>
         <a class="row" href="#u-${esc(p.username)}" style="color:inherit;text-decoration:none">${avatar(p.id)}<span><b>${esc(p.full_name)}</b><br><span class="small muted" dir="ltr">@${esc(p.username)}</span></span></a>
         <div id="dmReq"></div><div class="dm-log" id="dmLog"><p class="muted small">טוען…</p></div>
         <form class="chat-form" id="dmForm"><textarea id="dmIn" rows="1" placeholder="הודעה…" aria-label="הודעה" maxlength="2000"></textarea><button class="btn" type="submit">שליחה</button></form>

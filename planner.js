@@ -47,7 +47,7 @@ export function initPlanner(ctx) {
         <div class="row" style="gap:6px"><a class="btn ghost small-btn" href="#calendar-${prev}" aria-label="חודש קודם">→</a><a class="btn ghost small-btn" href="#calendar">היום</a><a class="btn ghost small-btn" href="#calendar-${next}" aria-label="חודש הבא">←</a></div>
       </div>
       <div class="legend"><span><i class="ev lesson"></i>שיעורים</span><span><i class="ev deadline"></i>הגשות</span><span><i class="ev exam"></i>מבחנים</span></div>
-      <div class="cal" role="grid">
+      <div class="cal" role="group" aria-label="לוח החודש">
         ${DAYS.map((d) => `<div class="cal-h">${d}</div>`).join("")}
         ${cells.map((d) => {
           const k = key(d), list = byDay[k] || [];
@@ -65,7 +65,7 @@ export function initPlanner(ctx) {
     const showDay = async (k) => {
       view.querySelectorAll(".cal-d").forEach((b) => b.classList.toggle("sel", b.dataset.k === k));
       const list = byDay[k] || [];
-      $("#dayBox").innerHTML = `<h3>${new Date(k + "T12:00").toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}</h3>
+      $("#dayBox").innerHTML = `<h2 style="font-size:20px;margin:0">${new Date(k + "T12:00").toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}</h2>
         <div class="list" style="margin-top:8px">${list.map((e) => `<a class="item day-ev" data-kind="${e.kind}" data-course="${esc(e.course)}" data-date="${e.date}" ${e.url ? `href="${esc(e.url)}" target="_blank" rel="noopener"` : `href="#"`}><span style="min-width:0"><span class="t"><i class="ev ${e.kind}"></i> ${esc(e.title)}</span><br><span class="small muted"><bdi>${e.time}${e.end ? "–" + e.end : ""}</bdi>${e.kind === "lesson" ? " · פתיחת המחברת של השיעור" : e.kind === "deadline" ? " · פתיחה במודל" : ""}</span></span>${extras.chip ? (e.kind !== "lesson" ? extras.chip({ kind: e.kind, when: e.date + "T" + e.time }) : "") : ""}</a>`).join("") || '<p class="muted">אין כלום ביום הזה.</p>'}</div>`;
       $("#dayBox").querySelectorAll('.day-ev[data-kind="lesson"]').forEach((a) => (a.onclick = async (ev) => {
         ev.preventDefault();
