@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>הדף לא נמצא · Clearly</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/icons/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&family=Heebo:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* דף 404 באותה שפה עיצובית של דף הפתיחה: נייר משבצות, קו שוליים אדום, מרקר צהוב */
+:root {
+  --bg: #F7F9FE; --paper: #FFFFFF; --grid: #E3EAF8; --ink: #0F172A; --ink-soft: #475569;
+  --blue: #2563EB; --blue-ink: #FFFFFF; --violet: #6D28D9; --marker: #FDE047; --pink: #DB2777;
+  --margin: #F43F5E; --line: #D5DEF2; --brand: #4649CF;
+  --font-display: "Rubik", "Arial Hebrew", "Segoe UI", sans-serif;
+  --font-body: "Heebo", "Arial Hebrew", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0B1120; --paper: #111a2e; --grid: #18233b; --ink: #E7ECF7; --ink-soft: #A3B0C8;
+    --blue: #5B8DEF; --blue-ink: #0B1120; --violet: #A78BFA; --marker: #FACC15; --pink: #F472B6;
+    --margin: #FB7185; --line: #24304a; --brand: #8B8FF0; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0; min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto;
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 28px 28px;
+  color: var(--ink); font: 400 17px/1.65 var(--font-body);
+}
+a { color: var(--blue); }
+:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; border-radius: 6px; }
+.wrap { max-width: 1120px; margin-inline: auto; padding-inline: 16px; width: 100%; }
+.top { background: var(--paper); border-bottom: 2px solid var(--ink); }
+.top .wrap { display: flex; align-items: center; justify-content: space-between; padding-block: 12px; }
+.logo { display: flex; align-items: center; gap: 10px; font: 900 22px/1 var(--font-display); color: var(--ink); text-decoration: none; }
+.logo img { width: 30px; height: 30px; }
+main { display: grid; place-items: center; padding: 48px 16px; min-width: 0; }
+body { overflow-x: hidden; }
+
+/* דף מחברת עם שוליים אדומים */
+.page {
+  position: relative; width: min(620px, 100%); background: var(--paper);
+  border: 2px solid var(--ink); border-radius: 18px; box-shadow: 10px 10px 0 var(--violet);
+  padding: 40px 56px 40px 32px;
+}
+.page::before { content: ""; position: absolute; top: 0; bottom: 0; right: 36px; width: 2px; background: var(--margin); opacity: .8; }
+.eyebrow { font: 500 13px/1 var(--font-mono); letter-spacing: .08em; color: var(--pink); }
+.code {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 14px 0 6px;
+  font: 900 clamp(64px, 18vw, 120px)/1 var(--font-display); color: var(--brand); letter-spacing: -.02em;
+}
+.grade {
+  font: 700 18px/1 var(--font-display); color: var(--margin); border: 2.5px solid var(--margin);
+  border-radius: 999px; padding: 10px 16px; transform: rotate(-8deg); white-space: nowrap; letter-spacing: 0; word-spacing: .25em;
+}
+h1 { font: 900 clamp(26px, 5vw, 34px)/1.2 var(--font-display); margin: 6px 0 12px; text-wrap: balance; }
+.mark { background: linear-gradient(transparent 55%, var(--marker) 55%, var(--marker) 92%, transparent 92%); padding-inline: 2px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .mark { color: #0F172A; background: var(--marker); border-radius: 4px; padding-inline: 6px; -webkit-box-decoration-break: clone; box-decoration-break: clone; } }
+.lead { color: var(--ink-soft); margin: 0 0 26px; }
+.ctas { display: flex; gap: 14px; flex-wrap: wrap; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 22px;
+  background: var(--blue); color: var(--blue-ink); border: 2px solid var(--ink); border-radius: 12px;
+  font: 700 17px/1 var(--font-display); text-decoration: none; box-shadow: 4px 4px 0 var(--ink);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.btn:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--ink); }
+.btn.ghost { background: var(--paper); color: var(--ink); }
+.links { margin-top: 28px; padding-top: 18px; border-top: 1px dashed var(--line); font-size: 15px; color: var(--ink-soft); }
+.links a { margin-inline-end: 14px; }
+footer { text-align: center; padding: 18px 16px 28px; font-size: 14px; color: var(--ink-soft); }
+@media (max-width: 520px) { main { padding: 28px 12px; } .page { padding: 28px 40px 28px 18px; box-shadow: 6px 6px 0 var(--violet); } .page::before { right: 24px; } .grade { font-size: 15px; } .ctas .btn { width: 100%; justify-content: center; } }
+@media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="https://clearlyapp.io/"><img src="/icons/logo-mark.png" alt="" width="30" height="30">Clearly</a>
+  </div>
+</header>
+
+<main id="main">
+  <article class="page">
+    <p class="eyebrow">שגיאה 404</p>
+    <div class="code" aria-hidden="true">404 <span class="grade">לא בחומר</span></div>
+    <h1>הדף הזה <span class="mark">לא היה בסילבוס.</span></h1>
+    <p class="lead">אולי הקישור השתנה, ואולי הייתה טעות קטנה בכתובת. כל השאר מחכה לכם בדף הבית.</p>
+    <div class="ctas">
+      <a class="btn" href="https://clearlyapp.io/">לדף הבית של Clearly</a>
+      <a class="btn ghost" href="https://clearlyapp.io/?app=1">לאפליקציה</a>
+    </div>
+    <p class="links">אולי חיפשתם:
+      <a href="https://clearlyapp.io/welcome/#faq">שאלות נפוצות</a>
+      <a href="https://clearlyapp.io/?app=1#legal-privacy">מדיניות פרטיות</a>
+      <a href="https://clearlyapp.io/?app=1#legal-support">תמיכה</a>
+    </p>
+  </article>
+</main>
+
+<footer>© Clearly · <a href="https://clearlyapp.io/">clearlyapp.io</a></footer>
+</body>
+</html>

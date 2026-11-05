@@ -1,0 +1,39 @@
+# Clearly
+
+> Clearly (clearlyapp.io) is a Hebrew study app for university students in Israel. It connects to the student's Moodle and turns every lecture file and recording into a personal summary with a short quiz, and brings the timetable, exam schedule and assignment deadlines into one place. Free during the beta (2026).
+
+Clearly is built for iPad first, and also works on phones and computers as a web app (PWA). The interface is in Hebrew.
+
+## What it does
+
+- **Personal summary for every lesson**: a small Chrome extension ("המחבר של Clearly") checks the student's Moodle for new slides and files and sends them to be summarized, adapted to how that student learns. Students can also upload a PDF, PowerPoint or Word file manually.
+- **Lecture recordings**: record a lesson in the app (up to about 2 hours) and get a transcript and a summary.
+- **Practice**: a short quiz and flashcards for each summary, and an exam-preparation view.
+- **Timetable, exams and deadlines**: at Ariel University the timetable and exam schedule are read automatically from the student portal; assignment deadlines come from Moodle. Assignments can be uploaded to Moodle as a draft from the app (the student presses the final submit in Moodle).
+- **Notebooks**: handwriting with Apple Pencil or typing, organized by course and lesson.
+- **Classmates**: friends, posts and sharing summaries with friends in the same course. Lecturers' files are never shared.
+
+## Who it is for
+
+Undergraduate students at Israeli universities that use Moodle. Tested at Ariel University and Ben-Gurion University of the Negev.
+
+## Privacy
+
+Clearly never sees or stores the student's Moodle password; the extension uses the student's normal login in Chrome. Lecturers' files are used only to write the student's own summary and are not kept. No advertising or tracking tools. Servers in the EU (Supabase); AI processing by Google Gemini.
+
+## Price
+
+Free during the beta, with a daily limit on summaries and assistant questions.
+
+## Links
+
+- [Home page (Hebrew)](https://clearlyapp.io/welcome/): what Clearly is, how it works, FAQ
+- [Open the app](https://clearlyapp.io/?app=1)
+- [Privacy policy (Hebrew)](https://clearlyapp.io/?app=1#legal-privacy)
+- [Terms of use (Hebrew)](https://clearlyapp.io/?app=1#legal-terms)
+- [Accessibility statement (Hebrew)](https://clearlyapp.io/?app=1#legal-access)
+- Contact: guysultan3101@gmail.com
+
+## בעברית
+
+Clearly היא אפליקציית לימוד לסטודנטים בישראל: מחברים את המודל, ומקבלים סיכום אישי לכל שיעור עם מבחן קצר, מערכת שעות, לוח מבחנים והגשות – במקום אחד. נבנתה קודם כל לאייפד. חינם בתקופת הבדיקות.
