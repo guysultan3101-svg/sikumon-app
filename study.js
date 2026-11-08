@@ -1,6 +1,8 @@
 // סיכומים ומבחנים: ייבוא מ-Drive, רשימת סיכומים לפי קורס, מבחנים אישיים, היסטוריה ויצירת מבחן.
 // הכול נשמר במכשיר (IndexedDB) – שום דבר לא עולה לשרת.
 
+import { takeQuizSlot } from "./limits.js";
+
 export function initStudy(ctx) {
   const { view, $, esc, svg, toast, prefs, store, demoQuiz } = ctx;
   // "שיעור 5 · 3.11.2026" לסיכום של שיעור (מזום / מהקלטה); אחרת רק התאריך
@@ -205,9 +207,11 @@ export function initStudy(ctx) {
   }
 
   async function quizById(id) {
-    if (id === "retry" && retryQuiz) return runQuiz(retryQuiz);
+    if (id === "retry" && retryQuiz) { if (!(await takeQuizSlot())) { location.hash = "quizzes"; return; } return runQuiz(retryQuiz); }
     const q = id === "demo" ? { ...demoQuiz, id: "demo", title: "מיקרו – שאלות לדוגמה", course: "דוגמה" } : await store.getItem(id);
     if (!q) { location.hash = "quizzes"; return; }
+    // עד 3 מבחנים ביום (מבחן לדוגמה לא נספר)
+    if (id !== "demo" && !(await takeQuizSlot())) { location.hash = "quizzes"; return; }
     runQuiz(q);
   }
 

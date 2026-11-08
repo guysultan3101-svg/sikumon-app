@@ -213,7 +213,7 @@ export async function notifications() { return ok(await sb.from("notifications")
 export async function markNotifications(ids) { if (ids.length) ok(await sb.from("notifications").update({ read_at: new Date().toISOString() }).in("id", ids)); }
 
 // ---------- פספסתי שיעור ----------
-export async function missed(course, lesson_date) { ok(await sb.from("missed_requests").insert({ owner: user().id, course, lesson_date })); }
+export async function missed(course, lesson_date, audience = "friends", recipients = []) { ok(await sb.from("missed_requests").insert({ owner: user().id, course, lesson_date, audience, recipients })); }
 
 // ---------- פיד ----------
 export async function posts() { return ok(await sb.from("posts").select("*").order("created_at", { ascending: false }).limit(100)); }

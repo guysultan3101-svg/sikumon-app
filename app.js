@@ -1,5 +1,6 @@
 // Clearly – האפליקציה (גרסת בדיקה). ניווט לפי # בכתובת, כל מסך הוא פונקציה שמציירת HTML.
 import { LessonRecorder, store, segmentsOf, support, recoverOrphans } from "./recorder.js";
+import { quizzesLeft } from "./limits.js";
 import { demoSummary, demoQuiz, onboardingQuestions } from "./demo-data.js";
 import { InkEditor, COLORS, MARKER_COLORS, pdfToPages, makeThumb, imgBoxOf } from "./notes.js";
 import { initStudy } from "./study.js";
@@ -251,9 +252,9 @@ function installHint() {
   if (s.standalone || hidden) return "";
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const how = ios
-    ? 'ב-Safari לוחצים על כפתור השיתוף <span aria-hidden="true">(ריבוע עם חץ למעלה)</span> ובוחרים <b>"הוסף למסך הבית"</b>.'
-    : 'בתפריט הדפדפן בוחרים <b>"התקנת אפליקציה"</b> או <b>"הוספה למסך הבית"</b>.';
-  return `<div class="notice install"><div><b>טיפ: התקינו את Clearly כמו אפליקציה.</b> ${how}</div><button class="link" id="hideInstall">הבנתי</button></div>`;
+    ? '<ol class="steps small" style="margin:6px 0 0"><li>לוחצים על <b>כפתור השיתוף</b> למעלה <span aria-hidden="true">(ריבוע עם חץ ⬆️)</span>.</li><li>גוללים קצת ובוחרים <b>"הוסף למסך הבית"</b>.</li><li>לוחצים <b>"הוסף"</b>. זהו – Clearly מופיע במסך הבית כמו כל אפליקציה.</li></ol>'
+    : '<ol class="steps small" style="margin:6px 0 0"><li>בשורת הכתובת למעלה, בצד ימין, לוחצים על הסמל <b>⊕</b> או <b>"התקנה"</b>.</li><li>לוחצים <b>"התקנה"</b>. זהו.</li></ol>';
+  return `<div class="notice install"><div><b>📲 התקינו את Clearly כמו אפליקציה (חצי דקה):</b>${how}</div><button class="link" id="hideInstall">הבנתי</button></div>`;
 }
 
 function recItem(r) {
@@ -457,8 +458,7 @@ function record() {
   </div>`;
   $("#recBtn").onclick = onRecClick;
   // כפתור ההקלטה כבוי עד שבוחרים קורס (כדי שההקלטה תיכנס למחברת הנכונה)
-  const needCourse = () => { if (!active && !problems.length) $("#recBtn").disabled = !$("#course").value; };
-  $("#course").onchange = needCourse; needCourse();
+  $("#course").onchange = () => $("#course").classList.remove("need");
   const srcSel = $("#recSrc");
   if (srcSel) { const srcHint = () => { $("#recSrcHint").textContent = srcSel.value === "mic" ? "" : 'כשתלחצו "הקלט", ייפתח חלון של כרום — בחרו את חלון/לשונית הזום, וסמנו למטה את "שיתוף אודיו". אפשר אז לעבור לזום, ההקלטה ממשיכה.'; }; srcSel.onchange = srcHint; srcHint(); }
   $("#starBtn") && ($("#starBtn").onclick = starNow);
@@ -535,6 +535,12 @@ async function startRecording(course, lessonId = null, source = "mic") {
 let busy = false;
 async function onRecClick() {
   if (busy) return; // מונע לחיצה כפולה
+  // לפני הקלטה חדשה צריך לבחור קורס – אומרים את זה בבירור
+  if ((!recorder || !recorder.rec || recorder.rec.status === "done") && !$("#course")?.value) {
+    const c = $("#course"); c.classList.add("need"); c.focus(); c.scrollIntoView({ behavior: "smooth", block: "center" });
+    toast("☝️ קודם בוחרים קורס למעלה, ואז מקליטים");
+    return;
+  }
   busy = true; $("#recBtn").disabled = true;
   try {
     if (!recorder || recorder.rec?.status === "done" || !recorder.rec) {
@@ -1479,7 +1485,8 @@ async function routeInner() {
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
   if (hash === "social-missed") hash = "missed-lesson";
-  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash.startsWith("assign-") ? "assignments" : hash.startsWith("materials-") ? "calendar" : hash;
+  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash.startsWith("assign-") ? "assignments" : hash.startsWith("materials-") ? "calendar" : hash;
+  curTab = tab;
   renderTabs(tab);
   if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
   else if (hash === "record") record();
@@ -1517,7 +1524,6 @@ async function routeInner() {
   }
   else if (hash === "podcasts") await podcastsPage();
   else if (hash === "sim") await tools.simSetup();
-  else if (hash === "grades") tools.grades();
   else if (hash === "search") await tools.search();
   else if (hash.startsWith("search-")) await tools.search(hash.slice(7));
   else if (hash === "questions") await tools.questions();
@@ -1528,7 +1534,7 @@ async function routeInner() {
   else if (hash.startsWith("msg-")) await planner.message(hash.slice(4), ai.miniMd);
   else if (hash === "quizzes") {
     await study.quizzes();
-    view.querySelector(".page > .row")?.insertAdjacentHTML("afterend", `<div class="grid2"><a class="card" href="#cards"><b class="card-t">🃏 כרטיסיות זיכרון</b><p class="small muted">חזרה מרווחת מכל המבחנים ודפי הנוסחאות</p></a><a class="card" href="#progress"><b class="card-t">📈 ההתקדמות שלי</b><p class="small muted">ציונים לאורך זמן, ובמה כדאי לחזור</p></a><a class="card" href="#sim"><b class="card-t">⏱️ סימולציית מבחן</b><p class="small muted">טיימר, שאלות מכל הקורס, ציון בסוף</p></a><a class="card" href="#grades"><b class="card-t">🎯 כמה אני צריך במבחן?</b><p class="small muted">לפי המשקלות והציונים שכבר יש</p></a></div>`);
+    view.querySelector(".page > .row")?.insertAdjacentHTML("afterend", `<div class="grid2"><a class="card" href="#cards"><b class="card-t">🃏 כרטיסיות זיכרון</b><p class="small muted">חזרה מרווחת מכל המבחנים ודפי הנוסחאות</p></a><a class="card" href="#progress"><b class="card-t">📈 ההתקדמות שלי</b><p class="small muted">ציונים לאורך זמן, ובמה כדאי לחזור</p></a><a class="card" href="#sim"><b class="card-t">⏱️ סימולציית מבחן</b><p class="small muted">טיימר, שאלות מכל הקורס, ציון בסוף</p></a></div><p class="small muted">היום נשארו לך <b>${quizzesLeft()}</b> מבחנים. רוצים עוד? משתפים את Clearly עם חבר/ה.</p>`);
   }
   else if (hash === "quiz-new") study.quizEditor();
   else if (hash.startsWith("quiz-mix-")) await study.mixQuiz(+hash.slice(9));
@@ -1536,7 +1542,7 @@ async function routeInner() {
   else if (hash.startsWith("quiz-")) await study.quizById(hash.slice(5));
   else if (hash === "social") await social.feed();
   else if (hash === "social-friends") await social.friends();
-  else if (hash === "missed-lesson") social.missed();
+  else if (hash === "missed-lesson") await social.missed();
   else if (hash === "upload") uploadPage();
   else if (hash === "connect") connectPage();
   else if (hash.startsWith("share-")) await social.shareFrom(hash.slice(6));
@@ -1669,17 +1675,22 @@ function uploadPage() {
 function connectPage() {
   view.innerHTML = `<div class="page" style="max-width:680px">
     <h1 style="font-size:30px">🔗 חיבור למודל</h1>
-    <p class="muted">"המחבר של Clearly" הוא תוסף קטן לכרום במחשב. כשכרום פתוח, הוא בודק במודל שלך (פעם בכמה שעות) אם עלו מצגות או קבצים חדשים, ושולח אותם לסיכום אישי. הסיכומים מופיעים כאן, בכל המכשירים שלך.</p>
-    <section class="card" style="display:grid;gap:10px"><h2 style="font-size:20px">התקנה (פעם אחת, 2 דקות)</h2>
-      <ol class="steps">
-        <li>במחשב, בכרום: מורידים את <a href="extension/sikumon-connector.zip" download>קובץ התוסף</a> ופותחים אותו (Extract / חילוץ) לתיקייה.</li>
-        <li>נכנסים לכתובת <b dir="ltr">chrome://extensions</b> ומדליקים את המתג <b>"מצב פיתוח"</b> (באנגלית: Developer mode) – בפינה העליונה של הדף.</li>
-        <li>מופיעים כפתורים חדשים. לוחצים <b>"טעינת פריט לא ארוז"</b> (Load unpacked) ובוחרים את התיקייה <b dir="ltr">sikumon-connector</b> שחילצתם.</li>
-        <li>לוחצים על סמל התוסף (ה-C הסגול) למעלה, מתחברים עם אותו מייל וסיסמה של Clearly, ובוחרים את המודל שלך (אריאל / בן-גוריון).</li>
-        <li>נכנסים פעם אחת למודל כרגיל, עם הסיסמה שלך. זהו – מעכשיו זה עובד לבד.</li>
-      </ol></section>
-    <p class="small muted">🔒 התוסף לא רואה ולא שומר את הסיסמה שלך למודל. הוא קורא רק את הקורסים שלך, ושולח לסיכום רק קבצים שמותר לך להוריד. אין לך מחשב? אפשר תמיד <a href="#upload">להעלות מצגת</a> מהאייפד או מהטלפון.</p>
+    <p class="muted">עושים את זה <b>פעם אחת, במחשב</b> (כ-3 דקות). אחר כך הסיכומים, המטלות ומערכת השעות מגיעים לבד – גם לאייפד.</p>
+    <section class="card" style="display:grid;gap:12px">
+      <ol class="steps big-steps">
+        <li><b>מורידים את התוסף:</b><br><a class="btn" href="extension/sikumon-connector.zip" download style="margin-top:6px">⬇️ הורדת התוסף</a><br><span class="small muted">יורד קובץ בשם sikumon-connector.zip</span></li>
+        <li><b>פותחים את הקובץ:</b> בתיקיית "הורדות", לוחצים על הקובץ <b>בכפתור הימני של העכבר</b> ← <b>"חלץ הכול"</b> ← <b>"חלץ"</b>. נוצרת תיקייה רגילה.</li>
+        <li><b>נכנסים לדף התוספים של כרום:</b> מעתיקים את הכתובת, מדביקים בשורת הכתובת למעלה, ולוחצים Enter.<br><span class="row" style="margin-top:6px"><code dir="ltr">chrome://extensions</code><button class="btn ghost small-btn" type="button" id="cpExt">📋 העתקה</button></span></li>
+        <li><b>מדליקים את המתג "מצב פיתוח"</b> (Developer mode) – בפינה העליונה של הדף.</li>
+        <li><b>לוחצים "טעינת פריט לא ארוז"</b> (Load unpacked), בוחרים את התיקייה מצעד 2, ולוחצים "בחירת תיקייה".</li>
+        <li><b>מתחברים:</b> לוחצים על סמל הפאזל 🧩 למעלה בכרום ← "המחבר של Clearly" ← מתחברים עם <b>אותו מייל וסיסמה של Clearly</b>.</li>
+        <li><b>בוחרים "אוניברסיטת אריאל"</b> ← "שמירה" ← "פתיחת המודל", ומתחברים למודל כרגיל.</li>
+      </ol>
+      <p class="notice">✅ <b>זהו!</b> מעכשיו הכול מגיע לבד. כשהמחשב דלוק וכרום פתוח, התוסף בודק את המודל כל כמה שעות.</p>
+    </section>
+    <p class="small muted">🔒 התוסף לא רואה ולא שומר את הסיסמה שלך למודל. נתקעת? כתבו ל-<a href="mailto:clearlyappsupport@gmail.com">clearlyappsupport@gmail.com</a> ונעזור. אין מחשב? אפשר תמיד <a href="#upload">להעלות מצגת</a> מהאייפד.</p>
   </div>`;
+  $("#cpExt").onclick = async () => { try { await navigator.clipboard.writeText("chrome://extensions"); toast("הועתק ✓ עכשיו מדביקים בשורת הכתובת"); } catch { toast("סמנו את הכתובת והעתיקו אותה ידנית"); } };
 }
 const assistant = initAssistant({ store, esc, ai, prefs });
 settings.applyUI();
@@ -1690,9 +1701,13 @@ settings.applyUI();
   p.courses = p.courses.filter((c) => c !== "קורס כללי"); prefs.set(p);
 })().catch(() => {});
 // חזרה דף אחד אחורה: אם נכנסו ישר לדף (בלי היסטוריה באפליקציה) – לבית
-let navDepth = 0, goingBack = false;
+let navDepth = 0, goingBack = false, curTab = "home";
 window.addEventListener("hashchange", () => { if (goingBack) { navDepth = Math.max(0, navDepth - 1); goingBack = false; } else navDepth++; });
-function goBack() { if (navDepth > 0) { goingBack = true; history.back(); } else location.hash = "#home"; }
+// "חזרה": מתוך דף פנימי – לדף הראשי של אותה לשונית (למשל מסיכום -> לכל הסיכומים). מדף ראשי של לשונית – לבית.
+function goBack() {
+  const h = (location.hash.slice(1) || "home").split("?")[0];
+  location.hash = h === curTab || curTab === "home" || !curTab ? "#home" : "#" + curTab;
+}
 const planner = initPlanner({ view, $, esc, toast, prefs, store, extras, study, lessonForToday });
 // הודעות: בודקים בפתיחה, אחרי סנכרון, וכל 10 דקות
 async function refreshInbox() { try { const f = await planner.refresh(); if (f.length && location.hash !== "#inbox") toast(`🔔 ${f[0].title}${f.length > 1 ? ` (+${f.length - 1})` : ""}`); } catch (e) { logError("inbox", e); } }
@@ -1742,7 +1757,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "48";
+const APP_VERSION = "49";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

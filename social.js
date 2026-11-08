@@ -483,20 +483,37 @@ export function initSocial(ctx) {
   }
 
   // ---------- פספסתי שיעור ----------
-  function missed() {
+  async function missed() {
+    busy();
+    let g = null; try { g = await graph(); } catch { /* בלי אינטרנט */ }
+    const fr = g ? g.friends.map((f) => g.other(f)) : [];
+    const AUD = [["friends", "👥 כל החברים"], ["course_friends", "🎓 החברים שבקורס"], ["picked", "✋ לבחור חברים"], ["course", "🏫 כל מי שבקורס"]];
+    const HINT = { friends: "כל החברים שלך יקבלו התראה.", course_friends: "רק חברים שלומדים את הקורס הזה.", picked: "רק החברים שתסמנו למטה.", course: "כל מי שלומד את הקורס הזה במוסד שלך ב-Clearly – גם מי שעוד לא חבר שלך." };
     view.innerHTML = `<div class="page">
       <h1 style="font-size:30px">🙋 פספסתי שיעור</h1>
-      <section class="soft small"><b>איך זה עובד:</b><ol class="steps" style="margin:6px 0 0"><li>בוחרים קורס ותאריך.</li><li>כל החברים שלך מקבלים התראה "פספס/ה שיעור".</li><li>מי שהיה בשיעור שולח לך הודעה, או משתף איתך את הקורס ב"אותה כיתה" – ואז הסיכומים שלו נכנסים אצלך לבד.</li></ol></section>
       <section class="card" style="display:grid;gap:12px"><h2>לא הייתי בשיעור</h2>
         <label>איזה קורס?<select id="msC">${myCourses().map((c) => `<option>${esc(c)}</option>`).join("")}</select></label>
         <label>איזה תאריך?<input type="date" id="msD" value="${new Date().toLocaleDateString("en-CA")}"></label>
-        <button class="btn" type="button" id="msGo">לבקש מהחברים</button></section>
-      <section class="soft" style="display:grid;gap:8px"><h3>עוד דרכים להשלים</h3>
-        <a class="item" href="#upload"><span><span class="t">📄 העלאת המצגת של השיעור</span><br><span class="small muted">מהמודל או ממישהו מהכיתה – ותקבלו סיכום אישי לפי השאלון שלך</span></span></a>
+        <fieldset style="border:0;padding:0;margin:0;display:grid;gap:8px"><legend style="font-weight:700;margin-bottom:6px">למי לשלוח?</legend>
+          <div class="chips-row" style="flex-wrap:wrap">${AUD.map(([k, l], i) => `<button type="button" class="chip-btn ${i ? "" : "on"}" data-aud="${k}" aria-pressed="${!i}">${l}</button>`).join("")}</div>
+          <p class="small muted" id="msHint" aria-live="polite">${HINT.friends}</p>
+          <div id="msPick" class="list" hidden>${fr.map((id) => `<label class="item" style="cursor:pointer"><input type="checkbox" value="${esc(id)}" style="width:auto"> <span class="t">${esc(nameOf(id))}</span></label>`).join("") || '<p class="small muted">עוד אין חברים. <a href="#social-friends">הוספת חברים</a></p>'}</div>
+        </fieldset>
+        <button class="btn" type="button" id="msGo">📨 שליחת הבקשה</button></section>
+      <section class="soft" style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">עוד דרכים להשלים</h2>
+        <a class="item" href="#upload"><span><span class="t">📄 העלאת המצגת של השיעור</span><br><span class="small muted">ותקבלו סיכום אישי לפי השאלון שלך</span></span></a>
         <a class="item" href="#social-friends"><span><span class="t">🎓 אותה כיתה</span><br><span class="small muted">חברים שמשתפים איתך את הקורס – הסיכומים שלהם אצלך אוטומטית</span></span></a></section></div>`;
+    let aud = "friends";
+    view.querySelectorAll("[data-aud]").forEach((b) => (b.onclick = () => {
+      aud = b.dataset.aud;
+      view.querySelectorAll("[data-aud]").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", x === b); });
+      $("#msHint").textContent = HINT[aud]; $("#msPick").hidden = aud !== "picked";
+    }));
     $("#msGo").onclick = async () => {
       const c = $("#msC").value; if (!c) return toast("הוסיפו קורסים בהגדרות ← לימודים");
-      try { await api.missed(c, $("#msD").value); toast("✅ הבקשה נשלחה לחברים שלך"); api.track("missed"); } catch (e) { toast(e.message); }
+      const picked = [...view.querySelectorAll("#msPick input:checked")].map((x) => x.value);
+      if (aud === "picked" && !picked.length) return toast("סמנו לפחות חבר/ה אחד/ת");
+      try { await api.missed(c, $("#msD").value, aud, picked); toast("✅ הבקשה נשלחה"); api.track("missed"); } catch (e) { toast(e.message); }
     };
   }
 

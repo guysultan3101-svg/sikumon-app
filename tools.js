@@ -1,3 +1,4 @@
+import { takeQuizSlot } from "./limits.js";
 // כלים לסטודנט: 🔊 הקראת סיכום, ⏱️ סימולציית מבחן, 🎯 "כמה אני צריך במבחן", 🔍 חיפוש בכל החומר,
 // 🖨️ הדפסת סיכום / דף נוסחאות, ו-🙋 שאלות למתרגל. הכול עובד במכשיר, בלי AI ובלי שרת.
 
@@ -86,7 +87,8 @@ export function initTools(ctx) {
         <label class="field">זמן (דקות)<select id="smT" name="smT"><option>10</option><option selected>20</option><option>30</option><option>45</option><option>60</option></select></label>
         <div class="row"><button class="btn" id="smGo">מתחילים ⏱️</button></div></div>` : '<p class="notice">עוד אין שאלות. הן נכנסות עם הסיכומים (מבחן לכל סיכום), או ממבחנים שכותבים בעצמכם.</p>'}
     </div>`;
-    $("#smGo") && ($("#smGo").onclick = () => {
+    $("#smGo") && ($("#smGo").onclick = async () => {
+      if (!(await takeQuizSlot())) return; // עד 3 מבחנים ביום
       const course = $("#smC").value;
       const pool = qs.filter((q) => q.course === course).flatMap((q) => q.questions);
       const n = Math.min(+$("#smN").value, pool.length);
