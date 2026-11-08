@@ -212,7 +212,7 @@ export async function notifyEmail(body) {
   const { data, error } = await sb.functions.invoke("notify-email", { body });
   if (error) {
     let m = "תקלה"; try { m = (await error.context.json()).error || m; } catch { /* */ }
-    throw new Error(m === "smtp_not_configured" ? "המיילים עוד לא מחוברים (צריך להוסיף את סיסמת Gmail בשרת)" : m === "forbidden" ? "אין הרשאה" : m);
+    throw new Error(m === "smtp_not_configured" ? "המיילים עוד לא מחוברים (צריך להוסיף את סיסמת Gmail בשרת)" : m === "forbidden" ? "אין הרשאה" : m === "smtp_login" ? "Gmail לא מקבל את הסיסמה. צריך סיסמת אפליקציה (16 תווים) של אותו חשבון ג'ימייל" : m);
   }
   return data;
 }
