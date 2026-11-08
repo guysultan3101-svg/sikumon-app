@@ -1648,6 +1648,18 @@ async function applyCourseMaterials() {
   const map = {};
   for (const r of rows) map[r.course] = { zoom: r.zoom || "", items: r.items || [], at: r.updated_at };
   await store.putItem({ id: "course-materials", type: "course-materials", map });
+  // קורסים מהמודל נכנסים למחברות גם בלי מערכת שעות (למשל בבן-גוריון, שאין לו עדיין חיבור לפורטל).
+  // לא מוסיפים "קורסים" שהם בעצם לומדות/הדרכות של המוסד, ולא קורס שהמשתמש מחק בעצמו.
+  const p = prefs.get();
+  if (!p) return;
+  const hidden = p.hiddenCourses || [];
+  const notCourse = /הטרדה|harassment|לומדה|הכרת הספרייה|הדרכה לקראת|instructions for|בטיחות ב|safety/i;
+  const add = rows.map((r) => r.course).filter((c) => c && !notCourse.test(c) && !(p.courses || []).includes(c) && !hidden.includes(c));
+  if (add.length) {
+    p.courses = [...(p.courses || []), ...add];
+    prefs.set(p);
+    if (["#notebooks", "#home", "", "#summaries", "#record", "#calendar"].includes(location.hash)) route();
+  }
 }
 async function applyUniSchedule() {
   const row = await api.uniSchedule().catch(() => null);
@@ -1827,7 +1839,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "57";
+const APP_VERSION = "58";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
