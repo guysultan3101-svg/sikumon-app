@@ -1567,7 +1567,7 @@ async function routeInner() {
   else if (hash === "messages") await social.messages();
   else if (hash === "messages-req") await social.messages("req");
   else if (hash.startsWith("dm-")) await social.dm(hash.slice(3));
-  else if (hash === "admin") { if (isAdmin) await adminPage(); else location.hash = "#home"; }
+  else if (hash === "admin") { if (await adminCheck()) await adminPage(); else location.hash = "#home"; }
   else if (hash === "settings") await settings.page();
   else if (hash.startsWith("settings-")) await settings.page(hash.slice(9));
   else if (hash.startsWith("legal-")) settings.legal(hash.slice(6));
@@ -1589,7 +1589,7 @@ async function routeInner() {
   else if (hash.startsWith("course-")) await courseFolder(+hash.slice(7));
   else if (hash.startsWith("lesson-")) { closeLesson(); await lessonPage(hash.slice(7)); }
   else await home();
-  if (isAdmin && hash.startsWith("settings")) view.querySelector("#set-account")?.insertAdjacentHTML("beforeend", '<a class="btn" href="#admin" style="justify-self:start">🛠️ ניהול Early Access</a>');
+  if (hash.startsWith("settings") && await adminCheck()) view.querySelector(".settings h1")?.insertAdjacentHTML("afterend", '<a class="btn" href="#admin" style="justify-self:start">🛠️ ניהול Early Access – אישור נרשמים</a>');
   assistant.mount(tab);
   if (!seenTabs.has(tab)) { seenTabs.add(tab); api.track("open:" + tab); }
   paintCounts();
@@ -1692,7 +1692,14 @@ function uploadPage() {
 }
 
 // ---------- Early Access ----------
-let isAdmin = false;
+let isAdmin = false, adminP = null;
+// בודקים מול השרת אם המשתמש מנהל (פעם אחת), ומחכים לתשובה לפני שמחליטים להציג את הניהול
+function adminCheck() {
+  if (isAdmin) return Promise.resolve(true);
+  if (!api.user()) return Promise.resolve(false);
+  adminP ??= api.amAdmin().then((v) => (isAdmin = v)).catch(() => { adminP = null; return false; });
+  return adminP;
+}
 function waitlistPage() {
   view.innerHTML = `<div class="page" style="max-width:560px;text-align:center;justify-items:center">
     <img src="icons/logo-mark.png" alt="" width="72" height="72">
@@ -1805,7 +1812,7 @@ window.addEventListener("pagehide", () => flushLesson());
 ai.finishOpenRouterLogin().then((k) => k && toast("OpenRouter חובר ✓ בחרו מודל")).catch((e) => toast(e.message));
 recoverOrphans().then(migrateRecordings).catch(() => {})
   .then(() => api.init().catch((e) => logError("api.init", e)))
-  .then(() => { social.restorePrefs(); api.touch(); ai.loadQuota(); serverSync(true); if (api.user()) api.amAdmin().then((v) => { isAdmin = v; }).catch(() => {}); })
+  .then(() => { social.restorePrefs(); api.touch(); ai.loadQuota(); serverSync(true); adminCheck(); })
   .finally(async () => { await route(); if (api.isRecovery()) social.newPasswordModal(); });
 let lastAutoSync = 0;
 async function autoSync() {
@@ -1820,7 +1827,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "54";
+const APP_VERSION = "55";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
