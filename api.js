@@ -167,6 +167,8 @@ export async function transcribeStep(body) {
 // ---------- הגשת עבודות ----------
 // מטלות שהתוסף במחשב מצא במודל (גם לבודקים שאין להם את המחשב של גיא)
 export async function assignItems() { return ok(await sb.from("moodle_items").select("item_key, course, name, url, status, note, intro, files").eq("kind", "assign")); }
+// חומרים לכל קורס + קישור לזום (מה שהמחבר בכרום הביא מהמודל)
+export async function courseMaterials() { return ok(await sb.from("course_materials").select("course, zoom, items, updated_at")); }
 // קישור חתום לקובץ מצורף של מטלה (אחסון פרטי) – תקף לשעה
 export async function assignmentFileUrl(path) { const { data, error } = await sb.storage.from("assignment-files").createSignedUrl(path, 3600); if (error) throw error; return data.signedUrl; }
 // מערכת שעות ולוח מבחנים שהמחבר הביא מהמידע האישי של המוסד (שורה אחת, רק שלי)

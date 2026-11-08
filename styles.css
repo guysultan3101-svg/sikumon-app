@@ -348,6 +348,8 @@ button.tt-del, button.del-rec { color: var(--red); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .star-card { background: color-mix(in srgb, var(--marker) 16%, var(--paper)); } }
 .grid2 > a.card { text-decoration: none; color: inherit; display: grid; gap: 4px; }
 .card-t { font: 700 17px/1.3 var(--font-display); }
+.day-extra { gap: 6px 14px; flex-wrap: wrap; padding: 2px 14px 10px; color: var(--ink-soft); }
+.day-extra a { font-weight: 700; }
 .focus-c { display: grid; gap: 10px; }
 .focus-s ul { margin: 6px 0 0; padding-inline-start: 22px; display: grid; gap: 6px; }
 .pe-row { display: flex; gap: 8px; align-items: center; }

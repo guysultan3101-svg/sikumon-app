@@ -111,6 +111,8 @@ export async function syncOnce({ manual = false } = {}) {
     // מטלות ומועדי הגשה (לאפליקציה), ועבודות שחיכו להגשה מהאפליקציה
     try { await syncAssignments(a, base, sesskey); } catch { /* לא חובה */ }
     try { await submitJobs(); } catch { /* ננסה בפעם הבאה */ }
+    // חומרים לכל קורס + קישור לזום (לאפליקציה: "חומרים לשיעור" ויומן)
+    try { await syncCourseMaterials(a, base, sesskey, courses); } catch { /* לא חובה */ }
     // מערכת שעות ומבחנים מהמידע האישי (פעם ביום, או כשלוחצים "בדיקה עכשיו")
     let portal = "";
     try { const p = await syncPortal(a, base, courses, rest, manual); if (p) portal = `🕘 מערכת שעות: ${p.lessons} שיעורים בשבוע · ${p.exams} מבחנים`; }
@@ -248,6 +250,37 @@ export async function submitJobs() {
     }
   }
   return n;
+}
+
+// ---------- חומרים לכל קורס + קישור לזום ----------
+// כל הפריטים בדף הקורס (קבצים, תיקיות, קישורים), ואם יש פריט זום – הקישור עצמו
+async function courseZoomAndItems(base, sesskey, courseId) {
+  const st = JSON.parse(await ajax(base, sesskey, "core_courseformat_get_state", { courseid: courseId }));
+  const cms = (st.cm || []).filter((c) => c.uservisible !== false && c.url && c.name && c.module !== "label");
+  const items = cms.map((c) => ({ type: c.module, name: String(c.name).slice(0, 200), url: String(c.url).slice(0, 500) }));
+  let zoom = "";
+  const zc = cms.find((c) => /zoom|זום/i.test(c.name) && ["url", "lti", "zoom"].includes(c.module));
+  if (zc) {
+    zoom = zc.url;
+    if (zc.module === "url") {
+      try {
+        const html = await (await fetch(`${base}/mod/url/view.php?id=${zc.id}&redirect=0`, { credentials: "include" })).text();
+        zoom = (html.match(/https?:\/\/[^"'\s<>]*zoom\.us\/[^"'\s<>]+/)?.[0] || zc.url).replace(/&amp;/g, "&");
+      } catch { /* נשאר הקישור למודל */ }
+    }
+  }
+  return { zoom: zoom.slice(0, 1000), items: items.slice(0, 120) };
+}
+async function syncCourseMaterials(a, base, sesskey, courses) {
+  for (const c of courses) {
+    const course = (c.fullname || c.shortname || "").trim().slice(0, 200);
+    if (!course) continue;
+    try {
+      const m = await courseZoomAndItems(base, sesskey, c.id);
+      await rest("course_materials", a, { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ owner: a.user, course, zoom: m.zoom || null, items: m.items, updated_at: new Date().toISOString() }) });
+    } catch { /* קורס שלא נפתח – בפעם הבאה */ }
+  }
 }
 
 // ---------- מטלות מהמודל -> לאפליקציה (גם לטאבלט) ----------

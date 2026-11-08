@@ -1479,7 +1479,7 @@ async function routeInner() {
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
   if (hash === "social-missed") hash = "missed-lesson";
-  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash.startsWith("assign-") ? "assignments" : hash;
+  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" || hash === "grades" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash.startsWith("assign-") ? "assignments" : hash.startsWith("materials-") ? "calendar" : hash;
   renderTabs(tab);
   if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
   else if (hash === "record") record();
@@ -1488,6 +1488,7 @@ async function routeInner() {
   else if (hash.startsWith("tr-")) await transcriptPage(hash.slice(3));
   else if (hash === "assignments") await assignments.page();
   else if (hash.startsWith("assign-")) await assignments.detail(decodeURIComponent(hash.slice(7)));
+  else if (hash.startsWith("materials-")) await planner.materials(decodeURIComponent(hash.slice(10)));
   else if (hash.startsWith("mf-")) { await study.moodleFilePage(decodeURIComponent(hash.slice(3))); tools.attachReader?.(); }
   else if (hash === "summaries") {
     await study.summaries();
@@ -1604,6 +1605,7 @@ async function serverSync(force = false) {
     planner.inboxStore().then(planner.paintBadge);
     if (fresh.length && location.hash !== "#inbox") toast(`🔔 ${fresh[0].title}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ""}`);
     if (await applyUniSchedule() && ["#calendar", "#timetable", "#deadlines", "#home", ""].includes(location.hash)) route();
+    await applyCourseMaterials();
     const n = await social.syncSummaries();
     autoTranscribe();
     if (n && ["#summaries", "#quizzes", "#home", ""].includes(location.hash)) route();
@@ -1613,6 +1615,14 @@ async function serverSync(force = false) {
 setInterval(() => serverSync(), 2 * 60e3);
 // מערכת השעות והמבחנים מהמידע האישי (דרך המחבר) – נכנסים לבד, כל עוד לא שינית אותם בעצמך.
 // קורסים שעוד לא במחברות נוספים, כדי שההקלטה תדע לבד לאיזה קורס להיכנס.
+// חומרים לכל קורס + קישור לזום (מהמחבר בכרום) – נשמרים במכשיר
+async function applyCourseMaterials() {
+  const rows = await api.courseMaterials().catch(() => null);
+  if (!rows?.length) return;
+  const map = {};
+  for (const r of rows) map[r.course] = { zoom: r.zoom || "", items: r.items || [], at: r.updated_at };
+  await store.putItem({ id: "course-materials", type: "course-materials", map });
+}
 async function applyUniSchedule() {
   const row = await api.uniSchedule().catch(() => null);
   const p = prefs.get();
@@ -1732,7 +1742,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "47";
+const APP_VERSION = "48";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

@@ -16,7 +16,7 @@ export function initPlanner(ctx) {
     for (let d = new Date(from); d <= to; d = new Date(d.getTime() + DAY)) {
       const k = key(d);
       if (k >= sem.start && k <= sem.end) {
-        for (const s of (p.timetable || []).filter((x) => +x.day === d.getDay())) out.push({ date: k, kind: "lesson", time: s.start, end: s.end, title: s.course, course: s.course });
+        for (const s of (p.timetable || []).filter((x) => +x.day === d.getDay())) out.push({ date: k, kind: "lesson", time: s.start, end: s.end, title: s.course, course: s.course, place: s.place || "", lecturer: s.lecturer || "" });
       }
     }
     for (const x of dl) { const k = x.due.slice(0, 10); if (k >= key(from) && k <= key(to)) out.push({ date: k, kind: "deadline", time: x.due.slice(11, 16), title: x.name, course: x.course, url: x.url, done: x.done }); }
@@ -65,8 +65,20 @@ export function initPlanner(ctx) {
     const showDay = async (k) => {
       view.querySelectorAll(".cal-d").forEach((b) => b.classList.toggle("sel", b.dataset.k === k));
       const list = byDay[k] || [];
+      const mats = (await store.getItem("course-materials"))?.map || {};
+      const extra = (e) => {
+        if (e.kind !== "lesson") return "";
+        const zoom = mats[e.course]?.zoom;
+        const bits = [
+          e.place ? `<span>📍 <b>${esc(e.place)}</b></span>` : "",
+          e.lecturer ? `<span>👤 ${esc(e.lecturer)}</span>` : "",
+          zoom ? `<a href="${esc(zoom)}" target="_blank" rel="noopener">🎥 כניסה לזום</a>` : "",
+          `<a href="#materials-${encodeURIComponent(e.course)}">📚 חומרים לשיעור</a>`,
+        ].filter(Boolean);
+        return `<div class="row small day-extra">${bits.join("")}</div>`;
+      };
       $("#dayBox").innerHTML = `<h2 style="font-size:20px;margin:0">${new Date(k + "T12:00").toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}</h2>
-        <div class="list" style="margin-top:8px">${list.map((e) => `<a class="item day-ev" data-kind="${e.kind}" data-course="${esc(e.course)}" data-date="${e.date}" ${e.url ? `href="${esc(e.url)}" target="_blank" rel="noopener"` : `href="#"`}><span style="min-width:0"><span class="t"><i class="ev ${e.kind}"></i> ${esc(e.title)}</span><br><span class="small muted"><bdi>${e.time}${e.end ? "–" + e.end : ""}</bdi>${e.kind === "lesson" ? " · פתיחת המחברת של השיעור" : e.kind === "deadline" ? " · פתיחה במודל" : ""}</span></span>${extras.chip ? (e.kind !== "lesson" ? extras.chip({ kind: e.kind, when: e.date + "T" + e.time }) : "") : ""}</a>`).join("") || '<p class="muted">אין כלום ביום הזה.</p>'}</div>`;
+        <div class="list" style="margin-top:8px">${list.map((e) => `<a class="item day-ev" data-kind="${e.kind}" data-course="${esc(e.course)}" data-date="${e.date}" ${e.url ? `href="${esc(e.url)}" target="_blank" rel="noopener"` : `href="#"`}><span style="min-width:0"><span class="t"><i class="ev ${e.kind}"></i> ${esc(e.title)}</span><br><span class="small muted"><bdi>${e.time}${e.end ? "–" + e.end : ""}</bdi>${e.kind === "lesson" ? " · פתיחת המחברת של השיעור" : e.kind === "deadline" ? " · פתיחה במודל" : ""}</span></span>${extras.chip ? (e.kind !== "lesson" ? extras.chip({ kind: e.kind, when: e.date + "T" + e.time }) : "") : ""}</a>${extra(e)}`).join("") || '<p class="muted">אין כלום ביום הזה.</p>'}</div>`;
       $("#dayBox").querySelectorAll('.day-ev[data-kind="lesson"]').forEach((a) => (a.onclick = async (ev) => {
         ev.preventDefault();
         const l = await ctx.lessonForToday(a.dataset.course, a.dataset.date);
@@ -81,6 +93,26 @@ export function initPlanner(ctx) {
       const p = prefs.get(); p.semester = { start: $("#semS").value, end: $("#semE").value }; prefs.set(p);
       toast("תאריכי הסמסטר נשמרו"); calendar(ym);
     };
+  }
+
+  // ---------- חומרים לשיעור (לכל קורס) ----------
+  const ICON = { resource: "📄", folder: "📁", url: "🔗", assign: "📝", quiz: "✅", forum: "💬", lti: "🎥", zoom: "🎥", page: "📃", book: "📘" };
+  async function materials(course) {
+    const m = ((await store.getItem("course-materials"))?.map || {})[course] || null;
+    const slots = (prefs.get().timetable || []).filter((x) => x.course === course).sort((a, b) => a.day - b.day || a.start.localeCompare(b.start));
+    const open = (it) => it.type === "resource" ? it.url + (it.url.includes("?") ? "&" : "?") + "redirect=1" : it.url;
+    const items = (m?.items || []).filter((it) => !(m.zoom && it.url === m.zoom));
+    view.innerHTML = `<div class="page" style="max-width:760px">
+      <h1 style="font-size:28px">📚 חומרים לשיעור</h1>
+      <p class="muted" style="margin-top:-6px">${esc(course)}</p>
+      ${m?.zoom ? `<a class="btn" href="${esc(m.zoom)}" target="_blank" rel="noopener" style="justify-self:start">🎥 כניסה לזום של הקורס</a>` : ""}
+      ${slots.length ? `<section class="soft" style="display:grid;gap:6px"><h2 style="font-size:18px;margin:0">🕘 מתי ואיפה</h2>
+        ${slots.map((x) => `<p style="margin:0">יום ${DAYS[x.day]} · <bdi>${x.start}–${x.end}</bdi>${x.place ? ` · 📍 <b>${esc(x.place)}</b>` : ""}${x.lecturer ? ` · 👤 ${esc(x.lecturer)}` : ""}</p>`).join("")}</section>` : ""}
+      <section class="soft" style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">📂 החומרים מהמודל</h2>
+        ${items.length ? `<div class="list">${items.map((it) => `<a class="item" href="${esc(open(it))}" target="_blank" rel="noopener"><span class="t">${ICON[it.type] || "•"} ${esc(it.name)}</span></a>`).join("")}</div>`
+          : '<p class="muted">החומרים של הקורס יגיעו לכאן מהמודל בבדיקה הבאה של המחבר בכרום (צריך שהמחשב יהיה דלוק פעם אחת).</p>'}
+        <p class="small muted">הקבצים נפתחים במודל. הסיכומים שלהם נמצאים ב<a href="#summaries">סיכומים</a>.</p></section>
+    </div>`;
   }
 
   // ---------- תיבת הודעות ----------
@@ -173,5 +205,5 @@ export function initPlanner(ctx) {
     view.innerHTML = m ? `<div class="page"><a href="#inbox" class="small">→ הודעות</a><h1 style="font-size:28px">${m.icon || "☀️"} ${esc(m.title)}</h1><p class="small muted"><bdi>${esc(m.date || "")}</bdi></p><article class="card md-body">${miniMd(m.md || "")}</article></div>` : '<div class="page"><p>ההודעה לא נמצאה.</p><a href="#inbox">להודעות</a></div>';
   }
 
-  return { message, calendar, inbox, weekly, refresh, paintBadge, inboxStore, eventsBetween };
+  return { message, calendar, materials, inbox, weekly, refresh, paintBadge, inboxStore, eventsBetween };
 }
