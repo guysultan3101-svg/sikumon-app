@@ -1720,7 +1720,7 @@ async function adminPage() {
   const list = r.waitlist || [];
   view.innerHTML = `<div class="page" style="max-width:820px">
     <h1 style="font-size:30px">🛠️ ניהול Early Access</h1>
-    ${r.smtp ? `<p class="notice">📧 המיילים יוצאים מ-<b dir="ltr">${esc(r.from || "")}</b> (תשובות מגיעות ל-clearlyappsupport@gmail.com). <button class="link" type="button" id="adTest">שליחת מייל בדיקה אליי</button></p>` : '<p class="notice alert"><b>המיילים עוד לא מחוברים.</b> אפשר לאשר אנשים, אבל המייל "Clearly פתוח בשבילך" לא יישלח עד שמוסיפים בשרת את סיסמת האפליקציה של Gmail.</p>'}
+    ${r.smtp ? `<p class="notice">📧 המיילים מוגדרים לצאת מ-<b dir="ltr">${esc(r.from || "")}</b> (תשובות מגיעות ל-clearlyappsupport@gmail.com). כדי לוודא שהם באמת יוצאים: <button class="link" type="button" id="adTest">שליחת מייל בדיקה אליי</button></p>` : '<p class="notice alert"><b>המיילים עוד לא מחוברים.</b> אפשר לאשר אנשים, אבל המייל "Clearly פתוח בשבילך" לא יישלח עד שמוסיפים בשרת את סיסמת האפליקציה של Gmail.</p>'}
     <p class="muted">${list.length} ממתינים. <b>"אישור"</b> פותח את Clearly לאדם אחד ושולח לו מייל. <b>"השקה"</b> פותח לכולם ושולח מייל לכולם.</p>
     <div class="row"><button class="btn" type="button" id="adLaunch" ${list.length ? "" : "disabled"}>🚀 השקה: לפתוח לכולם (${list.length}) ולשלוח מייל</button></div>
     <div class="list">${list.map((p) => `<div class="item"><span style="min-width:0;flex:1"><span class="t">${esc(p.full_name)} <span class="small muted" dir="ltr">@${esc(p.username)}</span></span><br><span class="small muted">${esc(p.uni)}${p.degree ? " · " + esc(p.degree) : ""} · <span dir="ltr">${esc(p.email)}</span> · נרשם/ה ב-${new Date(p.created_at).toLocaleDateString("he-IL")}</span></span><button class="btn small-btn" type="button" data-ok="${esc(p.id)}">אישור</button></div>`).join("") || '<p class="muted">אין אף אחד ברשימת ההמתנה.</p>'}</div>
@@ -1827,7 +1827,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "55";
+const APP_VERSION = "56";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
