@@ -351,6 +351,7 @@ button.tt-del, button.del-rec { color: var(--red); }
 select.need { border-color: var(--red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 30%, transparent); }
 .big-steps { display: grid; gap: 14px; padding-inline-start: 22px; }
 .big-steps li { line-height: 1.6; }
+.slide-cta { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 10px; }
 .day-extra { gap: 6px 14px; flex-wrap: wrap; padding: 2px 14px 10px; color: var(--ink-soft); }
 .day-extra a { font-weight: 700; }
 .focus-c { display: grid; gap: 10px; }

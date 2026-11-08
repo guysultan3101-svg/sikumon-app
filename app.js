@@ -899,7 +899,7 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
       <div class="row" style="justify-content:space-between">
         <div><h1 style="font-size:clamp(24px,3.5vw,32px)${course ? `;color:${color(sel)}` : ""}">${course ? esc(course) : "כל השיעורים"}</h1>${course ? `<a href="#deadlines" class="cd-row">${(await extras.upcoming(course)).slice(0, 2).map(extras.chip).join("")}</a>` : ""}</div>
         <div class="row" style="gap:8px">
-          ${course ? `<label class="btn ghost small-btn">${svg("download")} ייבוא מ-Notability<input type="file" id="pdfIn" accept="application/pdf,.pdf" multiple hidden></label>` : ""}
+          ${course ? `<label class="btn ghost small-btn">${svg("download")} ייבוא PDF (מצגות / Notability)<input type="file" id="pdfIn" accept="application/pdf,.pdf" multiple hidden></label>` : ""}
           <button class="btn ghost small-btn" id="editNb" aria-pressed="false">עריכה</button>
           <button class="btn small-btn" id="newLesson">${svg("plus")} חדש</button>
         </div>
@@ -1121,12 +1121,14 @@ async function lessonPage(id) {
           <button class="tool" id="fullExit" aria-label="יציאה ממסך מלא">${svg("shrink")}</button>
         </div>
       </div>
+      ${(l.pages || []).some((pg) => pg.image) ? "" : `<div class="notice slide-cta"><span>📄 <b>יש מצגת לשיעור?</b> מוסיפים אותה לכאן וכותבים עליה בעט, ישר על השקפים.</span><label class="btn small-btn">הוספת המצגת<input type="file" class="slidesIn" accept="application/pdf,.pdf,image/*" multiple hidden></label></div>`}
       <div class="sheets-wrap"><div class="sheets" id="sheets"></div></div>
       <div class="row" style="justify-content:center;margin-top:14px">
         <button class="btn ghost" data-add="blank">${svg("plus")} עמוד חלק</button>
         <button class="btn ghost" data-add="lines">${svg("plus")} עמוד שורות</button>
         <button class="btn ghost" data-add="grid">${svg("plus")} עמוד משבצות</button>
-        <label class="btn ghost">${svg("image")} תמונה / שקף<input type="file" id="addImg" accept="image/*" hidden></label>
+        <label class="btn ghost">📄 מצגת / PDF של השיעור<input type="file" class="slidesIn" accept="application/pdf,.pdf,image/*" multiple hidden></label>
+        <label class="btn ghost">${svg("image")} תמונה<input type="file" id="addImg" accept="image/*" hidden></label>
       </div>
     </div>
     <div id="textArea" ${mode === "text" ? "" : "hidden"}>
@@ -1173,6 +1175,21 @@ async function lessonPage(id) {
   editor.addEventListener("change", () => { paintTools(); l.pages = editor.pages; saveSoon(); });
   editor.addEventListener("penonly", () => { paintTools(); toast("זוהה עט: מעכשיו האצבע גוללת והעט כותב"); });
   view.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => { editor.addPage(b.dataset.add).scrollIntoView({ behavior: "smooth", block: "start" }); }));
+  // מצגת/PDF של השיעור: כל שקף נכנס כעמוד שאפשר לכתוב עליו (כמו ב-Notability)
+  view.querySelectorAll(".slidesIn").forEach((inp) => (inp.onchange = async (e) => {
+    const files = [...(e.target.files || [])]; e.target.value = "";
+    if (!files.length) return;
+    let first = null, n = 0;
+    for (const f of files) {
+      try {
+        if (/\.(pptx?|key|docx?)$/i.test(f.name)) { toast("מצגת PowerPoint/Keynote: פותחים אותה, בוחרים שיתוף/ייצוא ← PDF, ומוסיפים את ה-PDF"); continue; }
+        if (f.type.startsWith("image/")) { const el = await editor.addImagePage(f); first ||= el; n += 1; continue; }
+        toast(`טוען את ${f.name}…`);
+        for (const pg of await pdfToPages(f)) { const el = editor.addPage("blank", pg.image); first ||= el; n += 1; }
+      } catch (err) { toast(`לא הצלחתי לפתוח את ${f.name}: ${err.message}`); }
+    }
+    if (n) { view.querySelector(".slide-cta")?.remove(); first?.scrollIntoView({ behavior: "smooth", block: "start" }); toast(`✓ נוספו ${n} שקפים. אפשר לכתוב עליהם בעט`); }
+  }));
   $("#addImg").onchange = async (e) => {
     const f = e.target.files?.[0]; if (!f) return;
     try { (await editor.addImagePage(f)).scrollIntoView({ behavior: "smooth", block: "start" }); toast("התמונה נוספה כעמוד. אפשר לכתוב עליה"); }
@@ -1757,7 +1774,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "49";
+const APP_VERSION = "50";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
