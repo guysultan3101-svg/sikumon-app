@@ -46,7 +46,22 @@
       <button id="syncBtn">🔄 בדיקה עכשיו</button>
       <button class="ghost" id="openMoodle">פתיחת המודל (להתחברות)</button>
     </div>
-    <p class="muted">🔒 התוסף לא רואה את הסיסמה שלך למודל. הוא בודק כל 3 שעות, כשכרום פתוח.</p>
+    <div class="box">
+      <b>מערכת השעות של המוסד שלך לא מופיעה?</b>
+      <p class="muted">פותחים בכרום את הדף שבו רואים את מערכת השעות, ולוחצים. הדף נשלח למפתח של Clearly כדי להוסיף תמיכה במוסד שלך. בלי סיסמאות.</p>
+      <button class="ghost" id="sendPage">📤 שליחת הדף הפתוח למפתח</button>
+      <section id="consent" hidden>
+        <p><b>מה יישלח?</b></p>
+        <p class="small">✅ <b>נשלחים:</b> רק הטקסט של הדף הפתוח עכשיו. הכתובת נשמרת בלי החלק של הפרמטרים.</p>
+        <p class="small">🚫 <b>לא נשלחים:</b> סקריפטים, שדות סיסמה, שדות נסתרים ותמונות.</p>
+        <p class="small">🔒 <b>בשרת:</b> אפשר רק להוסיף דף. אי אפשר לקרוא דפים (גם לא את שלך) ולא להתחזות למשתמש אחר. עד 10 דפים ביום לכל משתמש.</p>
+        <p class="small">הדף עלול להכיל את השם שלך ואת מערכת השעות שלך.</p>
+        <button id="confirmSend">אישור ושליחה</button>
+        <button class="ghost" id="cancelSend">ביטול</button>
+      </section>
+      <p class="small" id="sendMsg" aria-live="polite"></p>
+    </div>
+    <p class="muted">🔒 התוסף לא רואה את הסיסמה שלך למודל. הוא בודק כל שעה וחצי, כשכרום פתוח.</p>
     <button class="ghost" id="logoutBtn">התנתקות</button>
   </section>
   <script type="module" src="popup.js"></script>

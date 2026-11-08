@@ -1,5 +1,5 @@
 // החלון של התוסף: התחברות ל-Clearly, בחירת המודל, ובדיקה עכשיו
-import { login, logout, MOODLES, moodleRoot, resolveBase } from "./sync.js";
+import { login, logout, MOODLES, moodleRoot, resolveBase, sendPageSample } from "./sync.js";
 
 const $ = (s) => document.querySelector(s);
 const get = (k) => chrome.storage.local.get(k).then((o) => o[k]);
@@ -44,6 +44,15 @@ $("#syncBtn").onclick = async () => {
   await chrome.runtime.sendMessage("sync"); $("#syncBtn").disabled = false; draw();
 };
 $("#openMoodle").onclick = async () => { const m = await get("moodle"); if (m) chrome.tabs.create({ url: (await resolveBase(m)) + "/my/" }); };
+// שליחת דף למפתח: קודם מראים מה יישלח ומה לא, ורק אחרי "אישור ושליחה" שולחים
+$("#sendPage").onclick = () => { $("#sendMsg").textContent = ""; $("#consent").hidden = false; $("#sendPage").hidden = true; };
+$("#cancelSend").onclick = () => { $("#consent").hidden = true; $("#sendPage").hidden = false; };
+$("#confirmSend").onclick = async () => {
+  const msg = $("#sendMsg"); $("#consent").hidden = true; msg.textContent = "שולח…";
+  try { await sendPageSample(); msg.textContent = "✓ נשלח. תודה! נעדכן כשיהיה תמיכה במוסד שלך."; }
+  catch (e) { msg.textContent = "❌ " + e.message; }
+  finally { $("#sendPage").hidden = false; }
+};
 $("#logoutBtn").onclick = async () => { await logout(); draw(); };
 chrome.storage.onChanged.addListener(draw);
 draw();

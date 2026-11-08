@@ -38,6 +38,29 @@ async function token() {
   return a;
 }
 
+// ---------- "הדף שלי לא נתמך": שליחת דוגמה של הדף הפתוח למפתח ----------
+// המשתמש לוחץ ומאשר בעצמו. נשלח רק הדף הפתוח עכשיו (אתר .ac.il), בלי סקריפטים, שדות סיסמה ושדות נסתרים.
+// כך אפשר לבנות תמיכה (למשל במערכת שעות) למוסד חדש בלי להתחבר לחשבון של אף אחד.
+export async function sendPageSample(note = "") {
+  const a = await token();
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.url || !/^https:\/\/[^/]*\.ac\.il\//.test(tab.url)) throw new Error("קודם פותחים את הדף של המוסד (כתובת שנגמרת ב-ac.il), ואז לוחצים שוב");
+  const frames = await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, func: () => {
+    const c = document.documentElement.cloneNode(true);
+    c.querySelectorAll("script,style,noscript,link,input[type=hidden],input[type=password],svg,img").forEach((n) => n.remove());
+    c.querySelectorAll("input,textarea,select").forEach((n) => { n.removeAttribute("value"); });
+    return { url: location.origin + location.pathname, title: document.title, html: c.outerHTML };
+  } });
+  const parts = frames.map((f) => f.result).filter((x) => x?.html && x.html.length > 200);
+  if (!parts.length) throw new Error("הדף ריק. נסו שוב אחרי שהוא נטען עד הסוף");
+  const html = parts.map((p, i) => `<!-- FRAME ${i} ${p.url} -->\n${p.html}`).join("\n").replace(/\s{2,}/g, " ");
+  if (html.length > 1.4e6) throw new Error("הדף גדול מדי לשליחה");
+  const r = await fetch(`${SB}/rest/v1/page_samples`, { method: "POST", headers: { apikey: ANON, Authorization: `Bearer ${a.access}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify({ url: parts[0].url.slice(0, 2000), title: (parts[0].title || "").slice(0, 300), html, note: String(note).slice(0, 300) }) });
+  if (!r.ok) throw new Error(/too_many/.test(await r.text()) ? "כבר שלחתם היום כמה דפים. אפשר שוב מחר" : "השליחה נכשלה. נסו שוב מאוחר יותר");
+  return { frames: parts.length, chars: html.length };
+}
+
 // ---------- מודל ----------
 // מוודאים שהכתובת השמורה היא באמת שורש המודל. אם נשמרה בלי תת-התיקייה (למשל moodle.bgu.ac.il
 // במקום moodle.bgu.ac.il/moodle) ו-/my/ מחזיר 404 – מנסים עם /moodle ומתקנים את מה ששמור.
