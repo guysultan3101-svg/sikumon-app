@@ -1,5 +1,5 @@
 // החלון של התוסף: התחברות ל-Clearly, בחירת המודל, ובדיקה עכשיו
-import { login, logout, MOODLES } from "./sync.js";
+import { login, logout, MOODLES, moodleRoot, resolveBase } from "./sync.js";
 
 const $ = (s) => document.querySelector(s);
 const get = (k) => chrome.storage.local.get(k).then((o) => o[k]);
@@ -29,7 +29,7 @@ $("#moodle").onchange = () => { $("#otherBox").hidden = $("#moodle").value !== "
 $("#saveMoodle").onclick = async () => {
   let url = $("#moodle").value;
   if (url === "other") {
-    try { const u = new URL($("#otherUrl").value.trim()); if (!u.hostname.endsWith(".ac.il")) throw 0; url = u.origin; }
+    try { const u = new URL($("#otherUrl").value.trim()); if (!u.hostname.endsWith(".ac.il")) throw 0; url = moodleRoot(u.href); }
     catch { alert("כתובת לא תקינה. צריך כתובת של מוסד אקדמי (נגמרת ב-ac.il)"); return; }
   }
   // רק אם עברו למודל אחר מתחילים מחדש את רשימת הקבצים שנבדקו
@@ -43,7 +43,7 @@ $("#syncBtn").onclick = async () => {
   $("#syncBtn").disabled = true; $("#state").textContent = "בודק… (יכול לקחת כמה דקות)"; $("#error").textContent = "";
   await chrome.runtime.sendMessage("sync"); $("#syncBtn").disabled = false; draw();
 };
-$("#openMoodle").onclick = async () => { const m = await get("moodle"); if (m) chrome.tabs.create({ url: m + "/my/" }); };
+$("#openMoodle").onclick = async () => { const m = await get("moodle"); if (m) chrome.tabs.create({ url: (await resolveBase(m)) + "/my/" }); };
 $("#logoutBtn").onclick = async () => { await logout(); draw(); };
 chrome.storage.onChanged.addListener(draw);
 draw();

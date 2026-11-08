@@ -3,7 +3,15 @@
 import { syncPortal } from "./portal.js";
 export const SB = "https://islplhnlvaukixaglxof.supabase.co";
 export const ANON = "sb_publishable_1fDG1GIaFERhcFPiRyx46g_38BIv8HZ";
-export const MOODLES = { "אוניברסיטת אריאל": "https://moodlearn.ariel.ac.il" };
+export const MOODLES = { "אוניברסיטת אריאל": "https://moodlearn.ariel.ac.il", "אוניברסיטת בן-גוריון": "https://moodle.bgu.ac.il/moodle" };
+// הכתובת של המודל עצמו מתוך כל כתובת שמודבקת. יש מוסדות שהמודל שלהם בתת-תיקייה
+// (בבן-גוריון: moodle.bgu.ac.il/moodle), אז שומרים את הנתיב עד החלק שהוא כבר דף בתוך המודל.
+export function moodleRoot(input) {
+  const u = new URL(input);
+  const cut = u.pathname.search(/\/(my|local|course|mod|login|user|calendar|admin|blocks|grade|message|lib|theme|auth|pluginfile\.php|index\.php)(\/|$|\?)/);
+  const path = (cut >= 0 ? u.pathname.slice(0, cut) : u.pathname).replace(/\/+$/, "");
+  return u.origin + path;
+}
 const FIRST_RUN_MAX = 4;   // בפעם הראשונה: רק הקבצים האחרונים, לא כל הסמסטר
 const PER_RUN_MAX = 5;     // בכל בדיקה – עד 5 קבצים חדשים (המכסה היומית בשרת: 10)
 const OK_EXT = /\.(pdf|pptx|docx)$/i;
@@ -30,6 +38,16 @@ async function token() {
 }
 
 // ---------- מודל ----------
+// מוודאים שהכתובת השמורה היא באמת שורש המודל. אם נשמרה בלי תת-התיקייה (למשל moodle.bgu.ac.il
+// במקום moodle.bgu.ac.il/moodle) ו-/my/ מחזיר 404 – מנסים עם /moodle ומתקנים את מה ששמור.
+export async function resolveBase(base) {
+  const r = await fetch(`${base}/my/`, { credentials: "include", method: "HEAD" }).catch(() => null);
+  if (r && r.status !== 404) return base;
+  const alt = base.replace(/\/+$/, "") + "/moodle";
+  const r2 = await fetch(`${alt}/my/`, { credentials: "include", method: "HEAD" }).catch(() => null);
+  if (r2 && r2.status !== 404) { await set({ moodle: alt }); return alt; }
+  return base;
+}
 async function moodleSession(base) {
   const html = await (await fetch(`${base}/my/`, { credentials: "include" })).text();
   const m = html.match(/"sesskey":"([^"]+)"/);
@@ -103,9 +121,10 @@ export async function syncOnce({ manual = false } = {}) {
   running = true;
   try {
     const a = await token();
-    const base = await get("moodle");
+    let base = await get("moodle");
     if (!base) throw new Error("בחרו את המודל שלכם (לחצו על סמל התוסף)");
     await status({ state: "בודק את המודל…", error: "" });
+    base = await resolveBase(base);
     const sesskey = await moodleSession(base);
     const courses = (await ajax(base, sesskey, "core_course_get_enrolled_courses_by_timeline_classification", { classification: "inprogress", limit: 0, offset: 0, sort: "fullname" })).courses || [];
     // מטלות ומועדי הגשה (לאפליקציה), ועבודות שחיכו להגשה מהאפליקציה
@@ -217,7 +236,7 @@ async function uploadToMoodle(base, cmid, blob, fileName) {
   body.set("sesskey", sesskey); body.set("files_filemanager", itemid); body.delete("cancel");
   if (!body.get("submitbutton")) body.set("submitbutton", "שמירת שינויים");
   const action = (form[1].match(/action="([^"]+)"/)?.[1] || `${base}/mod/assign/view.php`).replace(/&amp;/g, "&");
-  const saved = await fetch(new URL(action, base), { method: "POST", credentials: "include", body });
+  const saved = await fetch(new URL(action, base + "/"), { method: "POST", credentials: "include", body });
   if (!saved.ok) throw new Error(`השמירה במודל נכשלה (${saved.status})`);
   // 3. מה המצב עכשיו במודל
   return assignStatus(base, cmid);

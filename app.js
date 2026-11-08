@@ -1754,7 +1754,7 @@ function connectPage() {
         <li><b>מדליקים את המתג "מצב פיתוח"</b> (Developer mode) – בפינה העליונה של הדף.</li>
         <li><b>לוחצים "טעינת פריט לא ארוז"</b> (Load unpacked), בוחרים את התיקייה מצעד 2, ולוחצים "בחירת תיקייה".</li>
         <li><b>מתחברים:</b> לוחצים על סמל הפאזל 🧩 למעלה בכרום ← "המחבר של Clearly" ← מתחברים עם <b>אותו מייל וסיסמה של Clearly</b>.</li>
-        <li><b>בוחרים "אוניברסיטת אריאל"</b> ← "שמירה" ← "פתיחת המודל", ומתחברים למודל כרגיל.</li>
+        <li><b>בוחרים את המוסד שלכם</b> (אריאל או בן-גוריון) ← "שמירה" ← "פתיחת המודל", ומתחברים למודל כרגיל. מוסד אחר? בוחרים "מוסד אחר" ומדביקים את הכתובת שמופיעה למעלה כשאתם בתוך המודל.</li>
       </ol>
       <p class="notice">✅ <b>זהו!</b> מעכשיו הכול מגיע לבד. כשהמחשב דלוק וכרום פתוח, התוסף בודק את המודל כל כמה שעות.</p>
     </section>
@@ -1827,7 +1827,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "56";
+const APP_VERSION = "57";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
