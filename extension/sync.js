@@ -12,8 +12,9 @@ export function moodleRoot(input) {
   const path = (cut >= 0 ? u.pathname.slice(0, cut) : u.pathname).replace(/\/+$/, "");
   return u.origin + path;
 }
-const FIRST_RUN_MAX = 4;   // בפעם הראשונה: רק הקבצים האחרונים, לא כל הסמסטר
-const PER_RUN_MAX = 5;     // בכל בדיקה – עד 5 קבצים חדשים (המכסה היומית בשרת: 10)
+const PER_RUN_MAX = 5;     // בכל בדיקה – עד 5 קבצים (המכסה היומית בשרת: 10)
+// "קורסים" שהם בעצם לומדות והדרכות של המוסד – לא מסכמים אותם
+const NOT_COURSE = /הטרדה|harassment|לומדה|הכרת הספרייה|הדרכה לקראת|instructions for|בטיחות ב|safety/i;
 const OK_EXT = /\.(pdf|pptx|docx)$/i;
 
 const get = (k) => chrome.storage.local.get(k).then((o) => o[k]);
@@ -138,23 +139,29 @@ export async function syncOnce({ manual = false } = {}) {
     catch (e) { portal = "🕘 " + e.message; }
     if (portal) await status({ portal });
     const seen = (await get("seen")) || {};
-    const firstRun = !Object.keys(seen).length;
-    const queue = [];
+    // פעם אחת: קבצים ישנים שבגרסאות קודמות סומנו "ישן" (ולא סוכמו) חוזרים לתור – מסכמים את כל הסמסטר
+    if (!(await get("backfill1"))) {
+      for (const k of Object.keys(seen)) if (seen[k] === "old") delete seen[k];
+      await set({ seen, backfill1: true });
+    }
+    // כל הקבצים מתחילת הסמסטר, מהחדש לישן, לסירוגין בין הקורסים (כך כל קורס מקבל סיכומים מהר).
+    // הקצב מוגבל במכסה היומית בשרת, אז זה נגמר תוך כמה ימים – ממשיכים לבד בכל בדיקה.
+    const perCourse = [];
     for (const c of courses) {
+      const course = (c.fullname || c.shortname || "").trim();
+      if (NOT_COURSE.test(course)) continue;
       const items = await courseItems(base, sesskey, c.id);
+      const list = [];
       for (const it of items) {
         const key = `${new URL(base).host}:${it.id}`;
         if (it.type === "resource" && seen[key]) continue;
-        queue.push({ ...it, key, course: (c.fullname || c.shortname || "").trim() });
+        list.push({ ...it, key, course });
       }
+      perCourse.push(list.reverse());
     }
-    // בפעם הראשונה: רק הקבצים האחרונים (בסוף כל קורס = הכי חדשים), את השאר מסמנים כ"נראו"
-    let todo = queue;
-    if (firstRun) {
-      todo = queue.filter((q) => q.type === "resource").slice(-FIRST_RUN_MAX);
-      for (const q of queue) if (!todo.includes(q)) { seen[q.key] = "old"; }
-      await set({ seen });
-    }
+    const todo = [];
+    for (let i = 0; perCourse.some((l) => i < l.length); i++) for (const l of perCourse) if (l[i]) todo.push(l[i]);
+    const backlog = todo.filter((q) => q.type === "resource").length;
     let done = 0, made = 0, stop = "";
     for (const it of todo) {
       if (made >= PER_RUN_MAX) break;
@@ -187,7 +194,10 @@ export async function syncOnce({ manual = false } = {}) {
     }
     await set({ seen });
     chrome.action.setBadgeText({ text: made ? String(made) : "" });
-    return await status({ state: stop || (made ? `✅ ${made} סיכומים חדשים נשלחו לאפליקציה` : "✅ אין קבצים חדשים"), courses: courses.length, error: "", last: new Date().toISOString() });
+    const left = Math.max(backlog - made, 0);
+    const more = left ? ` · נשארו עוד כ-${left} קבצים מהסמסטר – ממשיכים לבד (עד 10 סיכומים ביום)` : "";
+    await set({ backlogLeft: left });
+    return await status({ state: (stop || (made ? `✅ ${made} סיכומים חדשים נשלחו לאפליקציה` : "✅ אין קבצים חדשים")) + more, courses: courses.length, error: "", last: new Date().toISOString() });
   } catch (e) {
     chrome.action.setBadgeText({ text: "!" });
     return await status({ state: "", error: e.message, needMoodle: e.code === "moodle_login" });

@@ -1,8 +1,8 @@
-// המחבר של Clearly – רץ ברקע: בודק את המודל כל 3 שעות (וכשכרום נפתח)
+// המחבר של Clearly – רץ ברקע: בודק את המודל כל שעה וחצי (וכשכרום נפתח)
 import { syncOnce, submitJobs } from "./sync.js";
 
 // הגשות מהאפליקציה נבדקות כל 5 דקות (בדיקה קלה – רק אם יש משהו בתור)
-const alarms = () => { chrome.alarms.create("sync", { periodInMinutes: 180, delayInMinutes: 1 }); chrome.alarms.create("jobs", { periodInMinutes: 5, delayInMinutes: 1 }); };
+const alarms = () => { chrome.alarms.create("sync", { periodInMinutes: 90, delayInMinutes: 1 }); chrome.alarms.create("jobs", { periodInMinutes: 5, delayInMinutes: 1 }); };
 chrome.runtime.onInstalled.addListener(alarms);
 chrome.runtime.onStartup.addListener(alarms);
 chrome.alarms.onAlarm.addListener((a) => { if (a.name === "sync") syncOnce(); if (a.name === "jobs") submitJobs().catch(() => {}); });
