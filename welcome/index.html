@@ -311,6 +311,23 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 .features.big h3 { font-size: 21px; color: var(--blue); }
+
+/* גלריית צילומי המסך */
+.hero .wrap:has(.shots) { grid-template-columns: 1fr 1.15fr; }
+@media (max-width: 880px) { .hero .wrap:has(.shots) { grid-template-columns: 1fr; } }
+.shots { display: grid; gap: 8px; justify-items: center; width: 100%; }
+.shots-stage { position: relative; width: 100%; aspect-ratio: 1100 / 779; }
+.shots-stage.is-phone { aspect-ratio: 418 / 872; max-width: 300px; }
+.shots-stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity .7s ease; filter: drop-shadow(0 18px 30px rgba(15, 23, 42, .25)); }
+.shots-stage img.on { opacity: 1; }
+.shots-bar { display: flex; align-items: center; gap: 10px; width: 100%; justify-content: center; }
+.shots-cap { margin: 0; font-weight: 700; text-align: center; min-height: 2.8em; display: grid; place-items: center; flex: 1; max-width: 30em; }
+.shots-nav { flex: none; width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--ink); background: var(--paper); color: var(--ink); font: 700 22px/1 var(--font-display); cursor: pointer; box-shadow: 2px 2px 0 var(--ink); }
+.shots-dots { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.shots-dots button { width: 12px; height: 12px; padding: 0; border-radius: 50%; border: 2px solid var(--ink); background: var(--paper); cursor: pointer; }
+.shots-dots button[aria-current="true"] { background: var(--blue); border-color: var(--blue); }
+.shots-pause { border: 0; background: none; color: var(--ink-soft); font: 500 14px var(--font-body); cursor: pointer; text-decoration: underline; padding: 4px 8px; }
+@media (prefers-reduced-motion: reduce) { .shots-stage img { transition: none; } }
 </style>
 </head>
 <body>
@@ -350,21 +367,15 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
         </div>
       </div>
 
-      <div class="phone" role="img" aria-label="דוגמה לסיכום אישי באפליקציה">
-        <div class="mail-head">
-          <div class="mail-from"><span>Clearly</span><span>מבוא לכלכלה מיקרו</span></div>
-          <div class="mail-subj">היצע, ביקוש ושיווי משקל</div>
-          <span class="sample-tag">דוגמה</span>
+      <div class="shots" role="region" aria-roledescription="קרוסלה" aria-label="איך Clearly נראה">
+        <div class="shots-stage" id="shotStage"><img src="shots/ipad-home.png" alt="מסך הבית של Clearly" class="on" width="1100" height="779"></div>
+        <div class="shots-bar">
+          <button class="shots-nav" type="button" id="shotPrev" aria-label="התמונה הקודמת">›</button>
+          <p class="shots-cap" id="shotCap" aria-live="polite">מסך הבית: השיעור של עכשיו והמבחנים הבאים</p>
+          <button class="shots-nav" type="button" id="shotNext" aria-label="התמונה הבאה">‹</button>
         </div>
-        <div class="mail-body">
-          <p class="mail-h">שיווי משקל</p>
-          <p>המחיר שבו הכמות שהקונים רוצים שווה לכמות שהמוכרים מציעים.</p>
-          <div class="formula"><b>★</b> Qd = 100 − 2P · Qs = 20 + 2P ← P = 20, Q = 60</div>
-          <p class="mail-h">⭐ מה חשוב למבחן</p>
-          <p>לחשב שיווי משקל, ולהסביר מה קורה כשעקומה זזה.</p>
-          <p class="mail-h">🎓 גם בכיתה שלכם</p>
-          <p>נועה ויואב שיתפו סיכומים מהשבוע.</p>
-        </div>
+        <div class="shots-dots" id="shotDots"></div>
+        <button class="shots-pause" type="button" id="shotPause" aria-pressed="false">⏸ עצירה</button>
       </div>
     </div>
   </section>
@@ -536,6 +547,55 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
   }
   window.addEventListener("hashchange", openLegal);
   openLegal();
+</script>
+<script>
+// גלריית צילומי המסך: מתחלפת כל 5 שניות; אפשר לעבור ידנית (חיצים, נקודות, החלקה) ולעצור
+(() => {
+  const SHOTS = [
+    ["home", "מסך הבית: השיעור של עכשיו והמבחנים הבאים"],
+    ["summaries", "כל הסיכומים, מסודרים לפי קורס"],
+    ["summary", "סיכום אישי לכל שיעור, עם מה שחשוב למבחן"],
+    ["record", "הקלטת שיעור בלחיצה – הקורס מזוהה לבד לפי המערכת"],
+    ["notebook", "מחברת: כותבים בעט ישר על המצגת של השיעור"],
+    ["calendar", "יומן עם מערכת השעות, החדר והזום"],
+    ["materials", "חומרים לשיעור: זום, מצגות וחוברות במקום אחד"],
+    ["quizzes", "מבחנים, כרטיסיות וסימולציה לכל קורס"],
+    ["quiz", "מבחן קצר אחרי כל סיכום"],
+    ["assignments", "כל המטלות מהמודל, עם כמה זמן נשאר"],
+    ["assign", "פותחים מטלה ומגישים אותה מתוך Clearly"],
+  ];
+  const stage = document.getElementById("shotStage"), cap = document.getElementById("shotCap"), dots = document.getElementById("shotDots"), pauseBtn = document.getElementById("shotPause");
+  if (!stage) return;
+  let i = 0, dev = "", timer = null, paused = false;
+  const src = (k) => `shots/${dev}-${SHOTS[k][0]}.png`;
+  function build() {
+    const d = matchMedia("(max-width: 700px)").matches ? "phone" : "ipad";
+    if (d === dev) return;
+    dev = d;
+    stage.classList.toggle("is-phone", d === "phone");
+    stage.innerHTML = SHOTS.map(([n, t], k) => `<img alt="${t}" ${k === i ? `src="${src(k)}" class="on"` : `data-src="${src(k)}"`} decoding="async">`).join("");
+    dots.innerHTML = SHOTS.map((s, k) => `<button type="button" aria-label="תמונה ${k + 1}: ${s[1]}" aria-current="${k === i}"></button>`).join("");
+    dots.querySelectorAll("button").forEach((b, k) => (b.onclick = () => { show(k); restart(); }));
+    show(i);
+  }
+  function load(k) { const im = stage.children[k]; if (im && im.dataset.src) { im.src = im.dataset.src; delete im.dataset.src; } }
+  function show(k) {
+    i = (k + SHOTS.length) % SHOTS.length;
+    load(i); load((i + 1) % SHOTS.length); // טוענים מראש את הבאה
+    [...stage.children].forEach((im, n) => im.classList.toggle("on", n === i));
+    dots.querySelectorAll("button").forEach((b, n) => b.setAttribute("aria-current", n === i));
+    cap.textContent = SHOTS[i][1];
+  }
+  function restart() { clearInterval(timer); if (!paused) timer = setInterval(() => { if (!document.hidden) show(i + 1); }, 5000); }
+  document.getElementById("shotNext").onclick = () => { show(i + 1); restart(); };
+  document.getElementById("shotPrev").onclick = () => { show(i - 1); restart(); };
+  pauseBtn.onclick = () => { paused = !paused; pauseBtn.setAttribute("aria-pressed", paused); pauseBtn.textContent = paused ? "▶ המשך" : "⏸ עצירה"; restart(); };
+  let x0 = null;
+  stage.addEventListener("touchstart", (e) => { x0 = e.touches[0].clientX; }, { passive: true });
+  stage.addEventListener("touchend", (e) => { if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40) { show(i + (dx > 0 ? 1 : -1)); restart(); } x0 = null; });
+  addEventListener("resize", build);
+  build(); restart();
+})();
 </script>
 </body>
 </html>
