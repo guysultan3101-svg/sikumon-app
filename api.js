@@ -202,7 +202,21 @@ export async function summarizeText(text, title, course, ref) {
 
 // ---------- הודעות ----------
 export async function messages() { return ok(await sb.from("messages").select("*").order("created_at", { ascending: true }).limit(1000)); }
-export async function sendMessage(recipient, body) { ok(await sb.from("messages").insert({ sender: user().id, recipient, body })); }
+export async function sendMessage(recipient, body) {
+  const r = ok(await sb.from("messages").insert({ sender: user().id, recipient, body }).select("id").single());
+  // עד שתהיה אפליקציה עם התראות: מייל לנמען (השרת מחליט אם לשלוח – לא אם הוא מחובר עכשיו, ולא יותר מאחד בחצי שעה)
+  if (r?.id) notifyEmail({ action: "message", message_id: r.id }).catch(() => {});
+}
+// מיילים ו-Early Access (פונקציית שרת)
+export async function notifyEmail(body) {
+  const { data, error } = await sb.functions.invoke("notify-email", { body });
+  if (error) {
+    let m = "תקלה"; try { m = (await error.context.json()).error || m; } catch { /* */ }
+    throw new Error(m === "smtp_not_configured" ? "המיילים עוד לא מחוברים (צריך להוסיף את סיסמת Gmail בשרת)" : m === "forbidden" ? "אין הרשאה" : m);
+  }
+  return data;
+}
+export async function amAdmin() { const { data } = await sb.rpc("am_admin"); return !!data; }
 export async function markRead(other) { ok(await sb.from("messages").update({ read_at: new Date().toISOString() }).eq("recipient", user().id).eq("sender", other).is("read_at", null)); }
 export async function chatAccepts() { return ok(await sb.from("chat_accepts").select("other")); }
 export async function acceptChat(other) { ok(await sb.from("chat_accepts").upsert({ owner: user().id, other }, { ignoreDuplicates: true })); }

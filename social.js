@@ -52,7 +52,7 @@ export function initSocial(ctx) {
       <a class="back-btn" href="welcome/">→ חזרה לדף הפתיחה</a>
       <p class="eyebrow">ברוכים הבאים ל-Clearly</p>
       <h1 style="font-size:30px">${isUp ? "יצירת חשבון" : "כניסה לחשבון"}</h1>
-      ${isUp ? '<p class="muted">פותחים פרופיל, וממלאים שאלון קצר על איך שאת/ה לומד/ת. ככה הסיכומים מותאמים בדיוק אלייך, וחברים מהקורס יכולים למצוא אותך.</p>' : ""}
+      ${isUp ? '<p class="muted"><b>Early Access:</b> Clearly נפתח בהדרגה. נרשמים עכשיו, וכשמגיע התור שלך מקבלים מייל ונכנסים.</p>' : ""}
       <form id="sgForm" class="card" style="display:grid;gap:12px" novalidate>
         ${isUp ? `<label>שם משתמש (ייחודי – ככה חברים ימצאו אותך)<input id="sgUser" required autocomplete="username" dir="ltr" placeholder="guy_s" autocapitalize="none"></label>
         <span class="small muted" id="sgUserHint">אותיות באנגלית, מספרים, _ ונקודה</span>

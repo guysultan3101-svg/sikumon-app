@@ -1499,10 +1499,11 @@ async function routeInner() {
   // מסמכים משפטיים ותמיכה: פתוחים גם לפני ההרשמה (צריך לקרוא את התנאים לפני שמסכימים להם)
   if (hash.startsWith("legal-") && !api.profile()) { renderTabs(null); settings.legal(hash.slice(6)); view.querySelector(".page")?.insertAdjacentHTML("afterbegin", '<a class="back-btn" href="#home">→ חזרה</a>'); return; }
   if (!api.user() || !api.profile()) { renderTabs(null); assistant.mount(null); return social.signup(api.user() ? "signup" : undefined); }
+  if (api.profile().access === "waitlist") { renderTabs(null); assistant.mount(null); return waitlistPage(); }
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
   if (hash === "social-missed") hash = "missed-lesson";
-  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash.startsWith("assign-") ? "assignments" : hash.startsWith("materials-") ? "calendar" : hash;
+  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash.startsWith("assign-") ? "assignments" : hash.startsWith("materials-") ? "calendar" : hash === "admin" ? "profile" : hash;
   curTab = tab;
   renderTabs(tab);
   if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
@@ -1566,8 +1567,10 @@ async function routeInner() {
   else if (hash === "messages") await social.messages();
   else if (hash === "messages-req") await social.messages("req");
   else if (hash.startsWith("dm-")) await social.dm(hash.slice(3));
+  else if (hash === "admin") { if (isAdmin) await adminPage(); else location.hash = "#home"; }
   else if (hash === "settings") await settings.page();
   else if (hash.startsWith("settings-")) await settings.page(hash.slice(9));
+  if (isAdmin && hash.startsWith("settings")) view.querySelector("#set-account")?.insertAdjacentHTML("beforeend", '<a class="btn" href="#admin" style="justify-self:start">🛠️ ניהול Early Access</a>');
   else if (hash.startsWith("legal-")) settings.legal(hash.slice(6));
   else if (hash === "profile-liked" || hash === "profile-saved") await profile(hash.slice(8));
   else if (hash.startsWith("u-")) await social.profile(hash.slice(2));
@@ -1688,6 +1691,46 @@ function uploadPage() {
   };
 }
 
+// ---------- Early Access ----------
+let isAdmin = false;
+function waitlistPage() {
+  view.innerHTML = `<div class="page" style="max-width:560px;text-align:center;justify-items:center">
+    <img src="icons/logo-mark.png" alt="" width="72" height="72">
+    <p class="eyebrow">Early Access</p>
+    <h1 style="font-size:32px">נרשמת – את/ה ברשימה 🎉</h1>
+    <p class="muted">אנחנו פותחים את Clearly בהדרגה, כדי שהכול יעבוד מצוין לכל מי שנכנס. כשיגיע תורך נשלח מייל ל-<b dir="ltr">${esc(api.user()?.email || "")}</b>, ואז פשוט נכנסים.</p>
+    <section class="soft" style="text-align:right;display:grid;gap:6px;width:100%"><b>בינתיים:</b><ul class="tips" style="margin:0"><li>אפשר לקרוא <a href="welcome/">איך Clearly עובד</a>.</li><li>ספרו לחברים מהכיתה, כדי שגם הם יירשמו.</li></ul></section>
+    <div class="row" style="justify-content:center"><button class="btn" type="button" id="wlCheck">בדיקה אם כבר נפתח</button><button class="btn ghost" type="button" id="wlOut">יציאה מהחשבון</button></div>
+  </div>`;
+  $("#wlCheck").onclick = () => location.reload();
+  $("#wlOut").onclick = async () => { await api.signOut(); location.href = "welcome/"; };
+}
+async function adminPage() {
+  view.innerHTML = '<div class="page"><p class="muted">טוען…</p></div>';
+  let r;
+  try { r = await api.notifyEmail({ action: "waitlist" }); }
+  catch (e) { view.innerHTML = `<div class="page"><p class="notice alert">${esc(e.message)}</p></div>`; return; }
+  const list = r.waitlist || [];
+  view.innerHTML = `<div class="page" style="max-width:820px">
+    <h1 style="font-size:30px">🛠️ ניהול Early Access</h1>
+    ${r.smtp ? "" : '<p class="notice alert"><b>המיילים עוד לא מחוברים.</b> אפשר לאשר אנשים, אבל המייל "Clearly פתוח בשבילך" לא יישלח עד שמוסיפים בשרת את סיסמת האפליקציה של Gmail.</p>'}
+    <p class="muted">${list.length} ממתינים. <b>"אישור"</b> פותח את Clearly לאדם אחד ושולח לו מייל. <b>"השקה"</b> פותח לכולם ושולח מייל לכולם.</p>
+    <div class="row"><button class="btn" type="button" id="adLaunch" ${list.length ? "" : "disabled"}>🚀 השקה: לפתוח לכולם (${list.length}) ולשלוח מייל</button></div>
+    <div class="list">${list.map((p) => `<div class="item"><span style="min-width:0;flex:1"><span class="t">${esc(p.full_name)} <span class="small muted" dir="ltr">@${esc(p.username)}</span></span><br><span class="small muted">${esc(p.uni)}${p.degree ? " · " + esc(p.degree) : ""} · <span dir="ltr">${esc(p.email)}</span> · נרשם/ה ב-${new Date(p.created_at).toLocaleDateString("he-IL")}</span></span><button class="btn small-btn" type="button" data-ok="${esc(p.id)}">אישור</button></div>`).join("") || '<p class="muted">אין אף אחד ברשימת ההמתנה.</p>'}</div>
+  </div>`;
+  view.querySelectorAll("[data-ok]").forEach((b) => (b.onclick = async () => {
+    b.disabled = true; b.textContent = "מאשר…";
+    try { const x = await api.notifyEmail({ action: "approve", user_id: b.dataset.ok }); toast(x.mailed ? "✓ אושר ונשלח מייל" : "✓ אושר (המייל לא נשלח)"); adminPage(); }
+    catch (e) { toast(e.message); b.disabled = false; b.textContent = "אישור"; }
+  }));
+  $("#adLaunch").onclick = async () => {
+    if (!confirm(`לפתוח את Clearly לכל ${list.length} הממתינים ולשלוח לכולם מייל?`)) return;
+    $("#adLaunch").disabled = true; $("#adLaunch").textContent = "פותח ושולח…";
+    try { const x = await api.notifyEmail({ action: "launch" }); toast(`🚀 נפתח ל-${x.approved}, נשלחו ${x.mailed} מיילים`); adminPage(); }
+    catch (e) { toast(e.message); $("#adLaunch").disabled = false; }
+  };
+}
+
 // ---------- 🔗 חיבור למודל: תוסף לכרום במחשב ----------
 function connectPage() {
   view.innerHTML = `<div class="page" style="max-width:680px">
@@ -1759,7 +1802,7 @@ window.addEventListener("pagehide", () => flushLesson());
 ai.finishOpenRouterLogin().then((k) => k && toast("OpenRouter חובר ✓ בחרו מודל")).catch((e) => toast(e.message));
 recoverOrphans().then(migrateRecordings).catch(() => {})
   .then(() => api.init().catch((e) => logError("api.init", e)))
-  .then(() => { social.restorePrefs(); api.touch(); ai.loadQuota(); serverSync(true); })
+  .then(() => { social.restorePrefs(); api.touch(); ai.loadQuota(); serverSync(true); if (api.user()) api.amAdmin().then((v) => { isAdmin = v; }).catch(() => {}); })
   .finally(async () => { await route(); if (api.isRecovery()) social.newPasswordModal(); });
 let lastAutoSync = 0;
 async function autoSync() {
@@ -1774,7 +1817,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "50";
+const APP_VERSION = "51";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

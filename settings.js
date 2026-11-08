@@ -69,6 +69,7 @@ export function initSettings(ctx) {
 
       <section class="soft set" id="set-privacy"><h2>🔒 פרטיות ובטיחות</h2>
         ${select("pvPosts", "ברירת מחדל לפוסט חדש", [["friends", "👥 כל החברים שלי"], ["course_friends", "🎓 החברים שלי מהקורס"], ["course", "🏫 כל מי שרשום לקורס"], ["public", "🌍 כולם"]], priv.posts || "friends")}
+        <label class="row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="pvMail" ${api.profile()?.email_notify !== false ? "checked" : ""} style="width:auto;margin-top:5px"><span>📧 לשלוח לי מייל כשמישהו שולח לי הודעה <span class="small muted">(עד שתהיה אפליקציה עם התראות. לכל היותר מייל אחד בחצי שעה מאותו אדם)</span></span></label>
         <p class="small muted">יום ההולדת שלך מוצג רק לחברים. הודעה ממי שאינו חבר נכנסת ל"בקשות", והוא לא יודע שקראת עד שתאשר/י. הסיכומים שלך מוצגים רק לחברים ששיתפת איתם קורס ב"אותה כיתה", ורק אם גם הם שיתפו איתך.</p>
         <h3>חסומים (${blocked.length})</h3>
         <div class="list">${blocked.map((b) => `<div class="item"><span dir="ltr">@${esc(b.username)}</span><button class="btn ghost" type="button" data-unblock="${esc(b.id)}">ביטול חסימה</button></div>`).join("") || '<p class="small muted">אין משתמשים חסומים</p>'}</div>
@@ -158,6 +159,7 @@ export function initSettings(ctx) {
       toast("החשבון נמחק"); location.hash = "#home"; dispatchEvent(new HashChangeEvent("hashchange"));
     }, "מחיקה לצמיתות");
     // פרטיות
+    $("#pvMail") && ($("#pvMail").onchange = async (e) => { try { await api.updateMe({ email_notify: e.target.checked }); toast(e.target.checked ? "יישלח לך מייל על הודעות חדשות" : "לא יישלחו מיילים על הודעות"); } catch (er) { toast(er.message); } });
     $("#pvPosts").onchange = (e) => saveP((p) => { (p.privacy ??= {}).posts = e.target.value; });
     view.querySelectorAll("[data-unblock]").forEach((b) => (b.onclick = async () => { try { await api.unblock(b.dataset.unblock); page("privacy"); } catch (e) { toast(e.message); } }));
     // נגישות
