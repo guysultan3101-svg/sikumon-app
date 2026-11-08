@@ -1570,7 +1570,6 @@ async function routeInner() {
   else if (hash === "admin") { if (isAdmin) await adminPage(); else location.hash = "#home"; }
   else if (hash === "settings") await settings.page();
   else if (hash.startsWith("settings-")) await settings.page(hash.slice(9));
-  if (isAdmin && hash.startsWith("settings")) view.querySelector("#set-account")?.insertAdjacentHTML("beforeend", '<a class="btn" href="#admin" style="justify-self:start">🛠️ ניהול Early Access</a>');
   else if (hash.startsWith("legal-")) settings.legal(hash.slice(6));
   else if (hash === "profile-liked" || hash === "profile-saved") await profile(hash.slice(8));
   else if (hash.startsWith("u-")) await social.profile(hash.slice(2));
@@ -1590,6 +1589,7 @@ async function routeInner() {
   else if (hash.startsWith("course-")) await courseFolder(+hash.slice(7));
   else if (hash.startsWith("lesson-")) { closeLesson(); await lessonPage(hash.slice(7)); }
   else await home();
+  if (isAdmin && hash.startsWith("settings")) view.querySelector("#set-account")?.insertAdjacentHTML("beforeend", '<a class="btn" href="#admin" style="justify-self:start">🛠️ ניהול Early Access</a>');
   assistant.mount(tab);
   if (!seenTabs.has(tab)) { seenTabs.add(tab); api.track("open:" + tab); }
   paintCounts();
@@ -1817,7 +1817,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "51";
+const APP_VERSION = "52";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
