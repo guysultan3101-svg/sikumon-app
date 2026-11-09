@@ -4,7 +4,7 @@
 // פריט שנראה כמו שיעור: הרצאה, מצגת, תרגול (שיעור תרגול), נושא, פרק, רישומי שיעור
 const LESSON = /הרצאה|שיעור|מצגת|תרגול|lecture|slides?|presentation|\btopic ?\d|נושא ?\d|\bCB\d|\bIC\.|פרק|שבוע|week|רישומים/i;
 // לא חומר שיעור: פתרונות, דפי עבודה ותרגילים, בחינות, נוסחאות, סילבוס, הנחיות, קבצי נתונים, סיכומים של אחרים
-const JUNK = /פתרון|פתרונות|פתור|תשובות|דף עבודה|דפי עבודה|תרגיל|בוחן|בחינה|מבחן|מועד [אבג]|\bexam|quiz|solutions?|worksheet|homework|exercise|נוסחאות|formulas?|סילבוס|syllabus|לוח זמנים|הנחיות|instructions|טופס|כתובות|abbrev|forAI|העשרה|פוטנציאלי|מחשבון|data ?set|sample data|\.sample\b|\.xlsx|\.csv|\.bas|חומר עזר|סיכום|העתק|mushrooms|doctors_list|patients/i;
+const JUNK = /פתרון|פתרונות|פתור|תשובות|דף עבודה|דפי עבודה|תרגיל|בוחן|בחינה|מבחן|מועד [אבג]|\bexam|quiz|solutions?|worksheet|homework|exercise|נוסחאות|formulas?|סילבוס|syllabus|לוח זמנים|הנחיות|instructions|טופס|כתובות|abbrev|forAI|העשרה|פוטנציאלי|מחשבון|data ?set|sample data|\.sample\b|\.xlsx|\.csv|\.bas|חומר עזר|סיכום|summary|recap|העתק|mushrooms|doctors_list|patients/i;
 const PREV_YEARS = /משנים קודמות|שנים קודמות|שנה שעברה|previous years?|prior years?|last year/i;
 const EXAMPLE_FOLDER = /^\s*(דוגמ|examples?\b|samples?\b)/i;
 

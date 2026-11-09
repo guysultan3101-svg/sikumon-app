@@ -13,8 +13,8 @@ export function moodleRoot(input) {
   const path = (cut >= 0 ? u.pathname.slice(0, cut) : u.pathname).replace(/\/+$/, "");
   return u.origin + path;
 }
-const PER_RUN_MAX = 10;    // בכל בדיקה אוטומטית – עד 10 קבצים (המכסה היומית בשרת מגבילה בנוסף)
-const MANUAL_MAX = 30;     // כשלוחצים "בדיקה עכשיו"
+const PER_RUN_MAX = 15;    // בכל בדיקה אוטומטית – עד 15 קבצים (המכסה היומית בשרת מגבילה בנוסף)
+const MANUAL_MAX = 50;     // כשלוחצים "בדיקה עכשיו"
 // "קורסים" שהם בעצם לומדות והדרכות של המוסד – לא מסכמים אותם
 const NOT_COURSE = /הטרדה|harassment|לומדה|הכרת הספרייה|הדרכה לקראת|instructions for|בטיחות ב|safety/i;
 const OK_EXT = /\.(pdf|pptx|docx)$/i;
@@ -198,6 +198,8 @@ export async function syncOnce({ manual = false } = {}) {
     const todo = [];
     for (let i = 0; perCourse.some((l) => i < l.length); i++) for (const l of perCourse) if (l[i]) todo.push(l[i]);
     const backlog = todo.filter((q) => q.type === "resource").length;
+    // מדווחים לשרת כמה קבצי שיעור נשארו בתור: למשתמש חדש עם הרבה קבצים השרת נותן מכסה יומית גבוהה יותר (50/40/30)
+    try { await rest("rpc/report_backlog", a, { method: "POST", body: JSON.stringify({ p_remaining: backlog }) }); } catch { /* לא חובה */ }
     let done = 0, made = 0, stop = "";
     const perRun = manual ? MANUAL_MAX : PER_RUN_MAX;
     for (const it of todo) {
