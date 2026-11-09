@@ -16,6 +16,9 @@ const PER_RUN_MAX = 5;     // בכל בדיקה – עד 5 קבצים (המכס�
 // "קורסים" שהם בעצם לומדות והדרכות של המוסד – לא מסכמים אותם
 const NOT_COURSE = /הטרדה|harassment|לומדה|הכרת הספרייה|הדרכה לקראת|instructions for|בטיחות ב|safety/i;
 const OK_EXT = /\.(pdf|pptx|docx)$/i;
+// לא מסכמים: תיקיית "דוגמאות" (למשל "דוגמאות להרצאה" בקורס הכרת המחשב, שמכילה קבצי דוגמה לתרגול) וקבצי נתונים (dataset / sample data).
+// בכוונה לא מסננים "בוחן לדוגמה" או "דף עבודה (הסבר, דוגמאות ותרגילים)" – אלה חומר לימוד אמיתי.
+export const NOT_STUDY = (it) => (it.type === "folder" && /^\s*(דוגמ|examples?\b|samples?\b)/i.test(it.name || "")) || /data ?set|sample data|\.sample\b/i.test(it.name || "");
 
 const get = (k) => chrome.storage.local.get(k).then((o) => o[k]);
 const set = (o) => chrome.storage.local.set(o);
@@ -178,6 +181,7 @@ export async function syncOnce({ manual = false } = {}) {
       const list = [];
       for (const it of items) {
         const key = `${new URL(base).host}:${it.id}`;
+        if (NOT_STUDY(it)) continue;
         if (it.type === "resource" && seen[key]) continue;
         list.push({ ...it, key, course });
       }

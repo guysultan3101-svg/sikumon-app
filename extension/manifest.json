@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "המחבר של Clearly",
   "description": "בודק במודל שלך אם עלו קבצים חדשים, ושולח אותם לסיכום אישי ב-Clearly. באוניברסיטת אריאל מביא גם את מערכת השעות ולוח המבחנים.",
-  "version": "1.6.4",
+  "version": "1.6.5",
   "permissions": [
     "storage",
     "alarms",
