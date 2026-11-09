@@ -1758,6 +1758,7 @@ function connectPage() {
   view.innerHTML = `<div class="page" style="max-width:680px">
     <h1 style="font-size:30px">🔗 חיבור למודל</h1>
     <p class="muted">עושים את זה <b>פעם אחת, במחשב</b> (כ-3 דקות). אחר כך הסיכומים, המטלות ומערכת השעות מגיעים לבד – גם לאייפד.</p>
+    <p><a class="btn" href="guide/" target="_blank" rel="noopener">🎬 סרטון הדרכה קצר (3 דקות)</a></p>
     <section class="card" style="display:grid;gap:12px">
       <ol class="steps big-steps">
         <li><b>מורידים את התוסף:</b><br><a class="btn" href="extension/sikumon-connector.zip" download style="margin-top:6px">⬇️ הורדת התוסף</a><br><span class="small muted">יורד קובץ בשם sikumon-connector.zip</span></li>
@@ -1839,7 +1840,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "58";
+const APP_VERSION = "59";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
