@@ -747,10 +747,10 @@ async function transcribeRecording(r, onStep) {
 // כרטיס "תמלול וסיכום" (בדף ההקלטה ובדף השיעור)
 function transcriptCard(r) {
   const done = !!r.transcript, partial = Object.values(r.tr?.texts || {}).filter(Boolean).length;
+  const tooLong = !done && (r.durationMs || 0) > MAX_TRANSCRIBE_MS;   // הקלטה ארוכה מדי: רק הסבר, בלי כפתור ובלי "מתומלל לבד"
   return `<section class="soft tr-card" data-trcard="${esc(r.id)}">
     <div class="row" style="justify-content:space-between"><h3>📝 תמלול וסיכום</h3>${r.summaryId ? `<a class="btn small-btn" href="#sum-${esc(r.summaryId)}">📚 לסיכום</a>` : ""}</div>
-    ${(r.durationMs || 0) > MAX_TRANSCRIBE_MS ? `<p class="notice">⏱ ${tooLongMsg}</p>` : ""}
-    ${done ? "" : transcribing === r.id ? '<p class="small muted">⏳ מתמלל ומסכם עכשיו, אוטומטית. אפשר להמשיך לעבוד באפליקציה.</p>' : `<p class="small muted">${partial ? `תומללו ${partial} חלקים. ממשיכים מאיפה שעצרנו.` : "ההקלטה מתומללת ומסוכמת לבד כשיש אינטרנט. אפשר גם להתחיל עכשיו."}</p>
+    ${tooLong ? `<p class="notice">⏱ ${tooLongMsg}</p>` : done ? "" : transcribing === r.id ? '<p class="small muted">⏳ מתמלל ומסכם עכשיו, אוטומטית. אפשר להמשיך לעבוד באפליקציה.</p>' : `<p class="small muted">${partial ? `תומללו ${partial} חלקים. ממשיכים מאיפה שעצרנו.` : "ההקלטה מתומללת ומסוכמת לבד כשיש אינטרנט. אפשר גם להתחיל עכשיו."}</p>
     <button class="btn" type="button" data-trgo="${esc(r.id)}">✨ ${partial ? "להמשיך לתמלל" : "לתמלל ולסכם עכשיו"}</button>`}
     ${done && !r.summaryId ? `<button class="btn" type="button" data-trgo="${esc(r.id)}">✨ ליצור סיכום מהתמלול</button>` : ""}
     <p class="small" data-trstate data-trlive="${esc(r.id)}" aria-live="polite">${esc(trProgress.get(r.id) || "")}</p>
@@ -1859,7 +1859,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "66";
+const APP_VERSION = "67";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
