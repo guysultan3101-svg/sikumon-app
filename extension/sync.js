@@ -1,6 +1,7 @@
 // המחבר של Clearly – הלוגיקה: התחברות ל-Clearly, קריאת הקורסים מהמודל (עם ההתחברות הרגילה של הסטודנט
 // בכרום), איתור קבצים חדשים, ושליחתם לסיכום אישי בשרת. לא רואים ולא שומרים את הסיסמה למודל.
 import { syncPortal, PORTALS } from "./portal.js";
+import { planCourse } from "./classify.js";
 export const SB = "https://islplhnlvaukixaglxof.supabase.co";
 export const ANON = "sb_publishable_1fDG1GIaFERhcFPiRyx46g_38BIv8HZ";
 export { MOODLES } from "./institutions.js";
@@ -12,13 +13,11 @@ export function moodleRoot(input) {
   const path = (cut >= 0 ? u.pathname.slice(0, cut) : u.pathname).replace(/\/+$/, "");
   return u.origin + path;
 }
-const PER_RUN_MAX = 5;     // בכל בדיקה – עד 5 קבצים (המכסה היומית בשרת: 10)
+const PER_RUN_MAX = 10;    // בכל בדיקה אוטומטית – עד 10 קבצים (המכסה היומית בשרת מגבילה בנוסף)
+const MANUAL_MAX = 30;     // כשלוחצים "בדיקה עכשיו"
 // "קורסים" שהם בעצם לומדות והדרכות של המוסד – לא מסכמים אותם
 const NOT_COURSE = /הטרדה|harassment|לומדה|הכרת הספרייה|הדרכה לקראת|instructions for|בטיחות ב|safety/i;
 const OK_EXT = /\.(pdf|pptx|docx)$/i;
-// לא מסכמים: תיקיית "דוגמאות" (למשל "דוגמאות להרצאה" בקורס הכרת המחשב, שמכילה קבצי דוגמה לתרגול) וקבצי נתונים (dataset / sample data).
-// בכוונה לא מסננים "בוחן לדוגמה" או "דף עבודה (הסבר, דוגמאות ותרגילים)" – אלה חומר לימוד אמיתי.
-export const NOT_STUDY = (it) => (it.type === "folder" && /^\s*(דוגמ|examples?\b|samples?\b)/i.test(it.name || "")) || /data ?set|sample data|\.sample\b/i.test(it.name || "");
 
 const get = (k) => chrome.storage.local.get(k).then((o) => o[k]);
 const set = (o) => chrome.storage.local.set(o);
@@ -129,6 +128,10 @@ async function rest(path, a, opts = {}) {
 async function markItem(a, row) {
   await rest("moodle_items", a, { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: JSON.stringify({ owner: a.user, ...row }) });
 }
+async function sha256(blob) {
+  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", await blob.arrayBuffer()));
+  return [...d].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 async function summarize(a, blob, filename, course, ref) {
   const buf = new Uint8Array(await blob.arrayBuffer());
   let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
@@ -166,6 +169,11 @@ export async function syncOnce({ manual = false } = {}) {
     catch (e) { portal = "🕘 " + e.message; }
     if (portal) await status({ portal });
     const seen = (await get("seen")) || {};
+    // מה שכבר סוכם אצלנו בשרת (גם אם הזיכרון המקומי נמחק, למשל אחרי התנתקות והתחברות מחדש): לא מסכמים שוב
+    try {
+      const r = await rest("moodle_items?select=item_key,status&status=in.(done,skipped)&limit=2000", a);
+      if (r.ok) for (const x of await r.json()) if (x.item_key && !seen[x.item_key]) seen[x.item_key] = x.status === "done" ? "done" : "big";
+    } catch { /* לא חובה: ממשיכים עם הזיכרון המקומי */ }
     // פעם אחת: קבצים ישנים שבגרסאות קודמות סומנו "ישן" (ולא סוכמו) חוזרים לתור – מסכמים את כל הסמסטר
     if (!(await get("backfill1"))) {
       for (const k of Object.keys(seen)) if (seen[k] === "old") delete seen[k];
@@ -179,10 +187,10 @@ export async function syncOnce({ manual = false } = {}) {
       if (NOT_COURSE.test(course)) continue;
       const items = await courseItems(base, sesskey, c.id);
       const list = [];
-      for (const it of items) {
+      // רק חומר שיעור, בלי תרגילים/פתרונות/נתונים/חומר של שנה שעברה ובלי כפילויות (classify.js)
+      for (const it of planCourse(items).keep) {
         const key = `${new URL(base).host}:${it.id}`;
-        if (NOT_STUDY(it)) continue;
-        if (it.type === "resource" && seen[key]) continue;
+        if (it.type === "resource" && seen[key] && seen[key] !== "retry") continue;
         list.push({ ...it, key, course });
       }
       perCourse.push(list.reverse());
@@ -191,8 +199,9 @@ export async function syncOnce({ manual = false } = {}) {
     for (let i = 0; perCourse.some((l) => i < l.length); i++) for (const l of perCourse) if (l[i]) todo.push(l[i]);
     const backlog = todo.filter((q) => q.type === "resource").length;
     let done = 0, made = 0, stop = "";
+    const perRun = manual ? MANUAL_MAX : PER_RUN_MAX;
     for (const it of todo) {
-      if (made >= PER_RUN_MAX) break;
+      if (made >= perRun) break;
       try {
         for (const f of await fileUrls(base, it)) {
           const fname = decodeURIComponent(f.url.split("?")[0].split("/").pop() || it.name);
@@ -202,17 +211,20 @@ export async function syncOnce({ manual = false } = {}) {
           const res = f.res || (await fetch(f.url, { credentials: "include" }));
           const blob = await res.blob();
           if (blob.size > 15 * 1024 * 1024) { seen[fkey] = "big"; await markItem(a, { item_key: fkey, course: it.course, name: fname, kind: it.type, url: it.url, status: "skipped", note: "גדול מ-15MB" }); continue; }
+          const hash = await sha256(blob);
+          if (seen["h:" + hash]) { seen[fkey] = "dup"; continue; }   // אותו קובץ כבר סוכם (גם אם הועלה בשם אחר)
           await status({ state: `מסכם: ${it.name}` });
           try {
             await summarize(a, blob, fname, it.course, fkey);
-            seen[fkey] = "done"; made++;
+            seen[fkey] = "done"; seen["h:" + hash] = 1; made++;
             await markItem(a, { item_key: fkey, course: it.course, name: fname, kind: it.type, url: it.url, status: "done" });
           } catch (e) {
             if (e.code === "limit" || e.code === "global_cap") { seen[fkey] = "retry"; stop = "הגעתם למכסת הסיכומים להיום – נמשיך מחר"; break; }
-            seen[fkey] = e.code === "unsupported" ? "skip" : "retry";
+            seen["n:" + fkey] = (seen["n:" + fkey] || 0) + 1;   // אחרי 3 כישלונות מפסיקים לנסות את הקובץ הזה
+            seen[fkey] = e.code === "unsupported" || seen["n:" + fkey] >= 3 ? "skip" : "retry";
             await markItem(a, { item_key: fkey, course: it.course, name: fname, kind: it.type, url: it.url, status: "failed", note: String(e.code || e.message).slice(0, 100) });
           }
-          if (made >= PER_RUN_MAX) break;
+          if (made >= perRun) break;
         }
         if (it.type === "resource" && seen[it.key] !== "retry") seen[it.key] = seen[it.key] || "done";
         done++;
@@ -223,7 +235,7 @@ export async function syncOnce({ manual = false } = {}) {
     await set({ seen });
     chrome.action.setBadgeText({ text: made ? String(made) : "" });
     const left = Math.max(backlog - made, 0);
-    const more = left ? ` · נשארו עוד כ-${left} קבצים מהסמסטר – ממשיכים לבד (עד 10 סיכומים ביום)` : "";
+    const more = left ? ` · נשארו עוד כ-${left} קבצים מהסמסטר – ממשיכים לבד (לפי המכסה היומית)` : "";
     await set({ backlogLeft: left });
     return await status({ state: (stop || (made ? `✅ ${made} סיכומים חדשים נשלחו לאפליקציה` : "✅ אין קבצים חדשים")) + more, courses: courses.length, error: "", last: new Date().toISOString() });
   } catch (e) {
