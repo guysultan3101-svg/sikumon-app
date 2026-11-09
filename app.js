@@ -625,11 +625,14 @@ function lessonLabel(course, dateISO, fixedNo = null) {
 
 // ---------- תמלול וסיכום אוטומטיים: ברגע שהקלטה נגמרת, וגם הקלטות שחיכו (למשל בלי אינטרנט) ----------
 const trProgress = new Map(); // recId -> "מתמלל חלק 2 מתוך 6…"
+// הקלטה ארוכה מ-5 שעות היא כמעט תמיד טעות (למשל מרצה ששכח לעצור) וקשה מדי לסכם: לא מתמללים ולא מסכמים אותה
+const MAX_TRANSCRIBE_MS = 5 * 3600 * 1000;
+const tooLongMsg = "ההקלטה ארוכה מ-5 שעות (כנראה טעות הקלטה), ולכן לא מסכמים אותה. אפשר למחוק אותה.";
 async function autoTranscribe() {
   if (!api.user() || transcribing || !navigator.onLine) return;
   const today = new Date().toLocaleDateString("en-CA");
   const waiting = (await store.listRecordings())
-    .filter((r) => r.status === "done" && !r.summaryId && (r.durationMs || 0) >= 45000 && r.autoPausedDay !== today && (r.autoTries || 0) < 3)
+    .filter((r) => r.status === "done" && !r.summaryId && (r.durationMs || 0) >= 45000 && (r.durationMs || 0) <= MAX_TRANSCRIBE_MS && r.autoPausedDay !== today && (r.autoTries || 0) < 3)
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   for (const r of waiting) {
     try {
@@ -683,6 +686,7 @@ async function recordingPieces(r) {
 }
 let transcribing = null; // רק תמלול אחד בכל פעם
 async function transcribeRecording(r, onStep) {
+  if ((r.durationMs || 0) > MAX_TRANSCRIBE_MS) throw new Error(tooLongMsg);
   if (transcribing) throw new Error("כבר מתמללים הקלטה אחרת. רגע…");
   transcribing = r.id;
   try {
@@ -745,6 +749,7 @@ function transcriptCard(r) {
   const done = !!r.transcript, partial = Object.values(r.tr?.texts || {}).filter(Boolean).length;
   return `<section class="soft tr-card" data-trcard="${esc(r.id)}">
     <div class="row" style="justify-content:space-between"><h3>📝 תמלול וסיכום</h3>${r.summaryId ? `<a class="btn small-btn" href="#sum-${esc(r.summaryId)}">📚 לסיכום</a>` : ""}</div>
+    ${(r.durationMs || 0) > MAX_TRANSCRIBE_MS ? `<p class="notice">⏱ ${tooLongMsg}</p>` : ""}
     ${done ? "" : transcribing === r.id ? '<p class="small muted">⏳ מתמלל ומסכם עכשיו, אוטומטית. אפשר להמשיך לעבוד באפליקציה.</p>' : `<p class="small muted">${partial ? `תומללו ${partial} חלקים. ממשיכים מאיפה שעצרנו.` : "ההקלטה מתומללת ומסוכמת לבד כשיש אינטרנט. אפשר גם להתחיל עכשיו."}</p>
     <button class="btn" type="button" data-trgo="${esc(r.id)}">✨ ${partial ? "להמשיך לתמלל" : "לתמלל ולסכם עכשיו"}</button>`}
     ${done && !r.summaryId ? `<button class="btn" type="button" data-trgo="${esc(r.id)}">✨ ליצור סיכום מהתמלול</button>` : ""}
@@ -1854,7 +1859,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "65";
+const APP_VERSION = "66";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
