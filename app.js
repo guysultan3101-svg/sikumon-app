@@ -1671,16 +1671,18 @@ async function applyCourseMaterials() {
 async function applyUniSchedule() {
   const row = await api.uniSchedule().catch(() => null);
   const p = prefs.get();
-  if (!row || !p || p.uniScheduleAt === row.updated_at) return false;
+  if (!row || !p) return false;
+  // משלימים מיקום ומרצה מהאוניברסיטה לשיעורים שחסר להם (לפי יום + שעה + קורס, ואם השעה שונתה – יום + קורס). רץ תמיד, גם אם העדכון כבר נקלט
+  let filled = false;
+  for (const x of p.timetable || []) {
+    if (x.place && x.lecturer) continue;
+    const same = (row.timetable || []).filter((y) => +y.day === +x.day && y.course === x.course);
+    const s = same.find((y) => y.start === x.start) || same[0];
+    if (s) { if (s.place && !x.place) { x.place = s.place; filled = true; } if (s.lecturer && !x.lecturer) { x.lecturer = s.lecturer; filled = true; } }
+  }
+  if (p.uniScheduleAt === row.updated_at) { if (filled) prefs.set(p); return filled; }
   const hidden = p.hiddenCourses || [];
   if (!p.timetableEdited && row.timetable?.length) p.timetable = row.timetable.filter((x) => !hidden.includes(x.course));
-  else if (p.timetableEdited && row.timetable?.length) {
-    // מערכת שנערכה ידנית נשארת, אבל משלימים לה מיקום ומרצה מהאוניברסיטה (לפי יום + שעה + קורס)
-    for (const x of p.timetable || []) {
-      const s = row.timetable.find((y) => +y.day === +x.day && y.start === x.start && y.course === x.course);
-      if (s) { if (s.place && !x.place) x.place = s.place; if (s.lecturer && !x.lecturer) x.lecturer = s.lecturer; }
-    }
-  }
   if (!p.examsEdited && row.exams?.length) p.exams = row.exams.filter((x) => !hidden.includes(x.course));
   const add = [...new Set((row.timetable || []).map((x) => x.course))].filter((c) => c && !(p.courses || []).includes(c) && !hidden.includes(c));
   p.courses = [...(p.courses || []), ...add];
@@ -1854,7 +1856,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "61";
+const APP_VERSION = "62";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
