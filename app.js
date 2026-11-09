@@ -1454,9 +1454,16 @@ function timetable() {
   const bindDel = () => view.querySelectorAll(".tt-del").forEach((b) => (b.onclick = () => b.closest(".tt-row").remove()));
   bindDel();
   $("#ttSave").onclick = () => {
-    const tt = [...view.querySelectorAll(".tt-row")].map((r) => ({ day: +r.querySelector(".tt-day").value, start: r.querySelector(".tt-start").value, end: r.querySelector(".tt-end").value, course: r.querySelector(".tt-course").value }))
-      .filter((x) => x.start && x.end && toMin(x.end) > toMin(x.start));
-    const pr = prefs.get(); pr.timetable = tt; pr.timetableEdited = true; prefs.set(pr);
+    const pr = prefs.get();
+    const old = pr.timetable || [];
+    const tt = [...view.querySelectorAll(".tt-row")].map((r) => {
+      const x = { day: +r.querySelector(".tt-day").value, start: r.querySelector(".tt-start").value, end: r.querySelector(".tt-end").value, course: r.querySelector(".tt-course").value };
+      const o = old.find((y) => +y.day === x.day && y.start === x.start && y.course === x.course);   // שומרים מיקום ומרצה של שיעור שלא שונה
+      if (o?.place) x.place = o.place;
+      if (o?.lecturer) x.lecturer = o.lecturer;
+      return x;
+    }).filter((x) => x.start && x.end && toMin(x.end) > toMin(x.start));
+    pr.timetable = tt; pr.timetableEdited = true; prefs.set(pr);
     toast("מערכת השעות נשמרה"); timetable();
   };
 }
@@ -1667,6 +1674,13 @@ async function applyUniSchedule() {
   if (!row || !p || p.uniScheduleAt === row.updated_at) return false;
   const hidden = p.hiddenCourses || [];
   if (!p.timetableEdited && row.timetable?.length) p.timetable = row.timetable.filter((x) => !hidden.includes(x.course));
+  else if (p.timetableEdited && row.timetable?.length) {
+    // מערכת שנערכה ידנית נשארת, אבל משלימים לה מיקום ומרצה מהאוניברסיטה (לפי יום + שעה + קורס)
+    for (const x of p.timetable || []) {
+      const s = row.timetable.find((y) => +y.day === +x.day && y.start === x.start && y.course === x.course);
+      if (s) { if (s.place && !x.place) x.place = s.place; if (s.lecturer && !x.lecturer) x.lecturer = s.lecturer; }
+    }
+  }
   if (!p.examsEdited && row.exams?.length) p.exams = row.exams.filter((x) => !hidden.includes(x.course));
   const add = [...new Set((row.timetable || []).map((x) => x.course))].filter((c) => c && !(p.courses || []).includes(c) && !hidden.includes(c));
   p.courses = [...(p.courses || []), ...add];
@@ -1840,7 +1854,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "60";
+const APP_VERSION = "61";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
