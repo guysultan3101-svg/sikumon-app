@@ -70,7 +70,7 @@ export function initPlanner(ctx) {
         if (e.kind !== "lesson") return "";
         const zoom = mats[e.course]?.zoom;
         const bits = [
-          e.place ? `<span>📍 <b>${esc(e.place)}</b></span>` : "",
+          e.place ? `<span>📍 <b>${esc(e.place)}</b></span>` : e.lecturer ? `<span class="muted">📍 אין מיקום עדיין</span>` : "",
           e.lecturer ? `<span>👤 ${esc(e.lecturer)}</span>` : "",
           zoom ? `<a href="${esc(zoom)}" target="_blank" rel="noopener">🎥 כניסה לזום</a>` : "",
           `<a href="#materials-${encodeURIComponent(e.course)}">📚 חומרים לשיעור</a>`,

@@ -603,3 +603,4 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 .as-files { display: flex; flex-wrap: wrap; gap: 6px; }
 .as-files:empty { display: none; }
 .as-how ol { margin: 6px 0 0; padding-inline-start: 20px; display: grid; gap: 4px; }
+.tt-row .tt-place, .tt-row .tt-lect { flex: 1; min-width: 140px; }

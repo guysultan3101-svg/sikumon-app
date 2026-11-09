@@ -1,9 +1,9 @@
 // המחבר של Clearly – הלוגיקה: התחברות ל-Clearly, קריאת הקורסים מהמודל (עם ההתחברות הרגילה של הסטודנט
 // בכרום), איתור קבצים חדשים, ושליחתם לסיכום אישי בשרת. לא רואים ולא שומרים את הסיסמה למודל.
-import { syncPortal } from "./portal.js";
+import { syncPortal, PORTALS } from "./portal.js";
 export const SB = "https://islplhnlvaukixaglxof.supabase.co";
 export const ANON = "sb_publishable_1fDG1GIaFERhcFPiRyx46g_38BIv8HZ";
-export const MOODLES = { "אוניברסיטת אריאל": "https://moodlearn.ariel.ac.il", "אוניברסיטת בן-גוריון": "https://moodle.bgu.ac.il/moodle" };
+export { MOODLES } from "./institutions.js";
 // הכתובת של המודל עצמו מתוך כל כתובת שמודבקת. יש מוסדות שהמודל שלהם בתת-תיקייה
 // (בבן-גוריון: moodle.bgu.ac.il/moodle), אז שומרים את הנתיב עד החלק שהוא כבר דף בתוך המודל.
 export function moodleRoot(input) {
@@ -158,7 +158,8 @@ export async function syncOnce({ manual = false } = {}) {
     try { await syncCourseMaterials(a, base, sesskey, courses); } catch { /* לא חובה */ }
     // מערכת שעות ומבחנים מהמידע האישי (פעם ביום, או כשלוחצים "בדיקה עכשיו")
     let portal = "";
-    try { const p = await syncPortal(a, base, courses, rest, manual); if (p) portal = `🕘 מערכת שעות: ${p.lessons} שיעורים בשבוע · ${p.exams} מבחנים`; }
+    if (!PORTALS[base]) portal = "🕘 מערכת שעות אוטומטית עדיין לא זמינה למוסד שלך. אפשר להוסיף שיעורים ידנית באפליקציה (מערכת השעות שלי), כולל חדר ומרצה.";
+    else try { const p = await syncPortal(a, base, courses, rest, manual); if (p) portal = `🕘 מערכת שעות: ${p.lessons} שיעורים בשבוע · ${p.exams} מבחנים`; }
     catch (e) { portal = "🕘 " + e.message; }
     if (portal) await status({ portal });
     const seen = (await get("seen")) || {};

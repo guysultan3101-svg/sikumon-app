@@ -7,6 +7,8 @@ import { initStudy } from "./study.js";
 import { initExtras } from "./extras.js";
 import { initPractice } from "./practice.js";
 import { initPlanner } from "./planner.js";
+import { fillFromUni } from "./uni-merge.js";
+import { INSTITUTIONS } from "./institutions.js";
 import { initTools } from "./tools.js";
 import { initSocial } from "./social.js";
 import { initSettings } from "./settings.js";
@@ -118,7 +120,7 @@ function onboarding(step = 0, answers = {}) {
       <h1 style="font-size:clamp(32px,5vw,48px)">נתאים את <span class="mark">Clearly</span> בדיוק אלייך</h1>
       <p class="muted">חמש שאלות קצרות על איך שאת/ה לומד/ת, ואז כמה פרטים על הקורסים. לוקח פחות מדקה.</p>
       <label class="field">איך לקרוא לך?<input type="text" id="name" name="name" autocomplete="given-name" placeholder="השם הפרטי שלך" value="${esc((api.profile()?.full_name || "").split(" ")[0])}"></label>
-      <label class="field">מוסד לימודים<select id="inst" name="inst"><option>אוניברסיטת אריאל</option><option>אוניברסיטת בן־גוריון</option><option>אוניברסיטת בר־אילן</option><option>אחר</option></select></label>
+      <label class="field">מוסד לימודים<select id="inst" name="inst">${INSTITUTIONS.map((n) => `<option>${n}</option>`).join("")}<option>אחר</option></select></label>
       <div class="row"><button class="btn" id="go">מתחילים</button></div>
     </div>`;
     $("#go").onclick = () => onboarding(1, { name: $("#name").value.trim(), inst: $("#inst").value });
@@ -1436,10 +1438,13 @@ function timetable() {
     <select class="tt-day" aria-label="יום">${DAYS.slice(0, 6).map((d, i) => `<option value="${i}" ${+x.day === i ? "selected" : ""}>${d}</option>`).join("")}</select>
     <input type="time" class="tt-start" value="${x.start}" aria-label="שעת התחלה"><span>עד</span><input type="time" class="tt-end" value="${x.end}" aria-label="שעת סיום">
     <select class="tt-course" aria-label="קורס">${courses.map((c) => `<option ${c === x.course ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
+    <input type="text" class="tt-place" maxlength="40" placeholder="מיקום (חדר/בניין)" value="${esc(x.place || "")}" aria-label="מיקום השיעור">
+    <input type="text" class="tt-lect" maxlength="60" placeholder="שם המרצה" value="${esc(x.lecturer || "")}" aria-label="שם המרצה">
     <button class="link tt-del" aria-label="מחיקת השיעור מהמערכת">${svg("trash")}</button></div>`;
   view.innerHTML = `<div class="page">
     <a href="#profile" class="small">→ פרופיל</a>
     <h1 style="font-size:30px">מערכת השעות שלי</h1>
+    <p class="small muted">באוניברסיטת אריאל המערכת, עם חדר ומרצה, מתמלאת לבד מהתוסף. בשאר המוסדות אפשר להוסיף כאן שיעורים ידנית, כולל חדר ומרצה.</p>
     <p class="muted">לפי המערכת, כשלוחצים "הקלט" האפליקציה יודעת לבד איזה שיעור עכשיו, וההקלטה נכנסת ישר למחברת של אותו קורס.</p>
     <div class="list" id="ttList">${rows.map(row).join("") || '<p class="muted">עוד אין שיעורים במערכת.</p>'}</div>
     <div class="row"><button class="btn ghost" id="ttAdd">${svg("plus")} שיעור במערכת</button><button class="btn" id="ttSave">שמירה</button></div>
@@ -1455,12 +1460,11 @@ function timetable() {
   bindDel();
   $("#ttSave").onclick = () => {
     const pr = prefs.get();
-    const old = pr.timetable || [];
     const tt = [...view.querySelectorAll(".tt-row")].map((r) => {
       const x = { day: +r.querySelector(".tt-day").value, start: r.querySelector(".tt-start").value, end: r.querySelector(".tt-end").value, course: r.querySelector(".tt-course").value };
-      const o = old.find((y) => +y.day === x.day && y.start === x.start && y.course === x.course);   // שומרים מיקום ומרצה של שיעור שלא שונה
-      if (o?.place) x.place = o.place;
-      if (o?.lecturer) x.lecturer = o.lecturer;
+      const place = r.querySelector(".tt-place").value.trim(), lecturer = r.querySelector(".tt-lect").value.trim();   // מה שרשום בשדה הוא מה שנשמר
+      if (place) x.place = place;
+      if (lecturer) x.lecturer = lecturer;
       return x;
     }).filter((x) => x.start && x.end && toMin(x.end) > toMin(x.start));
     pr.timetable = tt; pr.timetableEdited = true; prefs.set(pr);
@@ -1672,14 +1676,8 @@ async function applyUniSchedule() {
   const row = await api.uniSchedule().catch(() => null);
   const p = prefs.get();
   if (!row || !p) return false;
-  // משלימים מיקום ומרצה מהאוניברסיטה לשיעורים שחסר להם (לפי יום + שעה + קורס, ואם השעה שונתה – יום + קורס). רץ תמיד, גם אם העדכון כבר נקלט
-  let filled = false;
-  for (const x of p.timetable || []) {
-    if (x.place && x.lecturer) continue;
-    const same = (row.timetable || []).filter((y) => +y.day === +x.day && y.course === x.course);
-    const s = same.find((y) => y.start === x.start) || same[0];
-    if (s) { if (s.place && !x.place) { x.place = s.place; filled = true; } if (s.lecturer && !x.lecturer) { x.lecturer = s.lecturer; filled = true; } }
-  }
+  // משלימים מיקום ומרצה מהאוניברסיטה לשיעורים שחסר להם. רץ תמיד, גם אם העדכון כבר נקלט
+  const filled = fillFromUni(p.timetable, row.timetable);
   if (p.uniScheduleAt === row.updated_at) { if (filled) prefs.set(p); return filled; }
   const hidden = p.hiddenCourses || [];
   if (!p.timetableEdited && row.timetable?.length) p.timetable = row.timetable.filter((x) => !hidden.includes(x.course));
@@ -1783,7 +1781,7 @@ function connectPage() {
         <li><b>מדליקים את המתג "מצב פיתוח"</b> (Developer mode) – בפינה העליונה של הדף.</li>
         <li><b>לוחצים "טעינת פריט לא ארוז"</b> (Load unpacked), בוחרים את התיקייה מצעד 2, ולוחצים "בחירת תיקייה".</li>
         <li><b>מתחברים:</b> לוחצים על סמל הפאזל 🧩 למעלה בכרום ← "המחבר של Clearly" ← מתחברים עם <b>אותו מייל וסיסמה של Clearly</b>.</li>
-        <li><b>בוחרים את המוסד שלכם</b> (אריאל או בן-גוריון) ← "שמירה" ← "פתיחת המודל", ומתחברים למודל כרגיל. מוסד אחר? בוחרים "מוסד אחר" ומדביקים את הכתובת שמופיעה למעלה כשאתם בתוך המודל.</li>
+        <li><b>בוחרים את המוסד שלכם</b> מהרשימה ← "שמירה" ← "פתיחת המודל", ומתחברים למודל כרגיל. מוסד אחר? בוחרים "מוסד אחר" ומדביקים את הכתובת שמופיעה למעלה כשאתם בתוך המודל.</li>
       </ol>
       <p class="notice">✅ <b>זהו!</b> מעכשיו הכול מגיע לבד. כשהמחשב דלוק וכרום פתוח, התוסף בודק את המודל כל כמה שעות.</p>
     </section>
@@ -1856,7 +1854,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "62";
+const APP_VERSION = "64";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
