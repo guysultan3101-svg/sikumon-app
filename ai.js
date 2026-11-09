@@ -198,7 +198,10 @@ async function loadSdk() {
   return sdk;
 }
 
-const TUTOR = `אתה מורה פרטי סבלני לסטודנט שנה א' בכלכלה ומנהל באוניברסיטת אריאל.
+// המוסד של הסטודנט/ית (מההרשמה), כדי שהמורה לא ידבר כאילו כולם לומדים באריאל
+function institution() { try { const i = JSON.parse(localStorage.getItem("sikumon-prefs") || "{}").inst; return i && i !== "אחר" ? i : ""; } catch { return ""; } }
+const tutor = () => `אתה מורה פרטי סבלני לסטודנט או סטודנטית באקדמיה בישראל${institution() ? ` (מוסד הלימודים: ${institution()})` : ""}.
+- אל תניח איזה תואר או שנה הם לומדים, אלא אם זה מופיע בחומר השיעור.
 - עונים תמיד בעברית פשוטה וברורה.
 - מסבירים קודם במילים ועם דוגמה קטנה, ורק אחר כך נוסחה.
 - מבססים את התשובה על חומר השיעור שמופיע בין התגיות <lesson>. אם התשובה לא נמצאת בחומר, אומרים זאת במשפט אחד, ואז נותנים הסבר כללי ומציינים שהוא לא מהשיעור.
@@ -211,7 +214,7 @@ export async function ask({ lessonTitle, lessonText, history, question, onText, 
   const p = provider();
   if (p && p !== "claude") {
     const web2 = web && p === "gemini"; // חיפוש בגוגל: רק ב-Gemini (חינם)
-    const system = TUTOR + (web2 ? "\n- מותר לחפש באינטרנט כשהחומר לא מספיק, ולציין שזה מהאינטרנט." : "") + `
+    const system = tutor() + (web2 ? "\n- מותר לחפש באינטרנט כשהחומר לא מספיק, ולציין שזה מהאינטרנט." : "") + `
 
 <lesson title="${lessonTitle.replace(/"/g, "'")}">
 ${lessonText}
@@ -232,7 +235,7 @@ ${lessonText}
       fallbacks: "default", // אם המודל מסרב מטעמי בטיחות, מודל אחר ממשיך באותה בקשה
       output_config: { effort: "low" }, // צ'אט: תשובות מהירות
       system: [
-        { type: "text", text: TUTOR },
+        { type: "text", text: tutor() },
         // חומר השיעור קבוע לאורך השיחה – נשמר במטמון כדי לחסוך
         { type: "text", text: `<lesson title="${lessonTitle.replace(/"/g, "'")}">\n${lessonText}\n</lesson>`, cache_control: { type: "ephemeral" } },
       ],

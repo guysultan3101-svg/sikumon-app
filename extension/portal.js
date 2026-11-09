@@ -1,7 +1,8 @@
 // מערכת שעות ולוח מבחנים מ"מידע אישי" של המוסד (באריאל: meyda.ariel.ac.il).
 // המודל לא יודע מתי השיעורים, אבל המידע האישי כן. נכנסים אליו עם אותו חשבון מיקרוסופט של המודל:
 // פותחים לשנייה לשונית ברקע, קוראים את המערכת והמבחנים (רק קריאה), וסוגרים. לא רואים ולא שומרים סיסמה.
-export const PORTALS = { "https://moodlearn.ariel.ac.il": "https://meyda.ariel.ac.il/Portals/student" };
+import { parseBguEvents, bguToSchedule } from "./bgu.js";
+export const PORTALS = { "https://moodlearn.ariel.ac.il": "https://meyda.ariel.ac.il/Portals/student", "https://moodle.bgu.ac.il/moodle": "https://portal.bgu.ac.il/private/home" };
 const EVERY = 20 * 3600e3;   // פעם ביום מספיק (המערכת כמעט לא משתנה)
 const WAIT = 45e3;           // כמה זמן מחכים שההתחברות תסתיים
 
@@ -66,18 +67,29 @@ export function toSchedule(raw, moodleCourses) {
   return { timetable, exams: exams.sort((a, b) => a.date.localeCompare(b.date)) };
 }
 
+// בפורטל של בן-גוריון (אפליקציית Angular): מוכן כשרשימת האירועים של החודש נטענה; אם עדיין בהתחברות – מחכים
+function bguState() {
+  if (location.hostname !== "portal.bgu.ac.il" || /login|signin|auth/i.test(location.pathname)) return "wait";
+  if (document.querySelector(".month-events-wrap app-month-event-item")) return "ready";
+  return document.querySelector(".month-events-wrap app-month-events") ? "empty" : "wait";
+}
+function readBgu() { return document.querySelector(".month-events-wrap")?.outerHTML || ""; }
+
 // פותחים את המידע האישי בלשונית ברקע, מחכים להתחברות, קוראים וסוגרים
 async function fetchPortal(url) {
+  const bgu = new URL(url).hostname === "portal.bgu.ac.il";
   const tab = await chrome.tabs.create({ url, active: false });
   try {
     const until = Date.now() + WAIT;
+    let empty = 0;
     while (Date.now() < until) {
       await sleep(1500);
       // באמצע ההתחברות הלשונית נמצאת אצל מיקרוסופט – שם אין לנו גישה, פשוט מחכים
-      const st = await run(tab.id, pageState).catch(() => "wait");
-      if (st === "ready") { await sleep(1500); return await run(tab.id, readPortal); }
+      let st = await run(tab.id, bgu ? bguState : pageState).catch(() => "wait");
+      if (st === "empty") { empty++; st = empty >= 4 ? "ready" : "wait"; } else empty = 0;   // רשימה ריקה: מחכים כמה בדיקות לפני שמחליטים שאין שיעורים
+      if (st === "ready") { await sleep(1500); return bgu ? { bguHtml: await run(tab.id, readBgu) } : await run(tab.id, readPortal); }
     }
-    throw Object.assign(new Error("צריך להיכנס פעם אחת ל'מידע האישי' של האוניברסיטה בכרום"), { code: "portal_login" });
+    throw Object.assign(new Error(bgu ? "צריך להיכנס פעם אחת לפורטל הסטודנטיאלי של בן-גוריון בכרום" : "צריך להיכנס פעם אחת ל'מידע האישי' של האוניברסיטה בכרום"), { code: "portal_login" });
   } finally { chrome.tabs.remove(tab.id).catch(() => {}); }
 }
 
@@ -87,8 +99,16 @@ export async function syncPortal(a, base, moodleCourses, rest, force = false) {
   if (!url) return null;
   if (!force && Date.now() - ((await get("portalAt")) || 0) < EVERY) return null;
   const raw = await fetchPortal(url);
-  if (!raw?.lessons) throw new Error("המידע האישי לא החזיר מערכת שעות");
-  const s = toSchedule(raw, moodleCourses);
+  let s;
+  if (raw?.bguHtml !== undefined) {
+    const events = parseBguEvents(raw.bguHtml || "");
+    if (!events.length) throw new Error("לא נמצאו שיעורים בפורטל של בן-גוריון (בדקו שהחודש מציג שיעורים)");
+    s = { timetable: bguToSchedule(events, moodleCourses, (await get("bguTimetable")) || []), exams: [] };
+    await set({ bguTimetable: s.timetable });
+  } else {
+    if (!raw?.lessons) throw new Error("המידע האישי לא החזיר מערכת שעות");
+    s = toSchedule(raw, moodleCourses);
+  }
   const r = await rest("uni_schedule", a, { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify({ owner: a.user, timetable: s.timetable, exams: s.exams, source: new URL(url).host, updated_at: new Date().toISOString() }) });
   if (!r.ok) throw new Error("שמירת מערכת השעות נכשלה (" + r.status + ")");

@@ -1449,7 +1449,7 @@ function timetable() {
   view.innerHTML = `<div class="page">
     <a href="#profile" class="small">→ פרופיל</a>
     <h1 style="font-size:30px">מערכת השעות שלי</h1>
-    <p class="small muted">באוניברסיטת אריאל המערכת, עם חדר ומרצה, מתמלאת לבד מהתוסף. בשאר המוסדות אפשר להוסיף כאן שיעורים ידנית, כולל חדר ומרצה.</p>
+    <p class="small muted">באוניברסיטת אריאל (עם חדר ומרצה) ובבן-גוריון (עם חדר) המערכת מתמלאת לבד מהתוסף. בשאר המוסדות אפשר להוסיף כאן שיעורים ידנית, כולל חדר ומרצה.</p>
     <p class="muted">לפי המערכת, כשלוחצים "הקלט" האפליקציה יודעת לבד איזה שיעור עכשיו, וההקלטה נכנסת ישר למחברת של אותו קורס.</p>
     <div class="list" id="ttList">${rows.map(row).join("") || '<p class="muted">עוד אין שיעורים במערכת.</p>'}</div>
     <div class="row"><button class="btn ghost" id="ttAdd">${svg("plus")} שיעור במערכת</button><button class="btn" id="ttSave">שמירה</button></div>
@@ -1859,7 +1859,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "67";
+const APP_VERSION = "68";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

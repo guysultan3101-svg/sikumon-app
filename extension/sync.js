@@ -179,6 +179,13 @@ export async function syncOnce({ manual = false } = {}) {
       for (const k of Object.keys(seen)) if (seen[k] === "old") delete seen[k];
       await set({ seen, backfill1: true });
     }
+    // פעם אחת (1.6.8): ב-9.11 השרת נכשל זמנית (תקלת הרשאה אצלנו) וקבצים תקינים סומנו "לדלג" אחרי 3 כישלונות – מחזירים אותם לתור
+    if (!(await get("heal168"))) {
+      for (const k of Object.keys(seen)) {
+        if (k.startsWith("n:")) { const f = k.slice(2); if (seen[f] === "skip" && seen[k] >= 3) delete seen[f]; delete seen[k]; }
+      }
+      await set({ seen, heal168: true });
+    }
     // כל הקבצים מתחילת הסמסטר, מהחדש לישן, לסירוגין בין הקורסים (כך כל קורס מקבל סיכומים מהר).
     // הקצב מוגבל במכסה היומית בשרת, אז זה נגמר תוך כמה ימים – ממשיכים לבד בכל בדיקה.
     const perCourse = [];
