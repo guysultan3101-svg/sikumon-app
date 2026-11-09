@@ -2,8 +2,8 @@
 // כתובות עם שנה/מספר (טכניון, חיפה, בראודה...) מתחלפות מדי שנה: אם לא עובד, בוחרים "מוסד אחר" ומדביקים את הכתובת מהמודל.
 export const MOODLES = {
   "אוניברסיטת אריאל": "https://moodlearn.ariel.ac.il",
-  "אוניברסיטת בן-גוריון": "https://moodle.bgu.ac.il/moodle",
-  "אוניברסיטת בר-אילן": "https://lemida.biu.ac.il",
+  "אוניברסיטת בן־גוריון": "https://moodle.bgu.ac.il/moodle",
+  "אוניברסיטת בר־אילן": "https://lemida.biu.ac.il",
   "אוניברסיטת חיפה (לא נבדק)": "https://mw27.haifa.ac.il",
   "אוניברסיטת תל אביב": "https://moodle.tau.ac.il",
   "האוניברסיטה העברית": "https://moodle.huji.ac.il/2026-27",

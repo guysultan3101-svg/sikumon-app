@@ -2,6 +2,7 @@
 // (שיתוף סיכומים בין חברים באישור של שניהם), הודעות (ראשי + בקשות), פספסתי שיעור, פיד, פרופיל.
 // בנוסף: מסנכרן לאפליקציה את הסיכומים מהשרת (שלי + של חברים מאותה כיתה) ואת ההתראות.
 import { mdToHtml } from "./md.js";
+import { INSTITUTIONS } from "./institutions.js";
 
 export function initSocial(ctx) {
   const { view, $, esc, toast, prefs, store, api } = ctx;
@@ -13,7 +14,7 @@ export function initSocial(ctx) {
     course: "כל מי שכתב את הקורס בפרופיל שלו – גם מי שלא מכיר/ה אותך. הרישום לקורס לא מאומת",
     public: "כל מי שמשתמש באפליקציה",
   };
-  const UNIS = ["אוניברסיטת אריאל", "אוניברסיטת בן־גוריון", "אוניברסיטת בר־אילן", "אחר"];
+  const UNIS = [...INSTITUTIONS, "אחר"];
   const COLORS = ["#DB2777", "#2563EB", "#16A34A", "#6D28D9", "#EA580C", "#0891B2", "#CA8A04", "#475569"];
   const color = (id = "") => COLORS[[...id].reduce((n, c) => n + c.charCodeAt(0), 0) % COLORS.length];
   const people = new Map(); // מטמון פרופילים לפי id
