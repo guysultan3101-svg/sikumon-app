@@ -110,7 +110,8 @@ async function askOpenAICompat({ p, system, history, question, onText, signal })
     throw new Error("אין חיבור לאינטרנט.");
   }
   if (!res.ok && p === "sikumon") {
-    const err = (await res.json().catch(() => ({})))?.error;
+    const ej = await res.json().catch(() => ({})); const err = ej?.error;
+    if (err === "limit" && ej?.limit === 0) throw Object.assign(new Error(api.NOT_CONNECTED), { code: "not_connected" });
     if (err === "limit") { const q = quota(); throw Object.assign(new Error(`נגמרו ${q.limit} השאלות של היום 🙂 מחר יש עוד. (במנוי פרו יהיו הרבה יותר שאלות.)`), { code: "limit" }); }
     if (err === "global_cap") throw new Error("העוזר עמוס היום. נסו שוב מחר.");
     throw new Error("העוזר לא זמין כרגע. נסו שוב בעוד כמה דקות.");

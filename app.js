@@ -168,11 +168,13 @@ async function home() {
   const lastSum = items.filter((x) => x.type === "summary" && x.kind !== "formulas").sort((a, b) => b.date.localeCompare(a.date))[0];
   const quizCount = items.filter((x) => x.type === "quiz").length;
   const recent = (await store.listLessons()).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")).slice(0, 3);
+  const connected = isAdmin || await api.moodleConnected().catch(() => true);   // לא ידוע = לא מציגים אזהרה
   view.innerHTML = `<div class="page">
     <div>
       <p class="eyebrow">${new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}</p>
       <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}${(p.streak || 0) > 1 && p.streakDay >= new Date(Date.now() - 864e5).toLocaleDateString("en-CA") ? ` <span class="streak">🔥 ${p.streak}</span>` : ""}</h1><span class="row" style="gap:4px"><a href="#messages" class="tool show-phone bell" aria-label="הודעות מחברים">${svg("chat")}<span class="dm-n" hidden></span></a><a href="#search" class="tool" aria-label="חיפוש בכל החומר">${svg("search")}</a><a href="#inbox" class="tool bell" aria-label="הודעות">${svg("bell")}<span class="bell-n" hidden></span></a><a href="#profile" class="tool show-phone" aria-label="פרופיל">${svg("user")}</a></span></div>
     </div>
+    ${connected ? "" : '<a class="notice" href="#connect" style="display:block;text-decoration:none;color:inherit"><b>🔒 סיכומים, מבחנים ושאלות ל-AI נפתחים אחרי חיבור המודל.</b><br><span class="small">מתקינים את התוסף במחשב (כ-3 דקות), והוא מביא את הקורסים. לחצו לפרטים ←</span></a>'}
     <a class="card" href="#record" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;gap:16px">
       <div><h2 style="font-size:24px">${nowSlot ? "עכשיו: " + esc(nowSlot.course) : "מתחיל שיעור?"}</h2><p class="muted">${nowSlot ? `<bdi>${nowSlot.start}–${nowSlot.end}</bdi> · לחיצה אחת, וההקלטה נכנסת ישר למחברת של הקורס.` : "לחיצה אחת ומתחילים להקליט. ההקלטה נכנסת למחברת של השיעור."}</p></div>
       <span class="rec-btn" style="width:84px;height:84px;box-shadow:3px 3px 0 var(--ink);flex:none">${svg("mic")}</span>
@@ -1788,18 +1790,33 @@ async function adminPage() {
   try { r = await api.notifyEmail({ action: "waitlist" }); }
   catch (e) { view.innerHTML = `<div class="page"><p class="notice alert">${esc(e.message)}</p></div>`; return; }
   const list = r.waitlist || [];
+  const flags = new Map();
+  try { for (const f of await api.adminSignups()) flags.set(f.id, f); } catch { /* בלי סימונים אם הפונקציה עוד לא בשרת */ }
+  const chip = (ok, yes, no) => `<span class="chip ${ok ? "ok" : ""}">${ok ? "✅ " + yes : no}</span>`;
+  const badge = (p) => { const f = flags.get(p.id); return f ? ` ${chip(f.domain_ok, "מייל תואם למוסד", p.uni === "אחר" ? "⚠️ מוסד אחר, בדיקה ידנית" : "⚠️ המייל לא תואם למוסד")} ${chip(f.moodle_connected, "מחובר למודל", "❌ עוד לא מחובר למודל")}` : ""; };
+  const good = list.filter((p) => flags.get(p.id)?.domain_ok && flags.get(p.id)?.moodle_connected);
+  const rest = list.filter((p) => !good.includes(p));
+  const item = (p) => `<div class="item"><span style="min-width:0;flex:1"><span class="t">${esc(p.full_name)} <span class="small muted" dir="ltr">@${esc(p.username)}</span></span><br><span class="small muted">${esc(p.uni)}${p.degree ? " · " + esc(p.degree) : ""} · <span dir="ltr">${esc(p.email)}</span> · נרשם/ה ב-${new Date(p.created_at).toLocaleDateString("he-IL")}</span><br>${badge(p)}</span><button class="btn small-btn" type="button" data-ok="${esc(p.id)}">אישור</button></div>`;
   view.innerHTML = `<div class="page" style="max-width:820px">
     <h1 style="font-size:30px">🛠️ ניהול Early Access</h1>
     ${r.smtp ? `<p class="notice">📧 המיילים מוגדרים לצאת מ-<b dir="ltr">${esc(r.from || "")}</b> (תשובות מגיעות ל-clearlyappsupport@gmail.com). כדי לוודא שהם באמת יוצאים: <button class="link" type="button" id="adTest">שליחת מייל בדיקה אליי</button></p>` : '<p class="notice alert"><b>המיילים עוד לא מחוברים.</b> אפשר לאשר אנשים, אבל המייל "Clearly פתוח בשבילך" לא יישלח עד שמוסיפים בשרת את סיסמת האפליקציה של Gmail.</p>'}
     <p class="muted">${list.length} ממתינים. <b>"אישור"</b> פותח את Clearly לאדם אחד ושולח לו מייל. <b>"השקה"</b> פותח לכולם ושולח מייל לכולם.</p>
     <div class="row"><button class="btn" type="button" id="adLaunch" ${list.length ? "" : "disabled"}>🚀 השקה: לפתוח לכולם (${list.length}) ולשלוח מייל</button></div>
-    <div class="list">${list.map((p) => `<div class="item"><span style="min-width:0;flex:1"><span class="t">${esc(p.full_name)} <span class="small muted" dir="ltr">@${esc(p.username)}</span></span><br><span class="small muted">${esc(p.uni)}${p.degree ? " · " + esc(p.degree) : ""} · <span dir="ltr">${esc(p.email)}</span> · נרשם/ה ב-${new Date(p.created_at).toLocaleDateString("he-IL")}</span></span><button class="btn small-btn" type="button" data-ok="${esc(p.id)}">אישור</button></div>`).join("") || '<p class="muted">אין אף אחד ברשימת ההמתנה.</p>'}</div>
+    ${good.length ? `<section class="soft" style="display:grid;gap:10px;border:2px solid #16a34a"><h2 style="font-size:20px;margin:0">✅ אישור נרשמים (${good.length})</h2><p class="small muted" style="margin:0">המייל המוסדי שלהם תואם למוסד שבחרו, והם חיברו את המודל ויש להם קורסים. זה הסימן החזק ביותר שהם סטודנטים אמיתיים.</p><div class="list">${good.map(item).join("")}</div><div class="row"><button class="btn" type="button" id="adApproveGood">✅ אשרו את כולם (${good.length}) ושלחו להם מייל</button></div></section>` : ""}
+    <h2 style="font-size:18px;margin:14px 0 6px">${good.length ? "שאר הממתינים" : "ממתינים"} (${rest.length})</h2>
+    <div class="list">${rest.map(item).join("") || '<p class="muted">אין אף אחד ברשימת ההמתנה.</p>'}</div>
   </div>`;
   view.querySelectorAll("[data-ok]").forEach((b) => (b.onclick = async () => {
     b.disabled = true; b.textContent = "מאשר…";
     try { const x = await api.notifyEmail({ action: "approve", user_id: b.dataset.ok }); toast(x.mailed ? "✓ אושר ונשלח מייל" : "✓ אושר (המייל לא נשלח)"); adminPage(); }
     catch (e) { toast(e.message); b.disabled = false; b.textContent = "אישור"; }
   }));
+  $("#adApproveGood") && ($("#adApproveGood").onclick = async (ev) => {
+    if (!confirm(`לאשר את ${good.length} הנרשמים המאומתים ולשלוח להם מייל?`)) return;
+    ev.target.disabled = true; let ok = 0, mailed = 0;
+    for (const p of good) { try { const x = await api.notifyEmail({ action: "approve", user_id: p.id }); ok++; if (x.mailed) mailed++; } catch (e) { toast(e.message); } }
+    toast(`✓ אושרו ${ok}, נשלחו ${mailed} מיילים`); adminPage();
+  });
   $("#adTest") && ($("#adTest").onclick = async () => {
     try { const x = await api.notifyEmail({ action: "test" }); toast(`✓ נשלח מייל בדיקה ל-${x.to}`); } catch (e) { toast(e.message); }
   });
@@ -1899,7 +1916,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "70";
+const APP_VERSION = "71";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

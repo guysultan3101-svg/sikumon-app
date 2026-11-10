@@ -139,7 +139,7 @@ export async function summarizeFile(file, course) {
   });
   const j = await res.json().catch(() => ({}));
   if (res.ok) return j;
-  const msg = { limit: `הגעת ל-${j.limit || 10} סיכומים להיום. מחר יש עוד 🙂`, global_cap: "השרת עמוס היום. נסו שוב מחר", too_big: "הקובץ גדול מדי (עד 15MB)", unsupported: "אפשר להעלות PDF, מצגת (pptx), וורד (docx), תמונה או טקסט", provider: "ה-AI לא הצליח לסכם עכשיו. נסו שוב בעוד כמה דקות", auth: "צריך להתחבר מחדש" }[j.error];
+  const msg = { limit: j.limit === 0 ? NOT_CONNECTED : `הגעת ל-${j.limit || 10} סיכומים להיום. מחר יש עוד 🙂`, global_cap: "השרת עמוס היום. נסו שוב מחר", too_big: "הקובץ גדול מדי (עד 15MB)", unsupported: "אפשר להעלות PDF, מצגת (pptx), וורד (docx), תמונה או טקסט", provider: "ה-AI לא הצליח לסכם עכשיו. נסו שוב בעוד כמה דקות", auth: "צריך להתחבר מחדש" }[j.error];
   throw new Error(msg || `תקלה (${res.status})`);
 }
 
@@ -162,12 +162,15 @@ export async function transcribeStep(body) {
   });
   const j = await res.json().catch(() => ({}));
   if (res.ok) return j;
-  throw Object.assign(new Error(AI_ERR[j.error] || `תקלה (${res.status})`), { code: j.error });
+  throw Object.assign(new Error((j.error === "limit" && j.limit === 0 ? NOT_CONNECTED : AI_ERR[j.error]) || `תקלה (${res.status})`), { code: j.error });
 }
 // ---------- הגשת עבודות ----------
 // מטלות שהתוסף במחשב מצא במודל (גם לבודקים שאין להם את המחשב של גיא)
 // מטלות ובחנים עם מועד (ללוח המבחנים וההגשות וליומן)
 export async function deadlineItems() { return ok(await sb.from("moodle_items").select("item_key, kind, course, name, url, status, note").in("kind", ["assign", "quiz"])); }
+export const NOT_CONNECTED = "כדי להשתמש ב-AI (סיכומים, מבחנים ושאלות) צריך קודם להשלים את החיבור למודל: מתקינים את התוסף במחשב ומחכים שהוא יביא את הקורסים. כל ההסבר במסך \"חיבור למודל\".";
+export async function moodleConnected() { const { data, error } = await sb.from("course_materials").select("course").limit(1); if (error) throw error; return (data || []).length > 0; }
+export async function adminSignups() { return ok(await sb.rpc("admin_signups")); }
 export async function assignItems() { return ok(await sb.from("moodle_items").select("item_key, course, name, url, status, note, intro, files").eq("kind", "assign")); }
 // חומרים לכל קורס + קישור לזום (מה שהמחבר בכרום הביא מהמודל)
 export async function courseMaterials() { return ok(await sb.from("course_materials").select("course, zoom, items, updated_at")); }
@@ -199,7 +202,7 @@ export async function summarizeText(text, title, course, ref) {
   });
   const j = await res.json().catch(() => ({}));
   if (res.ok) return j;
-  throw Object.assign(new Error(AI_ERR[j.error] || `תקלה (${res.status})`), { code: j.error });
+  throw Object.assign(new Error((j.error === "limit" && j.limit === 0 ? NOT_CONNECTED : AI_ERR[j.error]) || `תקלה (${res.status})`), { code: j.error });
 }
 
 // ---------- הודעות ----------
