@@ -1647,6 +1647,7 @@ async function serverSync(force = false) {
     planner.inboxStore().then(planner.paintBadge);
     if (fresh.length && location.hash !== "#inbox") toast(`🔔 ${fresh[0].title}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ""}`);
     const sched = await applyUniSchedule(), dls = await applyServerDeadlines();
+    await applyReferral();
     if ((sched || dls) && ["#calendar", "#timetable", "#deadlines", "#home", "#assignments", ""].includes(location.hash)) route();
     await applyCourseMaterials();
     const n = await social.syncSummaries();
@@ -1677,6 +1678,25 @@ async function applyCourseMaterials() {
     prefs.set(p);
     if (["#notebooks", "#home", "", "#summaries", "#record", "#calendar"].includes(location.hash)) route();
   }
+}
+// קישור הזמנה: ?ref=<שם משתמש>. נשמר עד שנכנסים לחשבון, ואז נשלחת בקשת חברות למי שהזמין/ה (והוא/היא מאשר/ת).
+// בכוונה בקשה ולא חברות אוטומטית: אחרת כל אחד היה יכול לצרף את עצמו כחבר של מישהו בלי הסכמה.
+async function applyReferral() {
+  let ref = null;
+  try { ref = localStorage.getItem("clearly-ref"); } catch { return false; }
+  if (!ref || !api.user()) return false;
+  const done = () => { try { localStorage.removeItem("clearly-ref"); } catch { /* */ } };
+  try {
+    const p = await api.findUser(ref);
+    if (!p || p.id === api.user().id) { done(); return false; }
+    const fr = await api.friendships();
+    if (fr.some((f) => f.requester === p.id || f.addressee === p.id)) { done(); return false; }
+    await api.requestFriend(p.id);
+    done();
+    toast(`שלחנו בקשת חברות ל${p.full_name}, שהזמינ/ה אותך ל-Clearly`);
+    api.track("invite_joined");
+    return true;
+  } catch { return false; }   // למשל עוד לא אושרה כניסה: ננסה שוב בסנכרון הבא (הקישור נשאר שמור)
 }
 // מטלות ובחנים שהמחבר מצא במודל (עם מועד) נכנסים ללוח המבחנים וההגשות, ליומן ולמסך הבית.
 // עד עכשיו הם הופיעו רק ב"הגשת עבודות", כי היומן קרא רק מה שנשמר במכשיר.
@@ -1878,7 +1898,8 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "69";
+try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
+const APP_VERSION = "70";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

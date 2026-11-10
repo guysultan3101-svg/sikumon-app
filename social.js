@@ -392,7 +392,8 @@ export function initSocial(ctx) {
       view.innerHTML = `<div class="page"><h1 class="vh">החברים שלי</h1>${subnav("social-friends")}
         <section class="soft" style="display:grid;gap:10px"><h2 style="font-size:18px;margin:0">הוספת חבר/ה</h2>
           <form class="fr-form" id="frForm"><input type="text" id="frQ" dir="ltr" placeholder="שם המשתמש של החבר/ה" aria-label="שם משתמש של החבר/ה" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send"><button class="btn" type="submit">➕ שליחת בקשה</button></form>
-          <p class="small muted">החבר/ה צריך/ה לאשר. השם שלך: <b dir="ltr">@${esc(api.profile()?.username || "")}</b> <button class="btn ghost" type="button" id="frShare" style="min-height:32px;padding:2px 10px">שיתוף השם</button></p>
+          <p class="small muted">החבר/ה צריך/ה לאשר. השם שלך: <b dir="ltr">@${esc(api.profile()?.username || "")}</b></p>
+          <div class="row" style="gap:10px;flex-wrap:wrap"><button class="btn" type="button" id="frShare">📨 הזמינו חברים ל-Clearly</button><span class="small muted">שולחים קישור אישי (בוואטסאפ או בהודעה). מי שנרשם דרכו שולח לך בקשת חברות, ואת/ה מאשר/ת.</span></div>
         </section>
         ${g.incoming.length ? `<section style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">בקשות חדשות (${g.incoming.length})</h2>${g.incoming.map((f) => row(f.requester, `<button class="btn" data-ok="${f.id}" data-who="${f.requester}" type="button">אישור</button><button class="btn ghost" data-no="${f.id}" type="button">לא עכשיו</button>`)).join("")}</section>` : ""}
         ${g.outgoing.length ? `<section style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">ממתינים לאישור</h2>${g.outgoing.map((f) => row(f.addressee, `<button class="btn ghost" data-no="${f.id}" type="button">ביטול</button>`)).join("")}</section>` : ""}
@@ -409,7 +410,14 @@ export function initSocial(ctx) {
           toast(`הבקשה נשלחה ל${p.full_name}`); api.track("friend_request"); friends();
         } catch (err) { toast(err.message); }
       };
-      $("#frShare").onclick = () => { const t = `הוסיפו אותי ב-Clearly: @${api.profile()?.username}\n${location.origin + location.pathname}`; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else { navigator.clipboard?.writeText(t); toast("הועתק"); } };
+      $("#frShare").onclick = () => {
+        // קישור אישי: מי שנרשם דרכו שולח בקשת חברות אליך (מאושרת על ידך), בלי לקרוא אנשי קשר
+        const url = `${location.origin}${location.pathname}?app=1&ref=${encodeURIComponent(api.profile()?.username || "")}`;
+        const text = "היי! אני משתמש/ת ב-Clearly: סיכומים אוטומטיים מכל מה שבמודל, מבחנים ויומן שיעורים. הצטרפו דרך הקישור ונהיה חברים (כרגע בהרשמה מוקדמת):";
+        if (navigator.share) navigator.share({ title: "Clearly", text, url }).catch(() => {});
+        else { navigator.clipboard?.writeText(`${text}\n${url}`).then(() => toast("הקישור הועתק. אפשר להדביק בוואטסאפ"), () => toast(url)); }
+        api.track("invite_share");
+      };
       view.querySelectorAll("[data-ok]").forEach((b) => (b.onclick = async () => {
         try { await api.acceptFriend(+b.dataset.ok); toast("אתם חברים עכשיו 🙌"); await friends(); shareModal(b.dataset.who); } catch (e) { toast(e.message); }
       }));
