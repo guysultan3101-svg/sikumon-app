@@ -1646,7 +1646,8 @@ async function serverSync(force = false) {
     const fresh = await social.syncNotifications();
     planner.inboxStore().then(planner.paintBadge);
     if (fresh.length && location.hash !== "#inbox") toast(`🔔 ${fresh[0].title}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ""}`);
-    if (await applyUniSchedule() && ["#calendar", "#timetable", "#deadlines", "#home", ""].includes(location.hash)) route();
+    const sched = await applyUniSchedule(), dls = await applyServerDeadlines();
+    if ((sched || dls) && ["#calendar", "#timetable", "#deadlines", "#home", "#assignments", ""].includes(location.hash)) route();
     await applyCourseMaterials();
     const n = await social.syncSummaries();
     autoTranscribe();
@@ -1676,6 +1677,24 @@ async function applyCourseMaterials() {
     prefs.set(p);
     if (["#notebooks", "#home", "", "#summaries", "#record", "#calendar"].includes(location.hash)) route();
   }
+}
+// מטלות ובחנים שהמחבר מצא במודל (עם מועד) נכנסים ללוח המבחנים וההגשות, ליומן ולמסך הבית.
+// עד עכשיו הם הופיעו רק ב"הגשת עבודות", כי היומן קרא רק מה שנשמר במכשיר.
+async function applyServerDeadlines() {
+  let rows; try { rows = await api.deadlineItems(); } catch { return false; }
+  const pad = (n) => String(n).padStart(2, "0");
+  const localIso = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const cm = (u) => String(u || "").match(/[?&]id=(\d+)/)?.[1] || "";
+  const cur = (await store.getItem("deadlines")) || { id: "deadlines", events: [] };
+  const mine = (cur.events || []).filter((e) => !String(e.id).startsWith("srv-"));
+  const have = new Set(mine.map((e) => cm(e.url)).filter(Boolean));   // מה שכבר הגיע מ"חיבור אוטומטי" לא כפול
+  const srv = (rows || []).filter((r) => r.note && !isNaN(new Date(r.note)) && ["new", "done"].includes(r.status) && !have.has(cm(r.url)))
+    .map((r) => ({ id: "srv-" + r.item_key, name: r.kind === "quiz" ? `בוחן · ${r.name}` : r.name, course: r.course, due: localIso(r.note), url: r.url, done: r.status === "done", type: r.kind }));
+  srv.sort((p, q) => p.id.localeCompare(q.id));   // סדר קבוע, כדי שההשוואה לא תזהה "שינוי" סתם ולא יהיה רינדור חוזר
+  const next = [...mine, ...srv];
+  if (JSON.stringify(next) === JSON.stringify(cur.events || [])) return false;
+  await store.putItem({ ...cur, id: "deadlines", events: next });
+  return true;
 }
 async function applyUniSchedule() {
   const row = await api.uniSchedule().catch(() => null);
@@ -1859,7 +1878,7 @@ async function autoSync() {
 setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
-const APP_VERSION = "68";
+const APP_VERSION = "69";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

@@ -29,7 +29,8 @@ export function parseBguEvents(html) {
     const end = /class="end-time[^"]*"[^>]*>\s*(\d{1,2}:\d{2})/.exec(c)?.[1];
     const title = strip(/class="title[^"]*"[^>]*>([\s\S]*?)<\/div>/.exec(c)?.[1]);
     const kind = strip(/class="details-description[^"]*"[^>]*>([\s\S]*?)<\/div>/.exec(c)?.[1]);
-    const place = strip(/data-mat-icon-name="location"[^>]*>\s*<\/mat-icon>\s*<span[^>]*>([\s\S]*?)<\/span>/.exec(c)?.[1]);
+    // בדף החי האייקון מכיל svg בתוכו (בדוגמה שנשלחה אלינו הוא הוסר), לכן מרשים כל תוכן בין <mat-icon> ל-</mat-icon>
+    const place = strip(/data-mat-icon-name="location"[^>]*>[\s\S]*?<\/mat-icon>\s*<span[^>]*>([\s\S]*?)<\/span>/.exec(c)?.[1]);
     const courseId = /id%3D(\d+)/.exec(c)?.[1] || /course\/view\.php\?id=(\d+)/.exec(c)?.[1] || "";
     if (/בחינ|מבחן|מועד|הגשה/.test(kind)) continue;   // בחינה או הגשה היא לא שיעור שבועי
     if (date && start && end && title) out.push({ date, start, end, title, kind, place, courseId });

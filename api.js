@@ -166,6 +166,8 @@ export async function transcribeStep(body) {
 }
 // ---------- הגשת עבודות ----------
 // מטלות שהתוסף במחשב מצא במודל (גם לבודקים שאין להם את המחשב של גיא)
+// מטלות ובחנים עם מועד (ללוח המבחנים וההגשות וליומן)
+export async function deadlineItems() { return ok(await sb.from("moodle_items").select("item_key, kind, course, name, url, status, note").in("kind", ["assign", "quiz"])); }
 export async function assignItems() { return ok(await sb.from("moodle_items").select("item_key, course, name, url, status, note, intro, files").eq("kind", "assign")); }
 // חומרים לכל קורס + קישור לזום (מה שהמחבר בכרום הביא מהמודל)
 export async function courseMaterials() { return ok(await sb.from("course_materials").select("course, zoom, items, updated_at")); }

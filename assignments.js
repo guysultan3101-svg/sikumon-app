@@ -26,6 +26,7 @@ export function initAssignments(ctx) {
     const feed = await store.getItem("moodle-feed");
     const byKey = new Map();
     for (const e of dl) {
+      if (e.type === "quiz") continue;   // בוחן הוא מועד ביומן, לא מטלה להגשה
       if (!(e.type === "assign" || /mod\/assign\//.test(e.url || "") || /הגשה|מטלה|עבודה|תרגיל|ש"ב|שיעורי בית/.test(e.name))) continue;
       const key = moodleId(e.url) || "dl-" + e.id;
       byKey.set(key, { key, name: e.name, course: e.course, due: e.due, url: e.url, moodleDone: !!e.done });

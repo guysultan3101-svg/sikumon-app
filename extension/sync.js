@@ -2,6 +2,7 @@
 // בכרום), איתור קבצים חדשים, ושליחתם לסיכום אישי בשרת. לא רואים ולא שומרים את הסיסמה למודל.
 import { syncPortal, PORTALS } from "./portal.js";
 import { planCourse } from "./classify.js";
+import { flattenMonthly, activityEvents, isSubmitted, dueIso, cleanName } from "./activities.js";
 export const SB = "https://islplhnlvaukixaglxof.supabase.co";
 export const ANON = "sb_publishable_1fDG1GIaFERhcFPiRyx46g_38BIv8HZ";
 export { MOODLES } from "./institutions.js";
@@ -93,10 +94,10 @@ async function ajax(base, sesskey, methodname, args) {
   return j.data;
 }
 // הפריטים בקורס: קבצים ותיקיות (Moodle 4 – אותו מידע שדף הקורס עצמו משתמש בו)
-async function courseItems(base, sesskey, courseId) {
+async function courseItems(base, sesskey, courseId, types = ["resource", "folder"]) {
   try {
     const st = JSON.parse(await ajax(base, sesskey, "core_courseformat_get_state", { courseid: courseId }));
-    return (st.cm || []).filter((c) => ["resource", "folder"].includes(c.module) && c.uservisible !== false).map((c) => ({ id: c.id, type: c.module, name: c.name, url: c.url }));
+    return (st.cm || []).filter((c) => types.includes(c.module) && c.uservisible !== false).map((c) => ({ id: c.id, type: c.module, name: c.name, url: c.url }));
   } catch {
     // גיבוי: קריאה מדף הקורס
     const html = await (await fetch(`${base}/course/view.php?id=${courseId}`, { credentials: "include" })).text();
@@ -104,7 +105,7 @@ async function courseItems(base, sesskey, courseId) {
     for (const part of html.split('id="module-').slice(1)) {
       const id = +part.match(/^(\d+)/)?.[1], type = part.slice(0, 3000).match(/modtype_(\w+)/)?.[1];
       const name = (part.slice(0, 4000).match(/instancename">([^<]+)/)?.[1] || "").trim();
-      if (id && ["resource", "folder"].includes(type)) out.push({ id, type, name, url: `${base}/mod/${type}/view.php?id=${id}` });
+      if (id && types.includes(type)) out.push({ id, type, name, url: `${base}/mod/${type}/view.php?id=${id}` });
     }
     return out;
   }
@@ -158,7 +159,7 @@ export async function syncOnce({ manual = false } = {}) {
     const sesskey = await moodleSession(base);
     const courses = (await ajax(base, sesskey, "core_course_get_enrolled_courses_by_timeline_classification", { classification: "inprogress", limit: 0, offset: 0, sort: "fullname" })).courses || [];
     // מטלות ומועדי הגשה (לאפליקציה), ועבודות שחיכו להגשה מהאפליקציה
-    try { await syncAssignments(a, base, sesskey); } catch { /* לא חובה */ }
+    try { await syncAssignments(a, base, sesskey, courses); } catch { /* לא חובה */ }
     try { await submitJobs(); } catch { /* ננסה בפעם הבאה */ }
     // חומרים לכל קורס + קישור לזום (לאפליקציה: "חומרים לשיעור" ויומן)
     try { await syncCourseMaterials(a, base, sesskey, courses); } catch { /* לא חובה */ }
@@ -380,37 +381,70 @@ async function assignDetail(base, cmid) {
     .replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").replace(/^\s+|\s+$/g, "").slice(0, 8000);
   // קבצים מצורפים לתיאור
   const urls = [...new Set([...html.matchAll(/https?:\/\/[^"'\s]+pluginfile\.php\/[^"'\s]*mod_assign\/intro[^"'\s]+/g)].map((x) => x[0].replace(/&amp;/g, "&")))];
-  return { intro, urls };
+  return { intro, urls, submitted: isSubmitted(html) };
 }
-// מועדי ההגשה מלוח הזמנים של המודל נשמרים כפריטי מודל מסוג assign, וההערה = מועד ההגשה
-async function syncAssignments(a, base, sesskey) {
+// מטלות ובחנים מהמודל נשמרים כפריטי מודל (assign / quiz): המועד בהערה (ISO), ריק אם אין מועד.
+// שלושה מקורות, כדי לא לפספס כלום: (1) פעולות פתוחות, (2) לוח השנה החודשי של המודל (כולל מה שכבר הוגש),
+// (3) פעילויות בתוך הקורסים שאין להן מועד בכלל. בלי (2) ו-(3) חסרו בחנים, מטלות בלי מועד ומטלות שהוגשו.
+async function syncAssignments(a, base, sesskey, courses = []) {
   const now = Math.floor(Date.now() / 1000);
-  const data = await ajax(base, sesskey, "core_calendar_get_action_events_by_timesort", { limitnum: 50, timesortfrom: now - 86400, timesortto: now + 90 * 86400 });
   const seen = (await get("seen")) || {};
-  let n = 0;
-  for (const ev of data.events || []) {
-    if ((ev.modulename || "") !== "assign") continue;
-    const cmid = String(ev.url || "").match(/[?&]id=(\d+)/)?.[1]; if (!cmid) continue;
-    // ההוראות והקבצים – כדי שאפשר יהיה לפתוח את המטלה בתוך Clearly (גם בטאבלט)
-    let intro = "", files = [];
+  const nameById = new Map(courses.map((c) => [String(c.id), String(c.fullname || c.shortname || "").trim()]));
+  // מה שכבר סומן "הוגש" בשרת נשאר כך, גם אם בריצה הזו לא הצלחנו לבדוק את דף המטלה
+  const doneBefore = new Set();
+  try { const r = await rest("moodle_items?select=item_key&status=eq.done&kind=in.(assign,quiz)&limit=1000", a); if (r.ok) for (const x of await r.json()) doneBefore.add(x.item_key); } catch { /* לא חובה */ }
+  const found = new Map();
+  const put = (x) => { const k = `${x.kind}:${x.cmid}`, prev = found.get(k) || {}, nx = { ...prev }; for (const [a1, b1] of Object.entries(x)) if (b1 !== undefined && b1 !== "" && b1 !== 0) nx[a1] = b1; found.set(k, nx); };
+  const loginErr = (e) => { if (e?.code === "moodle_login") throw e; };
+  try {
+    const data = await ajax(base, sesskey, "core_calendar_get_action_events_by_timesort", { limitnum: 50, timesortfrom: now - 86400, timesortto: now + 90 * 86400 });
+    for (const ev of data.events || []) {
+      if ((ev.modulename || "") !== "assign") continue;
+      const cmid = String(ev.url || "").match(/[?&]id=(\d+)/)?.[1]; if (!cmid) continue;
+      put({ cmid, kind: "assign", name: cleanName(ev.name), ts: Number(ev.timesort || 0), course: String(ev.course?.fullname || "").trim(), courseId: ev.course?.id, url: String(ev.url), actionable: ev.action ? ev.action.actionable !== false : undefined });
+    }
+  } catch (e) { loginErr(e); }
+  const d0 = new Date();
+  for (let k = -1; k <= 3; k++) {
+    const d = new Date(d0.getFullYear(), d0.getMonth() + k, 1);
     try {
-      const d = await assignDetail(base, cmid);
-      intro = d.intro;
-      for (const url of d.urls.slice(0, 5)) {
-        const fname = decodeURIComponent(url.split("?")[0].split("/").pop() || "קובץ");
-        const path = `${a.user}/${cmid}/${fname}`;
-        const fkey = `af:${cmid}:${fname}`;
-        if (!seen[fkey]) {
-          const blob = await (await fetch(url, { credentials: "include" })).blob();
-          if (blob.size <= 25 * 1024 * 1024 && await uploadAssignFile(a, path, blob)) { seen[fkey] = "done"; }
+      const data = await ajax(base, sesskey, "core_calendar_get_calendar_monthly_view", { year: d.getFullYear(), month: d.getMonth() + 1, courseid: 1, categoryid: 0, includenavigation: false, mini: false, day: 1 });
+      for (const x of activityEvents(flattenMonthly(data))) put(x);
+    } catch (e) { loginErr(e); }
+  }
+  for (const c of courses) {
+    const course = String(c.fullname || c.shortname || "").trim();
+    if (!course || NOT_COURSE.test(course)) continue;
+    try { for (const it of await courseItems(base, sesskey, c.id, ["assign", "quiz"])) if (!found.has(`${it.type}:${it.id}`)) put({ cmid: String(it.id), kind: it.type, name: it.name, ts: 0, course, url: it.url }); } catch (e) { loginErr(e); }
+  }
+  let n = 0, details = 0;
+  for (const x of [...found.values()].sort((p, q) => (q.ts || 0) - (p.ts || 0)).slice(0, 150)) {
+    if (x.ts && x.ts < now - 30 * 86400) continue;   // ישן מחודש: לא מעניין
+    const course = nameById.get(String(x.courseId)) || x.course || "";
+    if (NOT_COURSE.test(course)) continue;
+    if (x.kind === "quiz" && !x.ts) continue;   // בוחן בלי מועד לא מוצג בשום מקום (למשל בחני תרגול), לא שומרים
+    let intro = "", files = [], submitted = x.actionable === false || doneBefore.has(`${x.kind}:${x.cmid}`);
+    if (x.kind === "assign" && details++ < 40) {
+      try {
+        const d = await assignDetail(base, x.cmid);
+        intro = d.intro; submitted = submitted || d.submitted;
+        for (const url of d.urls.slice(0, 5)) {
+          const fname = decodeURIComponent(url.split("?")[0].split("/").pop() || "קובץ");
+          const path = `${a.user}/${x.cmid}/${fname}`;
+          const fkey = `af:${x.cmid}:${fname}`;
+          if (!seen[fkey]) {
+            const blob = await (await fetch(url, { credentials: "include" })).blob();
+            if (blob.size <= 25 * 1024 * 1024 && await uploadAssignFile(a, path, blob)) { seen[fkey] = "done"; }
+          }
+          files.push({ name: fname, path });
         }
-        files.push({ name: fname, path });
-      }
-    } catch { /* אם דף המטלה לא נפתח – לפחות השם והמועד */ }
-    await markItem(a, { item_key: `assign:${cmid}`, course: (ev.course?.fullname || "").trim().slice(0, 200), name: String(ev.name || "").slice(0, 300), kind: "assign",
-      url: String(ev.url).slice(0, 2000), status: ev.action && ev.action.actionable === false ? "done" : "new", note: new Date(ev.timesort * 1000).toISOString(),
-      intro: intro || null, files });
-    n++;
+      } catch { /* אם דף המטלה לא נפתח – לפחות השם והמועד */ }
+    }
+    try {
+      await markItem(a, { item_key: `${x.kind}:${x.cmid}`, course: course.slice(0, 200), name: String(x.name || "").slice(0, 300), kind: x.kind, url: String(x.url || "").slice(0, 2000),
+        status: submitted ? "done" : "new", note: dueIso(x.ts), ...(x.kind === "assign" ? { intro: intro || null, files } : {}) });
+      n++;
+    } catch { /* שורה בעייתית לא עוצרת את השאר */ }
   }
   await set({ seen });
   return n;
