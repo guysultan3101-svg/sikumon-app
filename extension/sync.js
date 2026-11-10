@@ -14,7 +14,7 @@ export function moodleRoot(input) {
   const path = (cut >= 0 ? u.pathname.slice(0, cut) : u.pathname).replace(/\/+$/, "");
   return u.origin + path;
 }
-const PER_RUN_MAX = 15;    // בכל בדיקה אוטומטית – עד 15 קבצים (המכסה היומית בשרת מגבילה בנוסף)
+const PER_RUN_MAX = 25;   // בכל בדיקה אוטומטית – עד 15 קבצים (המכסה היומית בשרת מגבילה בנוסף)
 const MANUAL_MAX = 50;     // כשלוחצים "בדיקה עכשיו"
 // "קורסים" שהם בעצם לומדות והדרכות של המוסד – לא מסכמים אותם
 const NOT_COURSE = /הטרדה|harassment|לומדה|הכרת הספרייה|הדרכה לקראת|instructions for|בטיחות ב|safety/i;
@@ -133,13 +133,29 @@ async function sha256(blob) {
   const d = new Uint8Array(await crypto.subtle.digest("SHA-256", await blob.arrayBuffer()));
   return [...d].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+// קריאה ארוכה לשרת: דרך דף הרקע (לא נכבה אחרי 30 שניות). אם הוא לא זמין – קריאה רגילה
+async function ensureOffscreen() {
+  try {
+    if (!chrome.offscreen) return false;
+    if (chrome.offscreen.hasDocument && (await chrome.offscreen.hasDocument())) return true;
+    await chrome.offscreen.createDocument({ url: "offscreen.html", reasons: ["BLOBS"], justification: "קריאה ארוכה לשרת הסיכומים, שלא תיקטע כשהרקע של התוסף נכבה" });
+    return true;
+  } catch (e) { return /single offscreen|already/i.test(String(e)); }
+}
+export async function longPost(url, headers, body) {
+  if (await ensureOffscreen()) {
+    let r = null;
+    try { r = await chrome.runtime.sendMessage({ cmd: "longPost", url, headers, body }); } catch { /* ממשיכים לקריאה רגילה */ }
+    if (r?.netError) throw Object.assign(new Error("network"), { code: "network" });
+    if (r) return { ok: r.ok, status: r.status, json: async () => JSON.parse(r.text) };
+  }
+  return fetch(url, { method: "POST", headers, body, signal: AbortSignal.timeout(170000) }).catch((e) => { throw Object.assign(new Error("network"), { code: "network", cause: e }); });
+}
 async function summarize(a, blob, filename, course, ref) {
   const buf = new Uint8Array(await blob.arrayBuffer());
   let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-  const r = await fetch(`${SB}/functions/v1/summarize`, {
-    method: "POST", headers: { apikey: ANON, Authorization: `Bearer ${a.access}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ filename, mime: blob.type, data: btoa(bin), course, source: "moodle", source_ref: ref }),
-  });
+  const body = JSON.stringify({ filename, mime: blob.type, data: btoa(bin), course, source: "moodle", source_ref: ref });
+  const r = await longPost(`${SB}/functions/v1/summarize`, { apikey: ANON, Authorization: `Bearer ${a.access}`, "Content-Type": "application/json" }, body);
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error(j.error || "failed"), { code: j.error });
   return j;
@@ -150,6 +166,9 @@ let running = false;
 export async function syncOnce({ manual = false } = {}) {
   if (running) return get("status");
   running = true;
+  // כרום מכבה את הרקע של התוסף אחרי ~30 שניות בלי פעילות, וסיכום אחד לוקח לפעמים יותר (גוגל חושב). זה מה שעצר את הסנכרון באמצע
+  // ("Failed to fetch"). קריאה קלה כל 20 שניות מחזיקה אותו ער כל זמן שהסנכרון רץ.
+  const keepAlive = setInterval(() => { chrome.runtime.getPlatformInfo(() => {}); }, 20000);
   try {
     const a = await token();
     let base = await get("moodle");
@@ -187,6 +206,14 @@ export async function syncOnce({ manual = false } = {}) {
       }
       await set({ seen, heal168: true });
     }
+    // פעם אחת (1.6.10): קבצים שסומנו "לדלג" רק כי הרקע של התוסף נכבה באמצע ("Failed to fetch") חוזרים לתור
+    if (!(await get("heal1610"))) {
+      for (const k of Object.keys(seen)) {
+        if (k.startsWith("n:")) { const f = k.slice(2); if (seen[f] === "skip") delete seen[f]; delete seen[k]; }
+        else if (seen[k] === "retry") delete seen[k];
+      }
+      await set({ seen, heal1610: true });
+    }
     // כל הקבצים מתחילת הסמסטר, מהחדש לישן, לסירוגין בין הקורסים (כך כל קורס מקבל סיכומים מהר).
     // הקצב מוגבל במכסה היומית בשרת, אז זה נגמר תוך כמה ימים – ממשיכים לבד בכל בדיקה.
     const perCourse = [];
@@ -208,7 +235,7 @@ export async function syncOnce({ manual = false } = {}) {
     const backlog = todo.filter((q) => q.type === "resource").length;
     // מדווחים לשרת כמה קבצי שיעור נשארו בתור: למשתמש חדש עם הרבה קבצים השרת נותן מכסה יומית גבוהה יותר (50/40/30)
     try { await rest("rpc/report_backlog", a, { method: "POST", body: JSON.stringify({ p_remaining: backlog }) }); } catch { /* לא חובה */ }
-    let done = 0, made = 0, stop = "";
+    let done = 0, made = 0, stop = "", netFails = 0;
     const perRun = manual ? MANUAL_MAX : PER_RUN_MAX;
     for (const it of todo) {
       if (made >= perRun) break;
@@ -226,10 +253,13 @@ export async function syncOnce({ manual = false } = {}) {
           await status({ state: `מסכם: ${it.name}` });
           try {
             await summarize(a, blob, fname, it.course, fkey);
-            seen[fkey] = "done"; seen["h:" + hash] = 1; made++;
+            seen[fkey] = "done"; seen["h:" + hash] = 1; made++; netFails = 0;
             await markItem(a, { item_key: fkey, course: it.course, name: fname, kind: it.type, url: it.url, status: "done" });
           } catch (e) {
             if (e.code === "limit" || e.code === "global_cap") { seen[fkey] = "retry"; stop = "הגעתם למכסת הסיכומים להיום – נמשיך מחר"; break; }
+            // תקלת רשת/זמן (למשל גוגל איטי): לא קשור לקובץ. לא סופרים ככישלון של הקובץ, ואחרי 3 ברצף עוצרים ומנסים בריצה הבאה
+            if (e.code === "network" || e.code === "provider") { seen[fkey] = "retry"; if (++netFails >= 3) { stop = "החיבור לשרת איטי כרגע – ננסה שוב עוד רגע"; break; } continue; }
+            netFails = 0;
             seen["n:" + fkey] = (seen["n:" + fkey] || 0) + 1;   // אחרי 3 כישלונות מפסיקים לנסות את הקובץ הזה
             seen[fkey] = e.code === "unsupported" || seen["n:" + fkey] >= 3 ? "skip" : "retry";
             await markItem(a, { item_key: fkey, course: it.course, name: fname, kind: it.type, url: it.url, status: "failed", note: String(e.code || e.message).slice(0, 100) });
@@ -251,7 +281,7 @@ export async function syncOnce({ manual = false } = {}) {
   } catch (e) {
     chrome.action.setBadgeText({ text: "!" });
     return await status({ state: "", error: e.message, needMoodle: e.code === "moodle_login" });
-  } finally { running = false; }
+  } finally { clearInterval(keepAlive); running = false; }
 }
 
 // ---------- הגשת עבודות: מה שהאפליקציה שלחה -> המטלה במודל ----------

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>התקנת המחבר של Clearly · מדריך קליל</title>
-<meta name="description" content="מדריך קצר בסרטון ובשישה צעדים להתקנת המחבר של Clearly, התוסף שמביא את הסיכומים, המטלות והחומרים מהמודל.">
+<meta name="description" content="מדריך קצר בסרטון ובשבעה צעדים להתקנת המחבר של Clearly, התוסף שמביא את הסיכומים, המטלות והחומרים מהמודל.">
 <link rel="icon" href="../favicon.ico" sizes="any">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=optional">
 <style>
@@ -26,6 +26,14 @@
   ol li::before { content: counter(s); background: var(--blue); color: #fff; font-weight: 900; font-size: 22px; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; }
   ol b { color: var(--ink); }
   kbd, code { background: color-mix(in srgb, var(--blue) 12%, transparent); padding: 2px 8px; border-radius: 8px; direction: ltr; unicode-bidi: embed; font-family: Consolas, monospace; font-size: .95em; }
+  .tip { background: var(--card); border: 2px solid var(--blue); border-radius: 16px; padding: 14px 16px; display: grid; gap: 8px; }
+  .need { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .need li { background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 10px 14px; color: var(--soft); font-size: 16px; line-height: 1.5; }
+  .need b { color: var(--ink); display: block; }
+  details { background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 12px 16px; }
+  summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+  details p { margin-top: 8px; font-size: 17px; }
+  .btn.alt { background: var(--card); color: var(--ink); }
   .note { background: var(--card); border: 2px dashed var(--accent); border-radius: 16px; padding: 14px 16px; }
   .btn { display: inline-block; background: var(--blue); color: #fff; font-weight: 900; padding: 12px 22px; border-radius: 14px; text-decoration: none; border: 3px solid var(--ink); }
   a { color: var(--blue); }
@@ -41,6 +49,13 @@
   </div>
   <h1>מתקינים את המחבר של Clearly</h1>
   <p>פעם אחת, במחשב, בערך 3 דקות. אחרי זה הסיכומים, המטלות והחומרים מהמודל מגיעים לאפליקציה לבד, גם לאייפד.</p>
+  <ul class="need" aria-label="מה צריך לפני שמתחילים">
+    <li><b>💻 מחשב עם גוגל כרום</b>התוסף עובד בכרום בלבד</li>
+    <li><b>✅ חשבון Clearly מאושר</b>בגרסת הבדיקה מאשרים נרשמים ידנית, ומקבלים מייל</li>
+    <li><b>🎓 כניסה למודל</b>עם הפרטים הרגילים שלכם, בכרום</li>
+  </ul>
+
+  <p><a class="btn" href="../extension/sikumon-connector.zip" download>⬇️ הורדת התוסף</a></p>
 
   <video controls preload="metadata" poster="poster.jpg" aria-label="סרטון הדרכה להתקנת המחבר של Clearly">
     <source src="install-guide.mp4" type="video/mp4">
@@ -51,18 +66,35 @@
   <ol>
     <li><div><b>מורידים:</b> ב-Clearly, בעמוד "חיבור למודל", לוחצים <b>הורדת התוסף</b>. יורד קובץ בשם <code>sikumon-connector.zip</code>.</div></li>
     <li><div><b>מחלצים:</b> בתיקיית ההורדות, קליק ימני על הקובץ ← <b>חלץ הכול</b> ← חלץ. (במק: לחיצה כפולה.) לא לחיצה כפולה ב-Windows, כי היא רק מציגה את התוכן.</div></li>
-    <li><div><b>פותחים את התוספים:</b> בגוגל כרום מקלידים בשורת הכתובת <code>chrome://extensions</code> ולוחצים Enter. בפינה הימנית למעלה מדליקים <b>מצב מפתח</b>.</div></li>
-    <li><div><b>טוענים:</b> לוחצים <b>טעינת פריט לא ארוז</b>, לוחצים פעם אחת על התיקייה <b>sikumon-connector</b> (בלי להיכנס אליה) ואז <b>בחירת תיקייה</b>.</div></li>
+    <li><div><b>מדליקים מצב מפתח:</b> בגוגל כרום מקלידים בשורת הכתובת <code>chrome://extensions</code> ולוחצים Enter. בפינה הימנית למעלה מדליקים <b>מצב מפתח</b>.</div></li>
+    <li><div><b>טוענים:</b> לוחצים <b>טעינת פריט לא ארוז</b>.</div></li>
+    <li><div><b>בוחרים תיקייה:</b> לוחצים פעם אחת על התיקייה <b>sikumon-connector</b> (בלי להיכנס אליה) ואז <b>בחירת תיקייה</b>.</div></li>
     <li><div><b>מתחברים:</b> סמל הפאזל 🧩 בכרום ← <b>המחבר של Clearly</b> ← מייל וסיסמה של Clearly (אותם פרטים כמו באפליקציה).</div></li>
     <li><div><b>בוחרים מוסד:</b> אוניברסיטה ← <b>שמירה</b> ← <b>פתיחת המודל</b> והתחברות כרגיל ← <b>בדיקה עכשיו</b>.</div></li>
   </ol>
+
+  <div class="tip">
+    <b>⏳ מה קורה אחרי ההתקנה</b>
+    <p>הסיכומים מגיעים בהדרגה, מהחדש לישן, ולא כולם ברגע אחד: יש מכסה יומית. למי שחדש יש מכסה גדולה יותר בימים הראשונים, כך שהסמסטר כולו מסוכם בתוך כמה ימים. כרום צריך להיות פתוח, ואפשר לראות את ההתקדמות בחלון של התוסף.</p>
+  </div>
+
+  <div class="tip">
+    <b>🔄 רוצים שהתוסף יתעדכן לבד? (Windows)</b>
+    <p>במקום ההתקנה הידנית אפשר להוריד חבילה אחת שמעדכנת את התוסף כל יום. מחלצים לכונן C, טוענים את התיקייה <code>C:\Clearly\extension</code> בכרום (צעדים 3 עד 5), ומפעילים את <code>Clearly-auto-update-ON.bat</code>. הוראות מלאות בקובץ README שבפנים. ב-Mac העדכון ידני: מורידים שוב את התוסף וטוענים מחדש.</p>
+    <p><a class="btn alt" href="../installer/Clearly-setup.zip" download>⬇️ חבילת התקנה עם עדכון אוטומטי (Windows)</a></p>
+  </div>
 
   <div class="note">
     <b>🔒 פרטיות:</b> התוסף לא רואה ולא שומר את הסיסמה שלך למודל. הוא משתמש בהתחברות שכבר קיימת בכרום, ובודק כל שעה וחצי כל עוד כרום פתוח.<br>
     <b>💻 דפדפן:</b> התוסף עובד בגוגל כרום. ב-Safari ובאייפד אין צורך בו: משתמשים באפליקציה כרגיל.
   </div>
 
-  <p>נתקעת? כתבו לנו ל-<a href="mailto:clearlyappsupport@gmail.com">clearlyappsupport@gmail.com</a> ונעזור.</p>
+  <h2 style="margin:6px 0 0;font-size:26px">נתקעתם?</h2>
+  <details><summary>לא מוצאים את התיקייה אחרי החילוץ</summary><p>בחלון "בחירת תיקייה" נכנסים לתיקיית ההורדות ולוחצים פעם אחת על התיקייה <b>sikumon-connector</b> (לא על הקובץ ה-zip). אם אין תיקייה, החילוץ לא בוצע: קליק ימני על הקובץ ← חלץ הכול.</p></details>
+  <details><summary>כתוב "ההתחברות למודל פגה"</summary><p>זה קורה אחרי כמה ימים. לוחצים <b>פתיחת המודל</b>, מתחברים כרגיל, וחוזרים ללחוץ <b>בדיקה עכשיו</b>.</p></details>
+  <details><summary>הסיכומים מגיעים לאט</summary><p>זה לפי המכסה היומית, ורק כשכרום פתוח. אפשר ללחוץ <b>בדיקה עכשיו</b> בחלון של התוסף כדי להמשיך מיד.</p></details>
+  <details><summary>אין לי מחשב, רק אייפד</summary><p>התוסף עובד בכרום במחשב בלבד. באייפד משתמשים באפליקציה כרגיל, ואפשר להעלות מצגת ידנית.</p></details>
+  <p>עדיין לא עובד? כתבו לנו ונעזור: <a class="btn alt" href="mailto:clearlyappsupport@gmail.com">clearlyappsupport@gmail.com</a></p>
   <p><a class="btn" href="../extension/sikumon-connector.zip" download>⬇️ הורדת התוסף</a></p>
 </main>
 </body>

@@ -2,7 +2,7 @@
 import { LessonRecorder, store, segmentsOf, support, recoverOrphans } from "./recorder.js";
 import { quizzesLeft } from "./limits.js";
 import { demoSummary, demoQuiz, onboardingQuestions } from "./demo-data.js";
-import { InkEditor, COLORS, MARKER_COLORS, pdfToPages, makeThumb, imgBoxOf } from "./notes.js";
+import { InkEditor, COLORS, MARKER_COLORS, pdfToPages, makeThumb } from "./notes.js";
 import { initStudy } from "./study.js";
 import { initExtras } from "./extras.js";
 import { initPractice } from "./practice.js";
@@ -851,7 +851,7 @@ async function lessonForToday(course, date = todayKey()) {
 const lessonTitle = (l) => l.title || "שיעור " + new Date(l.date + "T12:00").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" });
 
 function lessonItem(l, withCourse = false) {
-  const strokes = (l.pages || []).reduce((a, p) => a + p.strokes.length + (p.image ? 1 : 0), 0);
+  const strokes = (l.pages || []).reduce((a, p) => a + p.strokes.length + (p.image || p.images?.length ? 1 : 0), 0);
   const chips = [strokes ? `<span class="chip">${svg("pen")} כתב יד</span>` : "", l.text?.trim() ? `<span class="chip">${svg("type")} הקלדה</span>` : "", l.recIds?.length ? `<span class="chip">${svg("mic")} ${l.recIds.length > 1 ? l.recIds.length + " הקלטות" : "הקלטה"}</span>` : ""].join("");
   return `<a class="item" href="#lesson-${l.id}"><span style="min-width:0"><span class="t">${esc(lessonTitle(l))}</span><br><span class="small muted">${withCourse ? esc(l.course) + " · " : ""}${fmtDay(l.date)}</span></span><span class="chips">${chips || '<span class="chip">ריק</span>'}</span></a>`;
 }
@@ -982,8 +982,8 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
     notebooks(sel);
   });
   // תצוגה מקדימה לשיעורים ישנים שעוד אין להם (נוצרת פעם אחת ונשמרת)
-  for (const l of list.filter((x) => !x.thumb && (x.pages || []).some((pg) => pg.strokes.length || pg.image))) {
-    const first = l.pages.find((pg) => pg.strokes.length || pg.image);
+  for (const l of list.filter((x) => !x.thumb && (x.pages || []).some((pg) => pg.strokes.length || pg.image || pg.images?.length))) {
+    const first = l.pages.find((pg) => pg.strokes.length || pg.image || pg.images?.length);
     l.thumb = await makeThumb(first);
     await store.saveLesson(l);
     const box = view.querySelector(`.ncard[data-id="${l.id}"] .thumb`);
@@ -1001,7 +1001,7 @@ async function flushLesson(withThumb = false) {
   if (!l) return;
   if (ed) l.pages = ed.pages;
   if (withThumb) {
-    const first = (l.pages || []).find((pg) => pg.strokes.length || pg.image);
+    const first = (l.pages || []).find((pg) => pg.strokes.length || pg.image || pg.images?.length);
     l.thumb = first ? await makeThumb(first) : null;
   }
   await store.saveLesson(l);
@@ -1013,53 +1013,6 @@ function closeLesson() {
   if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
   if (editingLesson) flushLesson(true);
   editor?.destroy(); editor = null; editingLesson = null; clearInterval(lessonTimer);
-}
-
-// ✏️ עריכת תמונה בעמוד: גודל, מיקום בדף, וחיתוך (גוררים מלבן על התמונה)
-function imageEditor(editor, i) {
-  const page = editor.pages[i]; if (!page?.image) return;
-  const box = { ...imgBoxOf(page) };
-  let crop = null; // {x,y,w,h} בחלקים מהתמונה
-  document.body.insertAdjacentHTML("beforeend", `<div class="modal" id="imgModal" role="dialog" aria-labelledby="imgT"><div class="card img-card">
-    <h2 id="imgT">✏️ עריכת התמונה</h2>
-    <div class="ie-stage" id="ieStage"><img id="ieImg" src="${page.image}" alt="התמונה"><div class="ie-crop" id="ieCrop" hidden></div></div>
-    <p class="small muted">✂️ לחיתוך: גוררים מלבן על התמונה. לחיצה אחת מבטלת את החיתוך.</p>
-    <label>גודל בעמוד: <b id="ieSizeV">${Math.round(box.w * 100)}%</b><input type="range" id="ieSize" min="20" max="100" value="${Math.round(box.w * 100)}"></label>
-    <label>מיקום מלמעלה: <b id="ieTopV">${Math.round(box.y * 100)}%</b><input type="range" id="ieTop" min="0" max="90" value="${Math.round(box.y * 100)}"></label>
-    <div class="row"><span class="small">צד:</span><button class="btn ghost small-btn" data-side="right" type="button">ימין</button><button class="btn ghost small-btn" data-side="center" type="button">מרכז</button><button class="btn ghost small-btn" data-side="left" type="button">שמאל</button></div>
-    <div class="row"><button class="btn" id="ieOk" type="button">שמירה</button><button class="btn ghost" id="ieNo" type="button">ביטול</button><button class="btn ghost" id="ieDel" type="button">🗑️ הסרת התמונה</button></div>
-  </div></div>`);
-  const m = $("#imgModal"), stage = $("#ieStage"), cropEl = $("#ieCrop");
-  const close = () => m.remove();
-  $("#ieNo").onclick = close;
-  $("#ieSize").oninput = (e) => { box.w = +e.target.value / 100; box.x = Math.min(box.x, 1 - box.w); $("#ieSizeV").textContent = e.target.value + "%"; };
-  $("#ieTop").oninput = (e) => { box.y = +e.target.value / 100; $("#ieTopV").textContent = e.target.value + "%"; };
-  m.querySelectorAll("[data-side]").forEach((b) => (b.onclick = () => { box.x = b.dataset.side === "right" ? 1 - box.w : b.dataset.side === "center" ? (1 - box.w) / 2 : 0; toast("המיקום נשמר כשלוחצים שמירה"); }));
-  // חיתוך: גרירת מלבן על התמונה
-  let start = null;
-  const rel = (e) => { const r = $("#ieImg").getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; };
-  const drawCrop = () => {
-    if (!crop || crop.w < 0.03 || crop.h < 0.03) { cropEl.hidden = true; return; }
-    const r = $("#ieImg").getBoundingClientRect(), sr = stage.getBoundingClientRect();
-    Object.assign(cropEl.style, { left: r.left - sr.left + crop.x * r.width + "px", top: r.top - sr.top + crop.y * r.height + "px", width: crop.w * r.width + "px", height: crop.h * r.height + "px" });
-    cropEl.hidden = false;
-  };
-  stage.addEventListener("pointerdown", (e) => { e.preventDefault(); stage.setPointerCapture(e.pointerId); start = rel(e); crop = null; drawCrop(); });
-  stage.addEventListener("pointermove", (e) => { if (!start) return; const [x, y] = rel(e); crop = { x: Math.min(x, start[0]), y: Math.min(y, start[1]), w: Math.abs(x - start[0]), h: Math.abs(y - start[1]) }; drawCrop(); });
-  stage.addEventListener("pointerup", () => { start = null; if (crop && (crop.w < 0.03 || crop.h < 0.03)) crop = null; drawCrop(); });
-  $("#ieDel").onclick = () => { if (!confirm("להסיר את התמונה מהעמוד? מה שכתבת עליה יישאר.")) return; editor.updateImage(i, null, null); close(); };
-  $("#ieOk").onclick = async () => {
-    let url = page.image;
-    if (crop) {
-      const im = $("#ieImg");
-      const cv = document.createElement("canvas");
-      cv.width = Math.max(1, Math.round(im.naturalWidth * crop.w)); cv.height = Math.max(1, Math.round(im.naturalHeight * crop.h));
-      cv.getContext("2d").drawImage(im, im.naturalWidth * crop.x, im.naturalHeight * crop.y, cv.width, cv.height, 0, 0, cv.width, cv.height);
-      url = cv.toDataURL("image/jpeg", 0.85);
-    }
-    editor.updateImage(i, url, { ...box });
-    close(); toast("התמונה עודכנה ✓");
-  };
 }
 
 async function lessonPage(id) {
@@ -1102,6 +1055,7 @@ async function lessonPage(id) {
           <button class="tool" data-tool="marker" aria-label="מרקר">${svg("marker")}</button>
           <button class="tool" data-tool="eraser" aria-label="מחק">${svg("eraser")}</button>
           <button class="tool" data-tool="lasso" aria-label="לאסו: סימון והזזה">${svg("lasso")}</button>
+          <button class="tool" data-tool="pick" aria-label="בחירת תמונה: נוגעים בתמונה כדי להזיז, להגדיל, לסובב או לחתוך">${svg("image")}</button>
         </div>
         <div class="tgroup">
           <button class="tool" data-tool="line" aria-label="קו ישר (סרגל)">${svg("line")}</button>
@@ -1130,7 +1084,7 @@ async function lessonPage(id) {
           <button class="tool" id="fullExit" aria-label="יציאה ממסך מלא">${svg("shrink")}</button>
         </div>
       </div>
-      ${(l.pages || []).some((pg) => pg.image) ? "" : `<div class="notice slide-cta"><span>📄 <b>יש מצגת לשיעור?</b> מוסיפים אותה לכאן וכותבים עליה בעט, ישר על השקפים.</span><label class="btn small-btn">הוספת המצגת<input type="file" class="slidesIn" accept="application/pdf,.pdf,image/*" multiple hidden></label></div>`}
+      ${(l.pages || []).some((pg) => pg.image || pg.images?.length) ? "" : `<div class="notice slide-cta"><span>📄 <b>יש מצגת לשיעור?</b> מוסיפים אותה לכאן וכותבים עליה בעט, ישר על השקפים.</span><label class="btn small-btn">הוספת המצגת<input type="file" class="slidesIn" accept="application/pdf,.pdf,image/*" multiple hidden></label></div>`}
       <div class="sheets-wrap"><div class="sheets" id="sheets"></div></div>
       <div class="row" style="justify-content:center;margin-top:14px">
         <button class="btn ghost" data-add="blank">${svg("plus")} עמוד חלק</button>
@@ -1169,12 +1123,12 @@ async function lessonPage(id) {
     if (editor.tool === "lasso") toast("מקיפים בעט את מה שרוצים לסמן, ואז גוררים או מוחקים");
     paintTools();
   }));
-  editor.addEventListener("selection", () => { $("#selBox").hidden = !editor.sel; });
+  editor.addEventListener("selection", () => { $("#selBox").hidden = !(editor.sel || editor.isel); });
   $("#selDel").onclick = () => editor.deleteSelection();
   // צילום הלוח: התמונה נכנסת כעמוד חדש שאפשר לכתוב עליו
   $("#camIn").onchange = async (e) => {
     const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
-    try { (await editor.addImagePage(f)).scrollIntoView({ behavior: "smooth", block: "start" }); toast("📷 הלוח נוסף כעמוד. אפשר לכתוב עליו"); }
+    try { await editor.addImage(f); toast("📷 התמונה נוספה. גוררים, מגדילים בפינות, מסובבים או חותכים"); }
     catch { toast("לא הצלחתי לפתוח את התמונה"); }
   };
   view.querySelectorAll("[data-size]").forEach((b) => (b.onclick = () => { editor.size = +b.dataset.size; paintTools(); }));
@@ -1201,7 +1155,7 @@ async function lessonPage(id) {
   }));
   $("#addImg").onchange = async (e) => {
     const f = e.target.files?.[0]; if (!f) return;
-    try { (await editor.addImagePage(f)).scrollIntoView({ behavior: "smooth", block: "start" }); toast("התמונה נוספה כעמוד. אפשר לכתוב עליה"); }
+    try { await editor.addImage(f); toast("התמונה נוספה. גוררים, מגדילים בפינות, מסובבים או חותכים"); }
     catch { toast("לא הצלחתי לפתוח את התמונה"); }
     e.target.value = "";
   };
@@ -1219,10 +1173,10 @@ async function lessonPage(id) {
   try { zoom = +localStorage.getItem("sikumon-zoom") || 1; } catch { /* */ }
   const setZoom = (z) => { zoom = editor.setZoom(z); $("#zoomVal").textContent = Math.round(zoom * 100) + "%"; try { localStorage.setItem("sikumon-zoom", zoom); } catch { /* */ } };
   setZoom(zoom);
-  $("#zoomIn").onclick = () => setZoom(zoom + 0.25);
-  $("#zoomOut").onclick = () => setZoom(zoom - 0.25);
-  // --- עריכת תמונה בעמוד ---
-  $("#sheets").addEventListener("click", (e) => { const b = e.target.closest("[data-imgedit]"); if (b) imageEditor(editor, +b.dataset.imgedit); });
+  $("#zoomIn").onclick = () => setZoom((editor.zoom || zoom) + 0.25);
+  $("#zoomOut").onclick = () => setZoom((editor.zoom || zoom) - 0.25);
+  // הגדלה בצביטה של שתי אצבעות
+  editor.addEventListener("zoom", () => { zoom = editor.zoom; $("#zoomVal").textContent = Math.round(zoom * 100) + "%"; try { localStorage.setItem("sikumon-zoom", zoom); } catch { /* */ } });
 
   // --- מסך מלא: רק הדף וסרגל הכלים, בלי תפריטים ---
   const setFull = async (on) => {
@@ -1293,7 +1247,7 @@ async function lessonPage(id) {
     const name = `${l.course} - ${lessonTitle(l)}`;
     const files = [];
     for (const [i, pg] of editor.pages.entries()) {
-      if (!pg.strokes.length && !pg.image) continue;
+      if (!pg.strokes.length && !pg.image && !pg.images?.length) continue;
       files.push(new File([await editor.pageToBlob(pg)], `${name} - עמוד ${i + 1}.png`, { type: "image/png" }));
     }
     const text = l.text?.trim() ? `${name}\n\n${l.text}` : name;
@@ -1916,7 +1870,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "71";
+const APP_VERSION = "72";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
