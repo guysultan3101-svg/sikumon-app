@@ -1663,7 +1663,7 @@ async function extUpdateCheck() {
       <ul class="tips" style="margin:0">${(latest.notes || []).map((n) => `<li>${esc(n)}</li>`).join("")}</ul>
       ${desktop ? "" : '<p class="notice" style="margin:0">💻 את העדכון עושים <b>במחשב</b> שבו מותקן התוסף (בכרום). אפשר לסגור כאן ולעשות את זה כשתגיעו למחשב.</p>'}
       <section class="soft" style="display:grid;gap:6px"><b>איך מעדכנים (במחשב, פעם אחת, כ-2 דקות)</b>
-        <ol style="margin:0;padding-inline-start:20px;display:grid;gap:6px">${(latest.steps || []).map((x) => `<li>${fmtStep(x)}</li>`).join("")}</ol>
+        <ol style="margin:0;padding-inline-start:20px;display:grid;gap:6px">${(latest.steps || []).map((x) => `<li>${typeof x === "string" ? fmtStep(x) : `<b>${esc(x.t)}:</b> ${fmtStep(x.d)}`}</li>`).join("")}</ol>
         ${latest.after ? `<p class="small" style="margin:0"><b>${fmtStep(latest.after)}</b></p>` : ""}
       </section>
       <div class="row">${desktop ? `<a class="btn" href="${esc(latest.setup)}" download>⬇️ הורדת חבילת ההתקנה</a>` : ""}<a class="btn ghost" href="${esc(latest.guide)}" target="_blank" rel="noopener">▶ סרטון: טעינת התוסף והתחברות</a><button class="btn ghost" type="button" id="extLater">אחר כך</button></div>
@@ -1920,7 +1920,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "76";
+const APP_VERSION = "77";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
