@@ -236,6 +236,8 @@ export async function notifyEmail(body) {
   }
   return data;
 }
+// גרסת התוסף שמותקנת אצלי (התוסף מדווח בכל סנכרון; null = עוד לא דיווח, כלומר גרסה ישנה)
+export async function myExtVersion() { const { data, error } = await sb.rpc("my_ext_version"); if (error) throw error; return data?.[0]?.ext_version || null; }
 export async function amAdmin() { const { data } = await sb.rpc("am_admin"); return !!data; }
 export async function markRead(other) { ok(await sb.from("messages").update({ read_at: new Date().toISOString() }).eq("recipient", user().id).eq("sender", other).is("read_at", null)); }
 export async function chatAccepts() { return ok(await sb.from("chat_accepts").select("other")); }

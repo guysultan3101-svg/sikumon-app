@@ -1607,6 +1607,7 @@ async function serverSync(force = false) {
     if (fresh.length && location.hash !== "#inbox") toast(`🔔 ${fresh[0].title}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ""}`);
     const sched = await applyUniSchedule(), dls = await applyServerDeadlines();
     await applyReferral();
+    extUpdateCheck();
     if ((sched || dls) && ["#calendar", "#timetable", "#deadlines", "#home", "#assignments", ""].includes(location.hash)) route();
     await applyCourseMaterials();
     const n = await social.syncSummaries();
@@ -1640,6 +1641,40 @@ async function applyCourseMaterials() {
 }
 // קישור הזמנה: ?ref=<שם משתמש>. נשמר עד שנכנסים לחשבון, ואז נשלחת בקשת חברות למי שהזמין/ה (והוא/היא מאשר/ת).
 // בכוונה בקשה ולא חברות אוטומטית: אחרת כל אחד היה יכול לצרף את עצמו כחבר של מישהו בלי הסכמה.
+// ---------- "יש עדכון לתוסף": חלון שקופץ בכניסה לאפליקציה (עד שהתוסף יהיה בחנות של כרום ויתעדכן לבד) ----------
+// הגרסה האחרונה: extension/latest.json באתר. הגרסה אצל המשתמש: מה שהתוסף דיווח לשרת (report_ext).
+// מוצג רק למי שחיבר מודל, פעם אחת בכל פתיחה של האפליקציה, עד שהתוסף מעודכן.
+const verLt = (a, b) => { const x = String(a || "0").split(".").map(Number), y = String(b || "0").split(".").map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
+const fmtStep = (t) => esc(t).replace(/\[\[(.+?)\]\]/g, '<code dir="ltr">$1</code>');
+let extChecked = false;
+async function extUpdateCheck() {
+  if (extChecked || !api.user() || document.getElementById("extModal")) return;
+  extChecked = true;
+  try {
+    if (!(await api.moodleConnected())) return;   // מי שלא חיבר מודל עוד לא התקין תוסף
+    const latest = await (await fetch("extension/latest.json?x=" + Date.now(), { cache: "no-store" })).json();
+    const mine = await api.myExtVersion();
+    if (mine && !verLt(mine, latest.version)) return;
+    try { if (sessionStorage.getItem("ext-later") === latest.version) return; } catch { /* */ }
+    const desktop = !/iPad|iPhone|Android/i.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
+    document.body.insertAdjacentHTML("beforeend", `<div class="modal" id="extModal" role="dialog" aria-labelledby="extT"><div class="card" style="max-width:520px;display:grid;gap:10px">
+      <h2 id="extT" style="margin:0">🔄 יש עדכון לתוסף של Clearly</h2>
+      <p class="small muted" style="margin:0">גרסה <bdi>${esc(latest.version)}</bdi>${mine ? ` (אצלך מותקנת <bdi>${esc(mine)}</bdi>)` : ""}. מה חדש:</p>
+      <ul class="tips" style="margin:0">${(latest.notes || []).map((n) => `<li>${esc(n)}</li>`).join("")}</ul>
+      ${desktop ? "" : '<p class="notice" style="margin:0">💻 את העדכון עושים <b>במחשב</b> שבו מותקן התוסף (בכרום). אפשר לסגור כאן ולעשות את זה כשתגיעו למחשב.</p>'}
+      <section class="soft" style="display:grid;gap:6px"><b>איך מעדכנים (במחשב, פעם אחת, כ-2 דקות)</b>
+        <ol style="margin:0;padding-inline-start:20px;display:grid;gap:6px">${(latest.steps || []).map((x) => `<li>${fmtStep(x)}</li>`).join("")}</ol>
+        ${latest.after ? `<p class="small" style="margin:0"><b>${fmtStep(latest.after)}</b></p>` : ""}
+      </section>
+      <div class="row">${desktop ? `<a class="btn" href="${esc(latest.setup)}" download>⬇️ הורדת חבילת ההתקנה</a>` : ""}<a class="btn ghost" href="${esc(latest.guide)}" target="_blank" rel="noopener">▶ סרטון: טעינת התוסף והתחברות</a><button class="btn ghost" type="button" id="extLater">אחר כך</button></div>
+    </div></div>`);
+    const close = () => { try { sessionStorage.setItem("ext-later", latest.version); } catch { /* */ } document.getElementById("extModal")?.remove(); };
+    document.getElementById("extLater").onclick = close;
+    document.getElementById("extModal").addEventListener("click", (e) => { if (e.target.id === "extModal") close(); });
+    api.track("ext_update_prompt");
+  } catch { extChecked = false; /* ננסה בסנכרון הבא */ }
+}
+
 async function applyReferral() {
   let ref = null;
   try { ref = localStorage.getItem("clearly-ref"); } catch { return false; }
@@ -1758,6 +1793,8 @@ async function adminPage() {
     <h1 style="font-size:30px">🛠️ ניהול Early Access</h1>
     ${r.smtp ? `<p class="notice">📧 המיילים מוגדרים לצאת מ-<b dir="ltr">${esc(r.from || "")}</b> (תשובות מגיעות ל-clearlyappsupport@gmail.com). כדי לוודא שהם באמת יוצאים: <button class="link" type="button" id="adTest">שליחת מייל בדיקה אליי</button></p>` : '<p class="notice alert"><b>המיילים עוד לא מחוברים.</b> אפשר לאשר אנשים, אבל המייל "Clearly פתוח בשבילך" לא יישלח עד שמוסיפים בשרת את סיסמת האפליקציה של Gmail.</p>'}
     <p class="muted">${list.length} ממתינים. <b>"אישור"</b> פותח את Clearly לאדם אחד ושולח לו מייל. <b>"השקה"</b> פותח לכולם ושולח מייל לכולם.</p>
+    <section class="soft" style="display:grid;gap:8px"><h2 style="font-size:20px;margin:0">🔄 עדכון לתוסף</h2><p class="small muted" style="margin:0">שולח לכל המשתמשים המאושרים מייל עם מה חדש בגרסה האחרונה (extension/latest.json), קישור להורדה והוראות, וסרטון ההדרכה. באפליקציה עצמה קופץ להם חלון עדכון לבד.</p>
+      <div class="row"><button class="btn ghost" type="button" id="adExtTest">📧 מייל לדוגמה אליי</button><button class="btn" type="button" id="adExtAll">📧 שליחה לכל המשתמשים</button></div></section>
     <div class="row"><button class="btn" type="button" id="adLaunch" ${list.length ? "" : "disabled"}>🚀 השקה: לפתוח לכולם (${list.length}) ולשלוח מייל</button></div>
     ${good.length ? `<section class="soft" style="display:grid;gap:10px;border:2px solid #16a34a"><h2 style="font-size:20px;margin:0">✅ אישור נרשמים (${good.length})</h2><p class="small muted" style="margin:0">המייל המוסדי שלהם תואם למוסד שבחרו, והם חיברו את המודל ויש להם קורסים. זה הסימן החזק ביותר שהם סטודנטים אמיתיים.</p><div class="list">${good.map(item).join("")}</div><div class="row"><button class="btn" type="button" id="adApproveGood">✅ אשרו את כולם (${good.length}) ושלחו להם מייל</button></div></section>` : ""}
     <h2 style="font-size:18px;margin:14px 0 6px">${good.length ? "שאר הממתינים" : "ממתינים"} (${rest.length})</h2>
@@ -1774,6 +1811,16 @@ async function adminPage() {
     for (const p of good) { try { const x = await api.notifyEmail({ action: "approve", user_id: p.id }); ok++; if (x.mailed) mailed++; } catch (e) { toast(e.message); } }
     toast(`✓ אושרו ${ok}, נשלחו ${mailed} מיילים`); adminPage();
   });
+  $("#adExtTest").onclick = async () => {
+    try { const x = await api.notifyEmail({ action: "ext_update", test: true }); toast(`✓ נשלח מייל לדוגמה (גרסה ${x.version}) ל-${x.to}`); } catch (e) { toast(e.message); }
+  };
+  $("#adExtAll").onclick = async (ev) => {
+    if (!confirm("לשלוח לכל המשתמשים המאושרים מייל על עדכון התוסף?")) return;
+    ev.target.disabled = true; ev.target.textContent = "שולח…";
+    try { const x = await api.notifyEmail({ action: "ext_update" }); toast(`✓ נשלחו ${x.sent} מיילים על גרסה ${x.version}${x.failed ? ` (${x.failed} נכשלו)` : ""}`); }
+    catch (e) { toast(e.message); }
+    ev.target.disabled = false; ev.target.textContent = "📧 שליחה לכל המשתמשים";
+  };
   $("#adTest") && ($("#adTest").onclick = async () => {
     try { const x = await api.notifyEmail({ action: "test" }); toast(`✓ נשלח מייל בדיקה ל-${x.to}`); } catch (e) { toast(e.message); }
   });
@@ -1873,7 +1920,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "75";
+const APP_VERSION = "76";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

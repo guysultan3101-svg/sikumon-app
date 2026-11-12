@@ -208,6 +208,8 @@ export async function syncOnce({ manual = false } = {}) {
   const keepAlive = setInterval(() => { chrome.runtime.getPlatformInfo(() => {}); }, 20000);
   try {
     const a = await token();
+    // מדווחים לשרת איזו גרסה מותקנת, כדי שהאפליקציה תדע להציג "יש עדכון לתוסף"
+    try { await rest("rpc/report_ext", a, { method: "POST", body: JSON.stringify({ p_version: chrome.runtime.getManifest().version }) }); } catch { /* לא חובה */ }
     let base = await get("moodle");
     if (!base) throw new Error("בחרו את המודל שלכם (לחצו על סמל התוסף)");
     await status({ state: "בודק את המודל…", error: "" });
