@@ -205,6 +205,21 @@ export async function summarizeText(text, title, course, ref) {
   throw Object.assign(new Error((j.error === "limit" && j.limit === 0 ? NOT_CONNECTED : AI_ERR[j.error]) || `תקלה (${res.status})`), { code: j.error });
 }
 
+// מחברת מסכמת לקורס: כל הסיכומים שלי בקורס ← סיכום אחד מאוחד (נספר כסיכום אחד מהמכסה היומית). יצירה מחדש מחליפה את הקודמת
+export async function courseNotebook(course) {
+  const rows = (await summaries()).filter((r) => r.owner === user().id && r.course === course && !String(r.title).startsWith("📓"));
+  if (rows.length < 2) throw new Error("צריך לפחות שני סיכומים בקורס כדי לבנות מחברת מסכמת");
+  const text = rows.slice().reverse().map((r) => `## ${r.title}\n${r.md}`).join("\n\n").slice(0, 300000);
+  const res = await fetch(`${URL_}/functions/v1/summarize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}`, apikey: ANON },
+    body: JSON.stringify({ text, filename: ("מחברת מסכמת: " + course).slice(0, 150), course, source: "upload", source_ref: ("course-notebook:" + course).slice(0, 300), mode: "course" }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (res.ok) return { ...j, count: rows.length };
+  throw Object.assign(new Error((j.error === "limit" && j.limit === 0 ? NOT_CONNECTED : AI_ERR[j.error]) || `תקלה (${res.status})`), { code: j.error });
+}
+
 // ---------- הודעות ----------
 export async function messages() { return ok(await sb.from("messages").select("*").order("created_at", { ascending: true }).limit(1000)); }
 export async function sendMessage(recipient, body) {

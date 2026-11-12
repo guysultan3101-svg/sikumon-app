@@ -68,7 +68,7 @@ export function initAssistant(ctx) {
       try {
         const c = await context(q);
         document.getElementById("aiCtx").textContent = "מבוסס על: " + c.label;
-        const full = await ai.ask({ lessonTitle: c.title, lessonText: c.text, history, question: q, web: !!document.getElementById("aiWeb")?.checked, signal: ctrl.signal, onText: (t) => { text += t; bot.innerHTML = ai.miniMd(text); } });
+        const full = await ai.ask({ lessonTitle: c.title, course: c.course || "", lessonText: c.text, history, question: q, web: !!document.getElementById("aiWeb")?.checked, signal: ctrl.signal, onText: (t) => { text += t; bot.innerHTML = ai.miniMd(text); } });
         history.push({ role: "user", content: q }, { role: "assistant", content: full });
         bot.innerHTML = ai.miniMd(full);
       } catch (err) {

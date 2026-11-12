@@ -123,6 +123,7 @@ export function initSocial(ctx) {
   async function pushPrefs() {
     const p = prefs.get(); if (!p || !api.user()) return;
     const learn = Object.fromEntries(["style", "length", "tone", "hard", "quiz"].filter((k) => p[k]).map((k) => [k, p[k]]));
+    if (p.levels && Object.keys(p.levels).length) learn.levels = p.levels;   // רמת קושי 1-5 לכל קורס (לסיכומים ולמבחנים בשרת)
     try { await api.updateMe({ learn, courses: (p.courses || []).slice(0, 40) }); } catch { /* ננסה בפעם הבאה */ }
   }
 

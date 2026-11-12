@@ -39,6 +39,7 @@ export function initPractice(ctx) {
     const st = await cardState();
     const courses = [...new Set(cards.map((c) => c.course))];
     const pool = cards.filter((c) => !course || c.course === course);
+    const lvl = (c) => ((JSON.parse(localStorage.getItem("sikumon-prefs") || "{}").levels) || {})[c.course] || 0;
     const due = pool.filter((c) => isDue(st, c.id));
     const mastered = pool.filter((c) => (st.boxes[c.id]?.box || 0) >= 4).length;
     view.innerHTML = `<div class="page">
@@ -62,7 +63,7 @@ export function initPractice(ctx) {
       await store.putItem({ id: "card-" + Date.now(), type: "card", course: $("#cCourse").value, front, back });
       toast("הכרטיסייה נוספה"); cardsScreen(course);
     };
-    $("#startCards").onclick = () => session(due.sort(() => Math.random() - 0.5).slice(0, 20), st, course);
+    $("#startCards").onclick = () => session(due.sort(() => Math.random() - 0.5).sort((a, b) => lvl(b) - lvl(a)).slice(0, 20), st, course)   // קורסים קשים (לפי הרמה שהוגדרה) קודם;
   }
 
   function session(list, st, course, i = 0, known = 0) {

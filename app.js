@@ -305,7 +305,7 @@ async function attachAI(id) {
     ctrl = new AbortController();
     $("#chatSend").textContent = "עצירה";
     try {
-      const full = await ai.ask({ lessonTitle: sum.title, lessonText, history, question, signal: ctrl.signal, onText: (t) => { text += t; bot.innerHTML = ai.miniMd(text); } });
+      const full = await ai.ask({ lessonTitle: sum.title, course: sum.course, lessonText, history, question, signal: ctrl.signal, onText: (t) => { text += t; bot.innerHTML = ai.miniMd(text); } });
       history.push({ role: "user", content: question }, { role: "assistant", content: full });
       bot.innerHTML = ai.miniMd(full);
     } catch (e) {
@@ -1576,6 +1576,9 @@ const studyCtx = { view, $, esc, svg, toast, prefs, store, demoQuiz, lessonLabel
 const study = initStudy(studyCtx);
 const practice = initPractice({ view, $, esc, svg, toast, prefs, store });
 studyCtx.onQuizDone = () => practice.bumpStreak();
+studyCtx.api = api;
+studyCtx.pushPrefs = () => social.pushPrefs();
+studyCtx.syncSummaries = () => social.syncSummaries();
 const extras = initExtras({ view, $, esc, svg, toast, prefs, store, segmentsOf, fmtTime });
 const tools = initTools({ view, $, esc, svg, toast, prefs, store, lessonTitle, onQuizDone: () => practice.bumpStreak() });
 const social = initSocial({ view, $, esc, toast, prefs, store, api });
@@ -1870,7 +1873,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "73";
+const APP_VERSION = "75";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

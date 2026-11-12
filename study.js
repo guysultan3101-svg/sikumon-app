@@ -134,20 +134,57 @@ export function initStudy(ctx) {
     }));
   }
 
+  // ---------- רמת קושי לכל קורס (1 = הכי קל לי, 5 = הכי קשה) ----------
+  const levelOf = (c) => ((prefs.get() || {}).levels || {})[c] || 0;
+  function setLevel(c, n) {
+    const p = prefs.get(); if (!p) return;
+    p.levels = { ...(p.levels || {}) };
+    if (n) p.levels[c] = n; else delete p.levels[c];
+    prefs.set(p);
+    ctx.pushPrefs?.();
+  }
+  function levelPicker(course) {
+    const v = levelOf(course);
+    return `<div class="lvl-row" data-course="${esc(course)}"><span class="small">קושי עבורי:</span><span class="lvl" role="group" aria-label="רמת קושי של הקורס, 1 הכי קל ו-5 הכי קשה">${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="lvl-b" data-lvl="${n}" aria-pressed="${v === n}" aria-label="קושי ${n} מתוך 5">${n}</button>`).join("")}</span><span class="small muted">1 קל לי · 5 הכי קשה</span></div>`;
+  }
+  function bindLevels(root, after) {
+    root.querySelectorAll(".lvl-row").forEach((row) => row.querySelectorAll(".lvl-b").forEach((b) => (b.onclick = () => {
+      const c = row.dataset.course, n = +b.dataset.lvl, cur = levelOf(c);
+      setLevel(c, cur === n ? 0 : n);   // לחיצה שוב על אותו מספר מבטלת
+      row.querySelectorAll(".lvl-b").forEach((x) => x.setAttribute("aria-pressed", String(+x.dataset.lvl === levelOf(c))));
+      toast(levelOf(c) ? `קושי ${levelOf(c)} מתוך 5. מעכשיו העוזר, הסיכומים החדשים והמבחנים יותאמו לזה` : "רמת הקושי נמחקה");
+      after?.();
+    })));
+  }
+  const isNb = (s) => String(s.title || "").startsWith("📓");
+
   // ---------- סיכומים ----------
   async function summaries() {
-    const items = (await lib("summary")).sort((a, b) => (a.kind === "formulas") - (b.kind === "formulas") || b.date.localeCompare(a.date));
+    const items = (await lib("summary")).sort((a, b) => (a.kind === "formulas") - (b.kind === "formulas") || isNb(b) - isNb(a) || b.date.localeCompare(a.date));
     const groups = byCourse(items);
     view.innerHTML = `<div class="page">
       <h1 style="font-size:32px">הסיכומים שלי</h1>
       ${pairCard()}
-      ${groups.map(([course, list]) => `<section class="soft"><h2 style="font-size:20px">${esc(course)}</h2><div class="list" style="margin-top:10px">${list.map((s) =>
+      ${groups.map(([course, list], gi) => `<section class="soft"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h2 style="font-size:20px">${esc(course)}</h2>${list.filter((x) => !isNb(x) && x.kind !== "formulas" && x.server && !x.from).length >= 2 ? `<button class="btn ghost small-btn nb-btn" data-g="${gi}" type="button">${list.some(isNb) ? "🔄 עדכון המחברת המסכמת" : "📓 מחברת מסכמת"}</button>` : ""}</div>${levelPicker(course)}<div class="list" style="margin-top:10px">${list.map((s) =>
         `<a class="item" href="#sum-${esc(s.id)}"><span style="min-width:0"><span class="t">${escT(s.title)}</span><br><span class="small muted">${s.from ? "🎓 מ" + esc(s.from) + " · " : ""}${s.kind === "formulas" ? "דף נוסחאות · " : srcIcon(s)}<bdi>${esc(when(s))}</bdi></span></span>${s.kind === "formulas" ? '<span class="chip">📐 נוסחאות</span>' : ""}</a>`).join("")}</div></section>`).join("")}
       ${items.length ? "" : `<section class="soft"><h2 style="font-size:20px;margin:0">עוד אין סיכומים</h2><p class="small muted">העלו מצגת או PDF של שיעור, או חברו את המודל – והסיכומים יגיעו לכאן, מותאמים לאיך שאת/ה לומד/ת.</p><div class="row" style="margin-top:8px"><a class="btn" href="#upload">📄 העלאת מצגת</a><a class="btn ghost" href="#connect">🔗 חיבור למודל</a></div></section>`}
 
     </div>`;
     bindImport(summaries);
     bindPair(summaries);
+    bindLevels(view);
+    // מחברת מסכמת: כל הסיכומים של הקורס בסיכום אחד (נספר כסיכום אחד מהמכסה היומית)
+    view.querySelectorAll(".nb-btn").forEach((b) => (b.onclick = async () => {
+      const course = groups[+b.dataset.g][0];
+      if (!ctx.api) return;
+      b.disabled = true; const old = b.textContent; b.textContent = "בונה מחברת… (עד דקה)";
+      try {
+        const r = await ctx.api.courseNotebook(course);
+        await ctx.syncSummaries?.();
+        toast(`📓 המחברת המסכמת של ${course} מוכנה (מ-${r.count} סיכומים)`);
+        summaries();
+      } catch (err) { toast(err.message); b.disabled = false; b.textContent = old; }
+    }));
   }
 
   async function summaryPage(id) {
@@ -159,10 +196,28 @@ export function initStudy(ctx) {
       <div class="row"><span class="chip">${esc(s.course)}</span><span class="chip">${srcIcon(s)}<bdi>${esc(when(s))}</bdi></span></div>
       <h1 style="font-size:clamp(24px,4vw,34px)">${escT(s.title)}</h1>
       <article class="card md-body">${s.html}</article>
-      ${quiz ? `<a class="btn" href="#quiz-${esc(quiz.id)}">${svg("check")} למבחן על הסיכום (${quiz.questions.length} שאלות)</a>` : ""}
+      <div class="row">${quiz ? `<a class="btn" href="#quiz-${esc(quiz.id)}">${svg("check")} למבחן על הסיכום (${quiz.questions.length} שאלות)</a>` : ""}<button class="btn ghost" id="sumPdf" type="button">📄 ייצוא ל-PDF</button></div>
     </div>`;
     // טבלאות רחבות נגללות הצידה בטלפון
     view.querySelectorAll(".md-body table").forEach((t) => { const w = document.createElement("div"); w.className = "tablewrap"; t.replaceWith(w); w.appendChild(t); });
+    $("#sumPdf").onclick = () => exportPdf(s);
+  }
+
+  // ייצוא סיכום / מחברת מסכמת ל-PDF: דף הדפסה עם הלוגו של Clearly בפינה הימנית העליונה של כל עמוד
+  // (כותרת עליונה בטבלה חוזרת בכל עמוד מודפס). בחלון ההדפסה בוחרים "שמירה כ-PDF"; באייפד: שיתוף ← הדפסה.
+  async function exportPdf(s) {
+    document.getElementById("printRoot")?.remove();
+    const root = document.createElement("div");
+    root.id = "printRoot";
+    root.innerHTML = `<table class="print-wrap"><thead><tr><td><div class="ph"><img src="icons/logo-mark.png" alt="" width="40" height="40"><b>Clearly</b></div></td></tr></thead><tbody><tr><td>
+      <div class="pmeta">${esc(s.course)} · <bdi>${esc(when(s))}</bdi></div><h1>${escT(s.title)}</h1><article class="md-body">${s.html}</article></td></tr></tbody></table>`;
+    document.body.appendChild(root);
+    try { await root.querySelector("img").decode(); } catch { /* ממשיכים גם בלי הלוגו */ }
+    const old = document.title; document.title = String(s.title || "סיכום").replace(/[\\/:*?"<>|]/g, " ").slice(0, 80) + " - Clearly";
+    document.body.classList.add("printing");
+    const done = () => { document.body.classList.remove("printing"); root.remove(); document.title = old; window.removeEventListener("afterprint", done); };
+    window.addEventListener("afterprint", done);
+    window.print();
   }
 
   // ---------- מבחנים ----------
@@ -348,5 +403,5 @@ export function initStudy(ctx) {
       <p class="small muted" style="margin-top:8px">עודכן <bdi>${new Date(mc.updated).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</bdi>. קבצים שסוכמו נפתחים כאן, באפליקציה.</p></section>`;
   }
 
-  return { podcastAudio, syncNow, getCode, pairCard, bindPair, moodleCourse, moodleNew, moodleItem, moodleSection, moodleFilePage, summaryForMoodle, isNew, summaries, summaryPage, quizzes, quizById, mixQuiz, quizEditor, importPack };
+  return { levelOf, levelPicker, bindLevels, podcastAudio, syncNow, getCode, pairCard, bindPair, moodleCourse, moodleNew, moodleItem, moodleSection, moodleFilePage, summaryForMoodle, isNew, summaries, summaryPage, quizzes, quizById, mixQuiz, quizEditor, importPack };
 }

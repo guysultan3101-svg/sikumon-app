@@ -2,7 +2,7 @@
 // ותיבת הודעות באפליקציה במקום מיילים: תזכורות למבחנים ולהגשות, סיכומים חדשים, חדש במודל, וסיכום שבועי.
 
 export function initPlanner(ctx) {
-  const { view, $, esc, toast, prefs, store, extras } = ctx;
+  const { view, $, esc, toast, prefs, store, extras, study } = ctx;
   const DAY = 864e5;
   const key = (d) => d.toLocaleDateString("en-CA");
   const DAYS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
@@ -131,10 +131,12 @@ export function initPlanner(ctx) {
     const slots = (prefs.get().timetable || []).filter((x) => x.course === course).sort((a, b) => a.day - b.day || a.start.localeCompare(b.start));
     const open = (it) => it.type === "resource" ? it.url + (it.url.includes("?") ? "&" : "?") + "redirect=1" : it.url;
     const items = (m?.items || []).filter((it) => !(m.zoom && it.url === m.zoom));
+    setTimeout(() => study?.bindLevels?.(view), 0);
     const groups = CATS.map((c) => ({ ...c, items: items.filter((it) => catOf(it) === c.id) })).filter((g) => g.items.length);
     view.innerHTML = `<div class="page" style="max-width:760px">
       <h1 style="font-size:28px">📚 חומרים לשיעור</h1>
       <p class="muted" style="margin-top:-6px">${esc(course)}</p>
+      ${study?.levelPicker ? study.levelPicker(course) : ""}
       ${m?.zoom ? `<a class="btn" href="${esc(m.zoom)}" target="_blank" rel="noopener" style="justify-self:start">🎥 כניסה לזום של הקורס</a>` : ""}
       ${slots.length ? `<section class="soft" style="display:grid;gap:6px"><h2 style="font-size:18px;margin:0">🕘 מתי ואיפה</h2>
         ${slots.map((x) => `<p style="margin:0">יום ${DAYS[x.day]} · <bdi>${x.start}–${x.end}</bdi>${x.place ? ` · 📍 <b>${esc(x.place)}</b>` : ""}${x.lecturer ? ` · 👤 ${esc(x.lecturer)}` : ""}</p>`).join("")}</section>` : ""}
@@ -157,7 +159,8 @@ export function initPlanner(ctx) {
     // מבחנים: 14, 7, 3, יום ובאותו יום
     for (const e of prefs.get().exams || []) {
       const d = Math.ceil((new Date(`${e.date}T${e.time || "09:00"}`) - Date.now()) / DAY);
-      const bucket = [0, 1, 3, 7, 14].find((t) => d <= t);
+      const lvl = (prefs.get().levels || {})[e.course] || 0;   // קורס קשה (4-5): מתחילים להזכיר מוקדם יותר
+      const bucket = (lvl >= 4 ? [0, 1, 3, 7, 10, 14, 21, ...(lvl >= 5 ? [28] : [])] : [0, 1, 3, 7, 14]).find((t) => d <= t);
       if (d >= 0 && bucket !== undefined) add({ id: `ex-${e.course}-${e.date}-${bucket}`, icon: "📝", title: `מבחן ב${e.course} ${d === 0 ? "היום" : d === 1 ? "מחר" : `בעוד ${d} ימים`}`, body: d <= 3 ? "זה הזמן לעבור על \"מה יהיה במבחן\" ולעשות מבחן חזרה." : "כדאי להתחיל חזרה: כרטיסיות ומבחנים קודמים מחכים.", link: "#deadlines" });
     }
     // הגשות: יומיים, יום, ובאותו יום
@@ -214,6 +217,13 @@ export function initPlanner(ctx) {
     const at = await store.listAttempts();
     const last = Object.values(at.reduce((m, x) => ((m[x.quizId] = x), m), {}));
     const weak = last.filter((x) => x.score / x.total < 0.7).slice(0, 3);
+    // על מה להתמקד: לפי רמת הקושי שהוגדרה לכל קורס וכמה זמן נשאר למבחן
+    const lv = prefs.get().levels || {}, exs = prefs.get().exams || [];
+    const prio = Object.keys(lv).map((c) => {
+      const ds = exs.filter((e) => e.course === c).map((e) => Math.ceil((new Date(e.date) - Date.now()) / DAY)).filter((d) => d >= 0).sort((a, b) => a - b);
+      return { c, level: lv[c], ex: ds[0], score: lv[c] * 10 + (ds[0] !== undefined ? Math.max(0, 45 - ds[0]) : 0) };
+    }).sort((a, b) => b.score - a.score).slice(0, 3);
+    const prioHtml = prio.length ? `<section class="card"><h2 style="font-size:20px">🎯 על מה להתמקד</h2><p class="small muted">לפי רמת הקושי שהגדרת ולפי המבחנים הקרובים.</p><div class="list" style="margin-top:8px">${prio.map((x, i) => `<div class="item"><span style="min-width:0"><span class="t">${i + 1}. ${esc(x.c)}</span><br><span class="small muted">קושי ${x.level} מתוך 5${x.ex !== undefined ? ` · מבחן בעוד ${x.ex} ימים` : ""}</span></span></div>`).join("")}</div></section>` : "";
     const byCourse = sums.reduce((m, s) => ((m[s.course] = m[s.course] || []).push(s), m), {});
     view.innerHTML = `<div class="page">
       <a href="#inbox" class="small">→ הודעות</a>
@@ -223,6 +233,7 @@ export function initPlanner(ctx) {
         <p class="small muted" style="margin-top:8px">כתבת ב-${lessons.filter((l) => (l.pages || []).some((p) => p.strokes.length) || l.text?.trim()).length} שיעורים והקלטת ${lessons.filter((l) => (l.recIds || []).length).length}. ${prefs.get().streak > 1 ? `🔥 ${prefs.get().streak} ימים ברצף.` : ""}</p></section>
       <section class="soft"><h2 style="font-size:20px">מה מחכה לך (שבועיים קדימה)</h2>
         <div class="list" style="margin-top:8px">${next.map((x) => `<a class="item" href="#deadlines"><span style="min-width:0"><span class="t">${x.kind === "exam" ? "📝" : "📌"} ${esc(x.title)}</span><br><span class="small muted">${esc(x.course)}</span></span>${extras.chip(x)}</a>`).join("") || '<p class="muted">אין מבחנים או הגשות בשבועיים הקרובים.</p>'}</div></section>
+      ${prioHtml}
       <section class="soft"><h2 style="font-size:20px">שווה לחזור על</h2>
         <div class="list" style="margin-top:8px">${weak.map((w) => `<a class="item" href="#quiz-${esc(w.quizId)}"><span class="t">${esc(w.title)}</span><b class="score"><bdi>${w.score}/${w.total}</bdi></b></a>`).join("") || '<a class="item" href="#cards"><span class="t">🃏 כרטיסיות של השבוע</span></a>'}</div></section>
       <p class="muted">שבוע טוב, ובהצלחה! 💪</p>

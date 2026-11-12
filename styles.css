@@ -618,3 +618,27 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 .mat-group { border: 1.5px solid var(--line); border-radius: 12px; padding: 8px 12px; background: var(--paper); }
 .mat-group > summary { cursor: pointer; padding: 6px 0; font-size: 16px; }
 .mat-group[open] > summary { margin-bottom: 6px; }
+
+.lvl-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0 2px; }
+.lvl { display: inline-flex; gap: 4px; }
+.lvl-b { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--line); background: var(--paper); color: var(--ink); font: 700 16px/1 var(--font-body); cursor: pointer; }
+.lvl-b[aria-pressed="true"] { background: var(--blue); border-color: var(--blue); color: var(--on-blue); }
+.small-btn.nb-btn { white-space: nowrap; }
+
+/* ייצוא ל-PDF (study.js exportPdf): רק דף ההדפסה, הלוגו בפינה הימנית העליונה של כל עמוד */
+#printRoot { display: none; }
+@media print {
+  body.printing > *:not(#printRoot) { display: none !important; }
+  body.printing #printRoot { display: block !important; direction: rtl; text-align: right; color: #0F172A; background: #fff; }
+  @page { size: A4; margin: 14mm 14mm 16mm; }
+  #printRoot { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #printRoot .print-wrap { width: 100%; border-collapse: collapse; }
+  #printRoot thead { display: table-header-group; }
+  #printRoot .ph { display: flex; align-items: center; gap: 8px; justify-content: flex-start; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1.5px solid #D5DEF2; font: 900 18px/1 Heebo, Arial, sans-serif; color: #262b6b; }
+  #printRoot .ph img { width: 11mm; height: 11mm; }
+  #printRoot .pmeta { color: #475569; font-size: 12px; }
+  #printRoot h1 { font-size: 22px !important; margin: 4px 0 10px; }
+  #printRoot .md-body { display: block !important; column-count: 1 !important; font-size: 13px; line-height: 1.55; border: 0 !important; box-shadow: none !important; padding: 0 !important; background: none !important; }
+  #printRoot .md-body h2 { font-size: 16px; break-after: avoid; }
+  #printRoot .md-body table { break-inside: avoid; font-size: 12px; }
+}
