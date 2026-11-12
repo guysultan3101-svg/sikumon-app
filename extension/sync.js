@@ -19,6 +19,7 @@ const MANUAL_MAX = 50;     // כשלוחצים "בדיקה עכשיו"
 // "קורסים" שהם בעצם לומדות והדרכות של המוסד – לא מסכמים אותם
 const NOT_COURSE = /הטרדה|harassment|לומדה|הכרת הספרייה|הדרכה לקראת|instructions for|בטיחות ב|safety/i;
 const OK_EXT = /\.(pdf|pptx|docx)$/i;
+const OFFICE_EXT = /\.(pptx|docx)$/i;
 
 const get = (k) => chrome.storage.local.get(k).then((o) => o[k]);
 const set = (o) => chrome.storage.local.set(o);
@@ -151,8 +152,44 @@ export async function longPost(url, headers, body) {
   }
   return fetch(url, { method: "POST", headers, body, signal: AbortSignal.timeout(170000) }).catch((e) => { throw Object.assign(new Error("network"), { code: "network", cause: e }); });
 }
+// ---------- מצגת/וורד גדולים: הטקסט נקרא מתוך קובץ ה-zip בלי לשלוח את כל הקובץ ----------
+async function zipFiles(buf, want) {
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let e = buf.length - 22; while (e >= 0 && dv.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error("zip");
+  const n = dv.getUint16(e + 10, true); let p = dv.getUint32(e + 16, true); const out = {};
+  for (let i = 0; i < n && dv.getUint32(p, true) === 0x02014b50; i++) {
+    const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true), nl = dv.getUint16(p + 28, true), el = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+    const name = new TextDecoder().decode(buf.subarray(p + 46, p + 46 + nl)); p += 46 + nl + el + cl;
+    if (!want(name)) continue;
+    const st = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true), data = buf.subarray(st, st + csize);
+    out[name] = method === 0 ? new TextDecoder().decode(data) : await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text();
+  }
+  return out;
+}
+export async function officeText(buf, filename) {
+  const pptx = /\.pptx$/i.test(filename);
+  const files = await zipFiles(buf, (n) => (pptx ? /^ppt\/slides\/slide\d+\.xml$/ : /^word\/document\.xml$/).test(n));
+  const names = Object.keys(files).sort((x, y) => Number(x.match(/\d+/)?.[0] ?? 0) - Number(y.match(/\d+/)?.[0] ?? 0));
+  const tag = pptx ? "a:t" : "w:t";
+  const parts = names.map((n, i) => {
+    const t = [...files[n].matchAll(new RegExp("<" + tag + "[^>]*>([^<]*)</" + tag + ">", "g"))].map((m) => m[1]).join(" ");
+    return pptx ? "--- שקף " + (i + 1) + " ---\n" + t : t;
+  });
+  const text = parts.join("\n").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").slice(0, 300000);
+  if (text.replace(/[-\s\d]|שקף/g, "").length < 80) throw Object.assign(new Error("no_text"), { code: "unsupported" });
+  return text;
+}
+async function summarizeText(a, text, filename, course, ref) {
+  const body = JSON.stringify({ filename, text, course, source: "moodle", source_ref: ref });
+  const r = await longPost(`${SB}/functions/v1/summarize`, { apikey: ANON, Authorization: `Bearer ${a.access}`, "Content-Type": "application/json" }, body);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(j.error || "failed"), { code: j.error });
+  return j;
+}
 async function summarize(a, blob, filename, course, ref) {
   const buf = new Uint8Array(await blob.arrayBuffer());
+  if (buf.length > 15 * 1024 * 1024 && OFFICE_EXT.test(filename)) return summarizeText(a, await officeText(buf, filename), filename, course, ref);
   let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
   const body = JSON.stringify({ filename, mime: blob.type, data: btoa(bin), course, source: "moodle", source_ref: ref });
   const r = await longPost(`${SB}/functions/v1/summarize`, { apikey: ANON, Authorization: `Bearer ${a.access}`, "Content-Type": "application/json" }, body);
@@ -191,8 +228,8 @@ export async function syncOnce({ manual = false } = {}) {
     const seen = (await get("seen")) || {};
     // מה שכבר סוכם אצלנו בשרת (גם אם הזיכרון המקומי נמחק, למשל אחרי התנתקות והתחברות מחדש): לא מסכמים שוב
     try {
-      const r = await rest("moodle_items?select=item_key,status&status=in.(done,skipped)&limit=2000", a);
-      if (r.ok) for (const x of await r.json()) if (x.item_key && !seen[x.item_key]) seen[x.item_key] = x.status === "done" ? "done" : "big";
+      const r = await rest("moodle_items?select=item_key,status,note&status=in.(done,skipped)&limit=2000", a);
+      if (r.ok) for (const x of await r.json()) if (x.item_key && !seen[x.item_key]) { if (x.status === "done") seen[x.item_key] = "done"; else if (/30MB|250MB/.test(x.note || "")) seen[x.item_key] = "big"; }
     } catch { /* לא חובה: ממשיכים עם הזיכרון המקומי */ }
     // פעם אחת: קבצים ישנים שבגרסאות קודמות סומנו "ישן" (ולא סוכמו) חוזרים לתור – מסכמים את כל הסמסטר
     if (!(await get("backfill1"))) {
@@ -213,6 +250,11 @@ export async function syncOnce({ manual = false } = {}) {
         else if (seen[k] === "retry") delete seen[k];
       }
       await set({ seen, heal1610: true });
+    }
+    // פעם אחת (1.6.11): קבצים שנדלגו כי הם גדולים מ-15MB חוזרים לתור (מצגת/וורד: הטקסט נקרא מקומית, PDF עד 30MB)
+    if (!(await get("heal1611"))) {
+      for (const k of Object.keys(seen)) if (seen[k] === "big") delete seen[k];
+      await set({ seen, heal1611: true });
     }
     // כל הקבצים מתחילת הסמסטר, מהחדש לישן, לסירוגין בין הקורסים (כך כל קורס מקבל סיכומים מהר).
     // הקצב מוגבל במכסה היומית בשרת, אז זה נגמר תוך כמה ימים – ממשיכים לבד בכל בדיקה.
@@ -247,7 +289,8 @@ export async function syncOnce({ manual = false } = {}) {
           if (!OK_EXT.test(fname)) { seen[fkey] = "skip"; continue; }
           const res = f.res || (await fetch(f.url, { credentials: "include" }));
           const blob = await res.blob();
-          if (blob.size > 15 * 1024 * 1024) { seen[fkey] = "big"; await markItem(a, { item_key: fkey, course: it.course, name: fname, kind: it.type, url: it.url, status: "skipped", note: "גדול מ-15MB" }); continue; }
+          // מצגת/וורד גדולים (הרבה תמונות): לא שולחים את הקובץ, מוציאים את הטקסט מקומית ושולחים רק אותו. PDF עד 30MB (השרת מעלה אותו ל-Gemini)
+          if (blob.size > (OFFICE_EXT.test(fname) ? 250 : 30) * 1024 * 1024) { seen[fkey] = "big"; await markItem(a, { item_key: fkey, course: it.course, name: fname, kind: it.type, url: it.url, status: "skipped", note: OFFICE_EXT.test(fname) ? "גדול מ-250MB" : "גדול מ-30MB" }); continue; }
           const hash = await sha256(blob);
           if (seen["h:" + hash]) { seen[fkey] = "dup"; continue; }   // אותו קובץ כבר סוכם (גם אם הועלה בשם אחר)
           await status({ state: `מסכם: ${it.name}` });
@@ -258,7 +301,7 @@ export async function syncOnce({ manual = false } = {}) {
           } catch (e) {
             if (e.code === "limit" || e.code === "global_cap") { seen[fkey] = "retry"; stop = "הגעתם למכסת הסיכומים להיום – נמשיך מחר"; break; }
             // תקלת רשת/זמן (למשל גוגל איטי): לא קשור לקובץ. לא סופרים ככישלון של הקובץ, ואחרי 3 ברצף עוצרים ומנסים בריצה הבאה
-            if (e.code === "network" || e.code === "provider") { seen[fkey] = "retry"; if (++netFails >= 3) { stop = "החיבור לשרת איטי כרגע – ננסה שוב עוד רגע"; break; } continue; }
+            if (e.code === "network") { seen[fkey] = "retry"; if (++netFails >= 3) { stop = "החיבור לשרת איטי כרגע – ננסה שוב עוד רגע"; break; } continue; }
             netFails = 0;
             seen["n:" + fkey] = (seen["n:" + fkey] || 0) + 1;   // אחרי 3 כישלונות מפסיקים לנסות את הקובץ הזה
             seen[fkey] = e.code === "unsupported" || seen["n:" + fkey] >= 3 ? "skip" : "retry";

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "המחבר של Clearly",
   "description": "בודק במודל שלך אם עלו קבצים חדשים, ושולח אותם לסיכום אישי ב-Clearly. באריאל ובבן-גוריון מביא גם את מערכת השעות.",
-  "version": "1.6.10",
+  "version": "1.6.11",
   "permissions": [
     "storage",
     "alarms",
