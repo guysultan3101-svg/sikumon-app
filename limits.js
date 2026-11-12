@@ -14,9 +14,12 @@ function save(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {
 export function quizzesLeft() { const v = load(); return Math.max(0, FREE + v.bonus - v.n); }
 
 // לפני שמתחילים מבחן: true = מתחילים (והמבחן נספר), false = לא עכשיו
+let pending = false;
+// נקרא בתשובה הראשונה במבחן: רק אז המבחן נספר מתוך 3 היומיים
+export function markQuizStarted() { if (!pending) return; pending = false; const v = load(); v.n += 1; save(v); }
 export async function takeQuizSlot() {
   const v = load();
-  if (v.n < FREE + v.bonus) { v.n += 1; save(v); return true; }
+  if (v.n < FREE + v.bonus) { pending = true; return true; }   // נספר רק כשעונים על השאלה הראשונה (markQuizStarted)
   return unlockModal();
 }
 
@@ -32,7 +35,7 @@ function unlockModal() {
     const done = (ok) => { m.remove(); document.removeEventListener("keydown", esc); resolve(ok); };
     const esc = (e) => { if (e.key === "Escape") done(false); };
     document.addEventListener("keydown", esc);
-    const grant = () => { const v = load(); v.bonus += 1; v.n += 1; save(v); };
+    const grant = () => { const v = load(); v.bonus += 1; save(v); pending = true; };
     document.getElementById("qlNo").onclick = () => done(false);
     document.getElementById("qlShare").onclick = async () => {
       const text = "מצאתי אפליקציה שמסכמת לבד את השיעורים מהמודל ועושה מבחנים. נסו:";

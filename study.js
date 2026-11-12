@@ -1,7 +1,7 @@
 // סיכומים ומבחנים: ייבוא מ-Drive, רשימת סיכומים לפי קורס, מבחנים אישיים, היסטוריה ויצירת מבחן.
 // הכול נשמר במכשיר (IndexedDB) – שום דבר לא עולה לשרת.
 
-import { takeQuizSlot } from "./limits.js";
+import { takeQuizSlot, markQuizStarted } from "./limits.js";
 
 export function initStudy(ctx) {
   const { view, $, esc, svg, toast, prefs, store, demoQuiz } = ctx;
@@ -222,7 +222,7 @@ export function initStudy(ctx) {
           if (copy) { await ctx.api.setSummaryCourse(copy.id.slice(4), c); await store.putItem({ ...copy, course: c }); }
         }
         await store.putItem({ ...s, course: c });
-        toast(`✓ הסיכום עבר ל${c}`); summaryPage(id);
+        toast(`✓ הסיכום עבר ל${c}`); dispatchEvent(new HashChangeEvent("hashchange"));
       } catch (e) { toast("לא הצלחתי לשנות: " + e.message); }
     };
   }
@@ -330,6 +330,7 @@ export function initStudy(ctx) {
       ${picked !== null ? `<div class="row"><button class="btn" id="next">${i + 1 < qs.length ? "לשאלה הבאה" : "לתוצאה"}</button></div>` : ""}
     </div>`;
     view.querySelectorAll(".opt").forEach((b) => (b.onclick = () => {
+      markQuizStarted();   // המבחן נספר מהתשובה הראשונה, לא מהפתיחה
       const k = +b.dataset.k, ok = k === q.a;
       runQuiz(quiz, i, score + (ok ? 1 : 0), k, ok ? wrong : [...wrong, i]);
     }));

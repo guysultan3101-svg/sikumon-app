@@ -448,7 +448,7 @@ export function initSocial(ctx) {
         <section style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">החברים שלי (${g.friends.length})</h2>${g.friends.map((f) => { const id = g.other(f); return row(id, `<button class="btn ghost" data-share="${id}" type="button" aria-label="אותה כיתה">🎓</button><a class="btn ghost" href="#dm-${esc(unameOf(id))}" aria-label="הודעה">💬</a>`, shareSub(id)); }).join("") || '<p class="muted small">עוד אין חברים. הוסיפו לפי שם משתמש 👆</p>'}</section></div>`;
       $("#frForm").onsubmit = async (e) => {
         e.preventDefault();
-        const u = $("#frQ").value.trim().replace(/^@/, "").toLowerCase(); if (!u) return;
+        const u = $("#frQ").value.trim().replace(/^@/, "").toLowerCase(); if (!u) return toast("כתבו קודם את שם המשתמש של החבר/ה");
         try {
           const p = await api.findUser(u);
           if (!p) return toast("לא מצאנו משתמש בשם הזה");
@@ -541,7 +541,7 @@ export function initSocial(ctx) {
       };
       $("#dmIn").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#dmForm").requestSubmit(); } };
       $("#dmForm").onsubmit = async (e) => {
-        e.preventDefault(); const v = $("#dmIn").value.trim(); if (!v) return;
+        e.preventDefault(); const v = $("#dmIn").value.trim(); if (!v) return toast("כתבו הודעה קודם");
         try { await api.sendMessage(p.id, v); $("#dmIn").value = ""; api.track("message"); await draw(); } catch (err) { toast(err.message); }
       };
       $("#dmBlock").onclick = async () => { if (!confirm(`לחסום את ${p.full_name}? לא תקבלו ממנו/ה הודעות.`)) return; await api.block(p.id); toast("נחסם/ה"); location.hash = "#messages"; };

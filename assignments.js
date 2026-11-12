@@ -8,7 +8,7 @@ export function initAssignments(ctx) {
   const MAX_FILE = 25 * 1024 * 1024;
   const moodleId = (url) => (String(url || "").match(/[?&]id=(\d+)/) || [])[1] || url || "";
   const workId = (key) => "aw-" + String(key).replace(/[^\w-]+/g, "_").slice(-80);
-  const daysTo = (iso) => Math.ceil((new Date(iso) - Date.now()) / DAY);
+  const daysTo = (iso) => { const t = new Date(iso); if (t < Date.now()) return -1; const a = new Date(t), b = new Date(); a.setHours(0, 0, 0, 0); b.setHours(0, 0, 0, 0); return Math.round((a - b) / DAY); };   // ימים לפי לוח השנה; מה שכבר עבר = -1
   const left = (iso) => {
     const ms = new Date(iso) - Date.now();
     if (ms < 0) return "המועד עבר";

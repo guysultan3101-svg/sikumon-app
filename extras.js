@@ -4,7 +4,7 @@
 export function initExtras(ctx) {
   const { view, $, esc, svg, toast, prefs, store, segmentsOf, fmtTime } = ctx;
   const DAY = 864e5;
-  const daysTo = (iso) => Math.ceil((new Date(iso) - Date.now()) / DAY);
+  const daysTo = (iso) => { const t = new Date(iso); if (t < Date.now()) return -1; const a = new Date(t), b = new Date(); a.setHours(0, 0, 0, 0); b.setHours(0, 0, 0, 0); return Math.round((a - b) / DAY); };   // ימים לפי לוח השנה; מה שכבר עבר = -1
   const inDays = (n) => (n < 0 ? "עבר" : n === 0 ? "היום!" : n === 1 ? "מחר" : `בעוד ${n} ימים`);
   const fmtWhen = (iso) => new Date(iso).toLocaleString("he-IL", { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
   const urgency = (n) => (n <= 3 ? "hot" : n <= 14 ? "warm" : "");

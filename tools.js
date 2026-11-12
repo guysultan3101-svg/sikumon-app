@@ -1,4 +1,4 @@
-import { takeQuizSlot } from "./limits.js";
+import { takeQuizSlot, markQuizStarted } from "./limits.js";
 // כלים לסטודנט: 🔊 הקראת סיכום, ⏱️ סימולציית מבחן, 🎯 "כמה אני צריך במבחן", 🔍 חיפוש בכל החומר,
 // 🖨️ הדפסת סיכום / דף נוסחאות, ו-🙋 שאלות למתרגל. הכול עובד במכשיר, בלי AI ובלי שרת.
 
@@ -89,6 +89,7 @@ export function initTools(ctx) {
     </div>`;
     $("#smGo") && ($("#smGo").onclick = async () => {
       if (!(await takeQuizSlot())) return; // עד 3 מבחנים ביום
+      markQuizStarted();
       const course = $("#smC").value;
       const pool = qs.filter((q) => q.course === course).flatMap((q) => q.questions);
       const n = Math.min(+$("#smN").value, pool.length);
@@ -235,7 +236,7 @@ export function initTools(ctx) {
         ${x.done ? `<textarea class="tq-ans" rows="2" placeholder="מה המתרגל ענה?" autocomplete="off">${esc(x.answer || "")}</textarea>` : ""}</div>`).join("") || '<p class="muted">אין שאלות פתוחות.</p>'}</div>
     </div>`;
     $("#tqAdd").onclick = async () => {
-      const text = $("#tqT").value.trim(); if (!text) return;
+      const text = $("#tqT").value.trim(); if (!text) return toast("כתבו את השאלה קודם");
       await store.putItem({ id: "tq-" + Date.now(), type: "tq", course: $("#tqC").value, text, at: new Date().toISOString(), done: false });
       toast("נוספה שאלה"); questions();
     };

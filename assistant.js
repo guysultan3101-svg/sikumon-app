@@ -58,7 +58,7 @@ export function initAssistant(ctx) {
     form.onsubmit = async (e) => {
       e.preventDefault();
       if (ctrl) { ctrl.abort(); return; }
-      const q = input.value.trim(); if (!q) return;
+      const q = input.value.trim(); if (!q) { input.focus(); return; }
       input.value = "";
       const log = document.getElementById("aiLog");
       log.insertAdjacentHTML("beforeend", `<div class="bubble me">${esc(q)}</div><div class="bubble bot"><span class="typing">חושב…</span></div>`);

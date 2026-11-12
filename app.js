@@ -318,7 +318,7 @@ async function attachAI(id) {
     $("#chatForm").onsubmit = (e) => {
       e.preventDefault();
       if (ctrl) { ctrl.abort(); return; }
-      const q = $("#chatIn").value.trim(); if (!q) return;
+      const q = $("#chatIn").value.trim(); if (!q) { $("#chatIn").focus(); return toast("כתבו שאלה קודם"); }
       $("#chatIn").value = ""; send(q);
     };
     $("#chatIn").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#chatForm").requestSubmit(); } };
@@ -2015,7 +2015,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "83";
+const APP_VERSION = "84";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

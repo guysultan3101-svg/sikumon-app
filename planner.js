@@ -6,6 +6,7 @@ import { matchCourse } from "./uni-merge.js";
 export function initPlanner(ctx) {
   const { view, $, esc, toast, prefs, store, extras, study } = ctx;
   const DAY = 864e5;
+  const daysTo = (iso) => { const t = new Date(iso); if (t < Date.now()) return -1; const a = new Date(t), b = new Date(); a.setHours(0, 0, 0, 0); b.setHours(0, 0, 0, 0); return Math.round((a - b) / DAY); };   // ימים לפי לוח השנה; מה שכבר עבר = -1
   const key = (d) => d.toLocaleDateString("en-CA");
   const DAYS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
   const semester = () => ({ start: "2026-10-18", end: "2027-01-29", ...(prefs.get().semester || {}) });
@@ -189,14 +190,14 @@ export function initPlanner(ctx) {
     const fresh = [];
     // מבחנים: 14, 7, 3, יום ובאותו יום
     for (const e of prefs.get().exams || []) {
-      const d = Math.ceil((new Date(`${e.date}T${e.time || "09:00"}`) - Date.now()) / DAY);
+      const d = daysTo(`${e.date}T${e.time || "09:00"}`);
       const lvl = (prefs.get().levels || {})[e.course] || 0;   // קורס קשה (4-5): מתחילים להזכיר מוקדם יותר
       const bucket = (lvl >= 4 ? [0, 1, 3, 7, 10, 14, 21, ...(lvl >= 5 ? [28] : [])] : [0, 1, 3, 7, 14]).find((t) => d <= t);
       if (d >= 0 && bucket !== undefined) add({ id: `ex-${e.course}-${e.date}-${bucket}`, icon: "📝", title: `מבחן ב${e.course} ${d === 0 ? "היום" : d === 1 ? "מחר" : `בעוד ${d} ימים`}`, body: d <= 3 ? "זה הזמן לעבור על \"מה יהיה במבחן\" ולעשות מבחן חזרה." : "כדאי להתחיל חזרה: כרטיסיות ומבחנים קודמים מחכים.", link: "#deadlines" });
     }
     // הגשות: יומיים, יום, ובאותו יום
     for (const x of (await store.getItem("deadlines"))?.events || []) {
-      const d = Math.ceil((new Date(x.due) - Date.now()) / DAY);
+      const d = daysTo(x.due);
       if (!x.done && d >= 0 && d <= 2) add({ id: `dl-${x.id}-${d}`, icon: "📌", title: `${x.name} – ${d === 0 ? "היום" : d === 1 ? "מחר" : "בעוד יומיים"}`, body: `${x.course} · עד <bdi>${x.due.slice(11, 16)}</bdi>`, link: x.url, ext: true });
     }
     // סיכומים חדשים (בפעם הראשונה – רק זוכרים מה כבר קיים)
@@ -251,7 +252,7 @@ export function initPlanner(ctx) {
     // על מה להתמקד: לפי רמת הקושי שהוגדרה לכל קורס וכמה זמן נשאר למבחן
     const lv = prefs.get().levels || {}, exs = prefs.get().exams || [];
     const prio = Object.keys(lv).map((c) => {
-      const ds = exs.filter((e) => e.course === c).map((e) => Math.ceil((new Date(e.date) - Date.now()) / DAY)).filter((d) => d >= 0).sort((a, b) => a - b);
+      const ds = exs.filter((e) => e.course === c).map((e) => daysTo(`${e.date}T${e.time || "23:59"}`)).filter((d) => d >= 0).sort((a, b) => a - b);
       return { c, level: lv[c], ex: ds[0], score: lv[c] * 10 + (ds[0] !== undefined ? Math.max(0, 45 - ds[0]) : 0) };
     }).sort((a, b) => b.score - a.score).slice(0, 3);
     const prioHtml = prio.length ? `<section class="card"><h2 style="font-size:20px">🎯 על מה להתמקד</h2><p class="small muted">לפי רמת הקושי שהגדרת ולפי המבחנים הקרובים.</p><div class="list" style="margin-top:8px">${prio.map((x, i) => `<div class="item"><span style="min-width:0"><span class="t">${i + 1}. ${esc(x.c)}</span><br><span class="small muted">קושי ${x.level} מתוך 5${x.ex !== undefined ? ` · מבחן בעוד ${x.ex} ימים` : ""}</span></span></div>`).join("")}</div></section>` : "";
