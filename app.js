@@ -75,6 +75,7 @@ const TABS = [
   { hash: "record", label: "הקלטה", icon: "mic", cls: "rec-tab" },
   { hash: "calendar", label: "יומן", icon: "cal" },
   { hash: "summaries", label: "סיכומים", icon: "book" },
+  { hash: "extras", label: "תוספים לשיעורים", icon: "list", cls: "hide-phone" },
   { hash: "quizzes", label: "מבחנים", icon: "check" },
   { hash: "assignments", label: "הגשת עבודות", icon: "upload" },
   { hash: "messages", label: "הודעות", icon: "chat", cls: "hide-phone" },
@@ -400,6 +401,7 @@ async function removeLesson(l) {
     for (const id of l.recIds) await store.deleteRecording(id);
   }
   await store.deleteLesson(l.id);
+  api.nbDel(l.id).catch(() => {});
   toast("השיעור נמחק");
   return true;
 }
@@ -410,7 +412,7 @@ async function removeCourse(i) {
   if (!confirm(`למחוק את התיקייה "${course}"${lessons.length ? ` ואת ${lessons.length} השיעורים שבה` : ""}? אי אפשר לבטל.`)) return;
   const recIds = lessons.flatMap((l) => l.recIds || []);
   const delRecs = recIds.length && confirm(`למחוק גם ${recIds.length} הקלטות של הקורס?\n(ביטול = ההקלטות נשארות ב"כל ההקלטות")`);
-  for (const l of lessons) await store.deleteLesson(l.id);
+  for (const l of lessons) { await store.deleteLesson(l.id); api.nbDel(l.id).catch(() => {}); }
   if (delRecs) for (const id of recIds) await store.deleteRecording(id);
   // הקורס לא יחזור בסנכרון הבא מהמודל, וגם יוצא ממערכת השעות
   p.courses = p.courses.filter((c) => c !== course);
@@ -1011,7 +1013,7 @@ function closeLesson() {
   closeSplit();
   document.body.classList.remove("focus");
   if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-  if (editingLesson) flushLesson(true);
+  if (editingLesson) flushLesson(true).then(() => setTimeout(syncNotebooks, 300));
   editor?.destroy(); editor = null; editingLesson = null; clearInterval(lessonTimer);
 }
 
@@ -1487,6 +1489,7 @@ async function routeInner() {
   else if (hash.startsWith("assign-")) await assignments.detail(decodeURIComponent(hash.slice(7)));
   else if (hash.startsWith("materials-")) await planner.materials(decodeURIComponent(hash.slice(10)));
   else if (hash.startsWith("mf-")) { await study.moodleFilePage(decodeURIComponent(hash.slice(3))); tools.attachReader?.(); }
+  else if (hash === "extras") await planner.lessonExtras();
   else if (hash === "summaries") {
     await study.summaries();
     const pods = await podcastsList();
@@ -1557,7 +1560,7 @@ async function routeInner() {
   else if (hash === "exam-focus") await extras.examFocus();
   else if (hash === "reels") await extras.reels();
   else if (hash.startsWith("reels-")) await extras.reels(hash.slice(6));
-  else if (hash === "notebooks") await notebooks();
+  else if (hash === "notebooks") { await notebooks(); syncNotebooks(); }
   else if (hash.startsWith("course-")) await courseFolder(+hash.slice(7));
   else if (hash.startsWith("lesson-")) { closeLesson(); await lessonPage(hash.slice(7)); }
   else await home();
@@ -1579,6 +1582,7 @@ studyCtx.onQuizDone = () => practice.bumpStreak();
 studyCtx.api = api;
 studyCtx.pushPrefs = () => social.pushPrefs();
 studyCtx.syncSummaries = () => social.syncSummaries();
+studyCtx.htmlToMd = (h) => social.summaryHtmlToMd(h);
 const extras = initExtras({ view, $, esc, svg, toast, prefs, store, segmentsOf, fmtTime });
 const tools = initTools({ view, $, esc, svg, toast, prefs, store, lessonTitle, onQuizDone: () => practice.bumpStreak() });
 const social = initSocial({ view, $, esc, toast, prefs, store, api });
@@ -1597,6 +1601,46 @@ async function paintCounts() {
   } catch { /* בלי אינטרנט */ }
 }
 // סנכרון מהשרת: התראות (🔔) וסיכומים (שלי + של חברים מאותה כיתה)
+// ---------- מחברות בענן: מה שכותבים באייפד מופיע גם במחשב (וההפך) ----------
+// כל שיעור נשמר כקובץ פרטי בשרת. שיעור ששונה במכשיר עולה; שיעור ששונה במכשיר אחר יורד. אם שניהם השתנו – הגרסה החדשה יותר נשארת.
+let nbSyncing = false;
+async function syncNotebooks() {
+  if (!api.user() || nbSyncing) return 0;
+  nbSyncing = true;
+  let changed = 0;
+  try {
+    const remote = new Map((await api.nbList()).map((f) => [f.name, f.updated_at || f.created_at]));
+    const local = await store.listLessons();
+    const fname = (l) => encodeURIComponent(l.id) + ".json";
+    const uploaded = [];
+    for (const l of local) {
+      if (l.id === editingLesson?.id) continue;   // השיעור הפתוח עכשיו: עולה כשסוגרים אותו
+      const r = remote.get(fname(l));
+      const dirty = !l.syncedAt || (l.updatedAt || "") > l.syncedAt;
+      const remoteChanged = r && (!l.remoteAt || r > l.remoteAt);
+      if (!r && l.remoteAt && !dirty) { await store.deleteLesson(l.id); changed++; continue; }   // נמחק במכשיר אחר
+      if (remoteChanged) {
+        const theirs = await api.nbGet(fname(l));
+        if (!dirty || (theirs.updatedAt || "") >= (l.updatedAt || "")) { await store.putLessonRaw({ ...theirs, syncedAt: theirs.updatedAt, remoteAt: r }); changed++; continue; }
+      }
+      if (dirty || !r) { await api.nbPut({ ...l, syncedAt: undefined, remoteAt: undefined }); uploaded.push(l); }
+    }
+    for (const [name, at] of remote) {   // שיעורים שנכתבו רק במכשיר אחר
+      if (local.some((l) => fname(l) === name)) continue;
+      const theirs = await api.nbGet(name);
+      if (!theirs?.id) continue;
+      await store.putLessonRaw({ ...theirs, syncedAt: theirs.updatedAt, remoteAt: at });
+      changed++;
+    }
+    if (uploaded.length) {
+      const after = new Map((await api.nbList()).map((f) => [f.name, f.updated_at || f.created_at]));
+      for (const l of uploaded) { const cur = await store.getLesson(l.id); if (cur && cur.updatedAt === l.updatedAt) await store.putLessonRaw({ ...cur, syncedAt: l.updatedAt, remoteAt: after.get(fname(l)) || null }); }
+    }
+  } catch { /* ננסה בסנכרון הבא */ } finally { nbSyncing = false; }
+  if (changed && location.hash === "#notebooks") route();
+  return changed;
+}
+
 let lastServerSync = 0;
 async function serverSync(force = false) {
   if (!api.user() || (!force && Date.now() - lastServerSync < 60e3)) return;
@@ -1610,6 +1654,7 @@ async function serverSync(force = false) {
     extUpdateCheck();
     if ((sched || dls) && ["#calendar", "#timetable", "#deadlines", "#home", "#assignments", ""].includes(location.hash)) route();
     await applyCourseMaterials();
+    await syncNotebooks();
     const n = await social.syncSummaries();
     autoTranscribe();
     if (n && ["#summaries", "#quizzes", "#home", ""].includes(location.hash)) route();
@@ -1920,7 +1965,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "77";
+const APP_VERSION = "80";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

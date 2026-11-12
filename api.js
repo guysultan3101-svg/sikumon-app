@@ -102,7 +102,7 @@ export async function touch() { if (user()) sb.from("profiles").update({ last_se
 
 // ---------- פרופילים וחברים ----------
 // כל משתמש מחובר רואה רק את הבסיס; ביו, רשתות וקורסים – רק של חברים (השרת מחליט)
-const PCOLS = "id, username, full_name, uni, degree";
+const PCOLS = "id, username, full_name, uni, degree, avatar_url";
 async function withExtras(list) {
   if (!list.length) return list;
   const { data } = await sb.rpc("profile_extras", { p_ids: list.map((p) => p.id) });
@@ -125,7 +125,13 @@ export async function block(id) { ok(await sb.from("blocks").upsert({ owner: use
 export async function unblock(id) { ok(await sb.from("blocks").delete().eq("owner", user().id).eq("blocked", id)); }
 
 // ---------- סיכומים ----------
-export async function summaries() { return ok(await sb.from("summaries").select("id, owner, course, title, md, quiz, source, source_ref, created_at").order("created_at", { ascending: false }).limit(500)); }
+export async function summaries() { return ok(await sb.from("summaries").select("id, owner, course, title, md, quiz, source, source_ref, created_at").order("created_at", { ascending: false }).limit(5000)); }
+// גיבוי סיכום שנמצא רק במכשיר (למשל מ-Drive) לשרת: נשמר לתמיד, מופיע בכל מכשיר. אותו סיכום לא נשמר פעמיים
+export async function backupSummary({ ref, course, title, md, date, quiz }) {
+  const { data, error } = await sb.rpc("backup_summary", { p_ref: ref, p_course: course, p_title: title, p_md: md, p_date: date || null, p_quiz: quiz || [] });
+  if (error) throw error;
+  return data;
+}
 export async function deleteSummary(id) { ok(await sb.from("summaries").delete().eq("id", id)); }
 // קובץ -> סיכום אישי (השרת מסכם לפי השאלון)
 export async function summarizeFile(file, course) {
@@ -206,17 +212,16 @@ export async function summarizeText(text, title, course, ref) {
 }
 
 // מחברת מסכמת לקורס: כל הסיכומים שלי בקורס ← סיכום אחד מאוחד (נספר כסיכום אחד מהמכסה היומית). יצירה מחדש מחליפה את הקודמת
-export async function courseNotebook(course) {
-  const rows = (await summaries()).filter((r) => r.owner === user().id && r.course === course && !String(r.title).startsWith("📓"));
-  if (rows.length < 2) throw new Error("צריך לפחות שני סיכומים בקורס כדי לבנות מחברת מסכמת");
-  const text = rows.slice().reverse().map((r) => `## ${r.title}\n${r.md}`).join("\n\n").slice(0, 300000);
+export async function courseNotebook(course, text, count) {
+  if (!text) throw new Error("אין עדיין סיכומים בקורס הזה");
+  text = text.slice(0, 300000);
   const res = await fetch(`${URL_}/functions/v1/summarize`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}`, apikey: ANON },
     body: JSON.stringify({ text, filename: ("מחברת מסכמת: " + course).slice(0, 150), course, source: "upload", source_ref: ("course-notebook:" + course).slice(0, 300), mode: "course" }),
   });
   const j = await res.json().catch(() => ({}));
-  if (res.ok) return { ...j, count: rows.length };
+  if (res.ok) return { ...j, count };
   throw Object.assign(new Error((j.error === "limit" && j.limit === 0 ? NOT_CONNECTED : AI_ERR[j.error]) || `תקלה (${res.status})`), { code: j.error });
 }
 
@@ -238,6 +243,52 @@ export async function notifyEmail(body) {
 }
 // גרסת התוסף שמותקנת אצלי (התוסף מדווח בכל סנכרון; null = עוד לא דיווח, כלומר גרסה ישנה)
 export async function myExtVersion() { const { data, error } = await sb.rpc("my_ext_version"); if (error) throw error; return data?.[0]?.ext_version || null; }
+// ---------- מחברות בענן: כל שיעור נשמר כקובץ פרטי, ומופיע בכל מכשיר ----------
+const NB = "notebooks";
+export async function nbList() {
+  const out = [];
+  for (let off = 0; ; off += 1000) {
+    const { data, error } = await sb.storage.from(NB).list(user().id, { limit: 1000, offset: off });
+    if (error) throw error;
+    out.push(...(data || []).filter((f) => f.name.endsWith(".json")));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+export async function nbPut(lesson) {
+  const { error } = await sb.storage.from(NB).upload(`${user().id}/${encodeURIComponent(lesson.id)}.json`, new Blob([JSON.stringify(lesson)], { type: "application/json" }), { upsert: true, contentType: "application/json", cacheControl: "0" });
+  if (error) throw error;
+}
+export async function nbGet(name) {
+  const { data, error } = await sb.storage.from(NB).download(`${user().id}/${name}`);
+  if (error) throw error;
+  return JSON.parse(await data.text());
+}
+export async function nbDel(id) { if (user()) await sb.storage.from(NB).remove([`${user().id}/${encodeURIComponent(id)}.json`]); }
+
+// ---------- תמונת פרופיל ----------
+export async function setAvatar(blob) {
+  const path = `${user().id}/avatar-${Date.now()}.jpg`;
+  const { error } = await sb.storage.from("avatars").upload(path, blob, { contentType: "image/jpeg", upsert: true });
+  if (error) throw error;
+  const url = sb.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+  ok(await sb.from("profiles").update({ avatar_url: url }).eq("id", user().id));
+  // התמונות הקודמות נמחקות
+  const { data } = await sb.storage.from("avatars").list(user().id);
+  const old = (data || []).map((f) => `${user().id}/${f.name}`).filter((p) => p !== path);
+  if (old.length) await sb.storage.from("avatars").remove(old);
+  await loadMe();
+  return url;
+}
+export async function removeAvatar() {
+  ok(await sb.from("profiles").update({ avatar_url: null }).eq("id", user().id));
+  const { data } = await sb.storage.from("avatars").list(user().id);
+  if (data?.length) await sb.storage.from("avatars").remove(data.map((f) => `${user().id}/${f.name}`));
+  await loadMe();
+}
+// "אנשים שאולי תכירו": אותו מוסד + קורס משותף, אחר כך אותו מוסד, אחר כך קורס משותף, ואז כולם
+export async function suggestPeople(limit = 30) { const { data, error } = await sb.rpc("suggest_people", { p_limit: limit }); if (error) throw error; return data || []; }
+
 export async function amAdmin() { const { data } = await sb.rpc("am_admin"); return !!data; }
 export async function markRead(other) { ok(await sb.from("messages").update({ read_at: new Date().toISOString() }).eq("recipient", user().id).eq("sender", other).is("read_at", null)); }
 export async function chatAccepts() { return ok(await sb.from("chat_accepts").select("other")); }

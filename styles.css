@@ -642,3 +642,5 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
   #printRoot .md-body h2 { font-size: 16px; break-after: avoid; }
   #printRoot .md-body table { break-inside: avoid; font-size: 12px; }
 }
+
+.av-img { object-fit: cover; background: var(--grid); padding: 0; }

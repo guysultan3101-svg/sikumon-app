@@ -21,7 +21,8 @@ export function initSocial(ctx) {
   const meId = () => api.user()?.id;
   const nameOf = (id) => people.get(id)?.full_name || "משתמש/ת";
   const unameOf = (id) => people.get(id)?.username || "";
-  const avatar = (id, big = false) => `<span class="av${big ? " big" : ""}" style="background:${color(id)}" aria-hidden="true">${esc((people.get(id)?.full_name || "?")[0])}</span>`;
+  const AV_OK = /^https:\/\/islplhnlvaukixaglxof\.supabase\.co\/storage\/v1\/object\/public\/avatars\//;
+  const avatar = (id, big = false) => { const u = people.get(id)?.avatar_url; return u && AV_OK.test(u) ? `<img class="av av-img${big ? " big" : ""}" src="${esc(u)}" alt="" loading="lazy">` : `<span class="av${big ? " big" : ""}" style="background:${color(id)}" aria-hidden="true">${esc((people.get(id)?.full_name || "?")[0])}</span>`; };
   const when = (t) => new Date(t).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
   const myCourses = () => prefs.get()?.courses || api.profile()?.courses || [];
   const safeLink = (url, host) => { try { const u = new URL(url); return u.protocol === "https:" && (u.hostname === host || u.hostname.endsWith("." + host)) ? u.href : ""; } catch { return ""; } };
@@ -127,6 +128,49 @@ export function initSocial(ctx) {
     try { await api.updateMe({ learn, courses: (p.courses || []).slice(0, 40) }); } catch { /* ננסה בפעם הבאה */ }
   }
 
+  // ---------- גיבוי לשרת של סיכומים שנמצאים רק במכשיר ----------
+  // HTML של סיכום ← Markdown (השרת שומר Markdown, והאפליקציה מציגה אותו בכל מכשיר)
+  function summaryHtmlToMd(html) {
+    const d = document.createElement("div"); d.innerHTML = html || "";
+    const inline = (n) => [...n.childNodes].map((c) => c.nodeType === 3 ? c.textContent
+      : ["B", "STRONG"].includes(c.nodeName) ? `**${inline(c).trim()}**` : ["I", "EM"].includes(c.nodeName) ? `*${inline(c).trim()}*`
+      : c.nodeName === "BR" ? "\n" : c.nodeName === "CODE" ? "`" + c.textContent + "`" : c.nodeType === 1 ? inline(c) : "").join("");
+    const out = [];
+    const walk = (n) => {
+      for (const c of n.children) {
+        const t = c.nodeName;
+        if (/^H[1-6]$/.test(t)) out.push("#".repeat(Math.min(+t[1], 4)) + " " + inline(c).trim());
+        else if (t === "P") out.push(inline(c).trim());
+        else if (t === "UL" || t === "OL") out.push([...c.children].map((li, i) => (t === "OL" ? `${i + 1}. ` : "- ") + inline(li).replace(/\s*\n\s*/g, " ").trim()).join("\n"));
+        else if (t === "TABLE") {
+          const rows = [...c.querySelectorAll("tr")].map((tr) => [...tr.children].map((td) => inline(td).replace(/\s+/g, " ").trim().replace(/\|/g, "\\|")));
+          if (rows.length) out.push([`| ${rows[0].join(" | ")} |`, `|${" --- |".repeat(rows[0].length)}`, ...rows.slice(1).map((r) => `| ${r.join(" | ")} |`)].join("\n"));
+        } else if (t === "BLOCKQUOTE") out.push("> " + inline(c).trim());
+        else if (t === "HR") out.push("---");
+        else if (c.children.length) walk(c);
+        else { const x = inline(c).trim(); if (x) out.push(x); }
+      }
+    };
+    walk(d);
+    return out.filter(Boolean).join("\n\n");
+  }
+  const normT = (t) => String(t || "").replace(/[\s"'״׳–-]+/g, " ").trim().toLowerCase();
+  async function backupLocal(local, rows, mine) {
+    const refs = new Set(rows.map((r) => r.source_ref).filter(Boolean));
+    const titles = new Set(rows.filter((r) => r.owner === mine).map((r) => normT(r.title)));
+    const quizzes = local.filter((x) => x.type === "quiz");
+    let n = 0;
+    for (const s of local) {
+      if (s.type !== "summary" || s.id.startsWith("srv-") || s.from || s.demo || s.id.startsWith("demo")) continue;
+      if (refs.has("local:" + s.id) || titles.has(normT(s.title))) continue;   // כבר בשרת
+      const md = summaryHtmlToMd(s.html); if (!md) continue;
+      const q = (quizzes.find((x) => x.summaryId === s.id)?.questions || []).filter((x) => x?.q && Array.isArray(x.options));
+      await api.backupSummary({ ref: ("local:" + s.id).slice(0, 256), course: s.course || "כללי", title: s.title || "סיכום", md: md.slice(0, 300000), date: /^\d{4}-\d{2}-\d{2}/.test(s.date || "") ? s.date.slice(0, 10) : null, quiz: q });
+      n++;
+    }
+    return n;
+  }
+
   // ---------- סנכרון: סיכומים מהשרת -> הספרייה במכשיר ----------
   async function syncSummaries() {
     if (!api.user()) return 0;
@@ -142,13 +186,15 @@ export function initSocial(ctx) {
       if (!local.some((x) => x.id === id)) fresh++;
       // סיכום של הקלטה (source_ref "rec:<id>"): תאריך השיעור = תאריך ההקלטה, כדי לחשב את מספר השיעור
       const rec = r.source_ref?.startsWith("rec:") ? await store.getRecording(r.source_ref.slice(4)).catch(() => null) : null;
-      await store.putItem({ id, type: "summary", course: r.course || "כללי", title: r.title, date: r.created_at.slice(0, 10), html: mdToHtml(r.md), from, server: true,
+      await store.putItem({ id, type: "summary", course: r.course || "כללי", title: r.title, date: r.created_at.slice(0, 10), html: mdToHtml(r.md), from, server: true, ref: r.source_ref || null,
         source: r.source_ref?.startsWith("rec:") ? "recording" : r.source, lessonDate: rec?.startedAt?.slice(0, 10) || (r.source_ref?.startsWith("rec:") ? r.created_at.slice(0, 10) : null) });
       if (Array.isArray(r.quiz) && r.quiz.length) {
         const qid = "srvq-" + r.id; keep.add(qid);
         await store.putItem({ id: qid, type: "quiz", summaryId: id, course: r.course || "כללי", title: r.title, questions: r.quiz.filter((q) => q?.q && Array.isArray(q.options)), from });
       }
     }
+    // סיכומים שנמצאים רק במכשיר (למשל מיובאים מ-Drive) נשמרים גם בשרת: לא הולכים לאיבוד ומופיעים בכל מכשיר
+    try { await backupLocal(local, rows, mine); } catch { /* ננסה בסנכרון הבא */ }
     // מה שנמחק בשרת (או ששיתוף בוטל) – יורד גם מהמכשיר
     for (const x of local) if ((x.id.startsWith("srv-") || x.id.startsWith("srvq-")) && !keep.has(x.id)) await store.deleteItem(x.id);
     return fresh;
@@ -396,6 +442,7 @@ export function initSocial(ctx) {
           <p class="small muted">החבר/ה צריך/ה לאשר. השם שלך: <b dir="ltr">@${esc(api.profile()?.username || "")}</b></p>
           <div class="row" style="gap:10px;flex-wrap:wrap"><button class="btn" type="button" id="frShare">📨 הזמינו חברים ל-Clearly</button><span class="small muted">שולחים קישור אישי (בוואטסאפ או בהודעה). מי שנרשם דרכו שולח לך בקשת חברות, ואת/ה מאשר/ת.</span></div>
         </section>
+        <section class="soft" id="frSuggest" style="display:grid;gap:8px"><p class="small muted" style="margin:0">טוען הצעות לחברים…</p></section>
         ${g.incoming.length ? `<section style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">בקשות חדשות (${g.incoming.length})</h2>${g.incoming.map((f) => row(f.requester, `<button class="btn" data-ok="${f.id}" data-who="${f.requester}" type="button">אישור</button><button class="btn ghost" data-no="${f.id}" type="button">לא עכשיו</button>`)).join("")}</section>` : ""}
         ${g.outgoing.length ? `<section style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">ממתינים לאישור</h2>${g.outgoing.map((f) => row(f.addressee, `<button class="btn ghost" data-no="${f.id}" type="button">ביטול</button>`)).join("")}</section>` : ""}
         <section style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">החברים שלי (${g.friends.length})</h2>${g.friends.map((f) => { const id = g.other(f); return row(id, `<button class="btn ghost" data-share="${id}" type="button" aria-label="אותה כיתה">🎓</button><a class="btn ghost" href="#dm-${esc(unameOf(id))}" aria-label="הודעה">💬</a>`, shareSub(id)); }).join("") || '<p class="muted small">עוד אין חברים. הוסיפו לפי שם משתמש 👆</p>'}</section></div>`;
@@ -411,6 +458,19 @@ export function initSocial(ctx) {
           toast(`הבקשה נשלחה ל${p.full_name}`); api.track("friend_request"); friends();
         } catch (err) { toast(err.message); }
       };
+      // אנשים שאולי תכירו: אותו מוסד + קורס משותף קודם, אחר כך אותו מוסד, אחר כך קורס משותף, ואז כולם
+      api.suggestPeople(30).then((list) => {
+        const box = $("#frSuggest"); if (!box) return;
+        if (!list.length) { box.remove(); return; }
+        list.forEach((p) => people.set(p.id, { ...p, ...(people.get(p.id) || {}), avatar_url: p.avatar_url }));
+        const why = (p) => p.same_uni && p.shared ? `${esc(p.uni)} · ${p.shared} ${p.shared === 1 ? "קורס משותף" : "קורסים משותפים"}` : p.same_uni ? esc(p.uni) : p.shared ? `${p.shared} ${p.shared === 1 ? "קורס משותף" : "קורסים משותפים"}` : esc(p.uni || "");
+        box.innerHTML = `<h2 style="font-size:18px;margin:0">👋 אנשים שאולי תכירו</h2>${list.map((p) => `<div class="item">${avatar(p.id)}<a href="#u-${esc(p.username)}" style="flex:1;min-width:0;color:inherit;text-decoration:none"><span class="t">${esc(p.full_name)}</span><br><span class="small muted">${why(p)}</span></a><button class="btn small-btn" type="button" data-sug="${esc(p.id)}" aria-label="שליחת בקשת חברות ל${esc(p.full_name)}">+ הוספה</button></div>`).join("")}`;
+        box.querySelectorAll("[data-sug]").forEach((b) => (b.onclick = async () => {
+          b.disabled = true;
+          try { await api.requestFriend(b.dataset.sug); b.textContent = "✓ נשלחה בקשה"; toast("נשלחה בקשת חברות"); }
+          catch (e) { b.disabled = false; toast(e.message); }
+        }));
+      }).catch(() => $("#frSuggest")?.remove());
       $("#frShare").onclick = () => {
         // קישור אישי: מי שנרשם דרכו שולח בקשת חברות אליך (מאושרת על ידך), בלי לקרוא אנשי קשר
         const url = `${location.origin}${location.pathname}?app=1&ref=${encodeURIComponent(api.profile()?.username || "")}`;
@@ -570,8 +630,10 @@ export function initSocial(ctx) {
     const g = await graph();
     const tabs = [["posts", "📝 שפרסמתי"], ["liked", "❤️ אהבתי"], ["saved", "🔖 שמורים"]];
     return `<section class="card prof"><div class="row" style="gap:16px">${avatar(me.id, true)}<span style="min-width:0;flex:1"><h1 style="font-size:28px">${esc(me.full_name)}</h1><span class="muted" dir="ltr">@${esc(me.username)}</span><br><span class="small muted">${esc(me.uni)}${me.degree ? " · " + esc(me.degree) : ""}</span></span></div>
+      ${me.avatar_url ? "" : '<p class="notice" style="margin:0">📷 מוסיפים תמונת פרופיל, וחברים מהכיתה מזהים אתכם מיד.</p>'}
       ${me.bio ? `<p>${esc(me.bio)}</p>` : '<p class="muted">עוד לא כתבת משהו על עצמך</p>'}
       <div class="row">${ig ? `<a class="btn ghost" href="${esc(ig)}" target="_blank" rel="noopener noreferrer">📸 Instagram</a>` : ""}${li ? `<a class="btn ghost" href="${esc(li)}" target="_blank" rel="noopener noreferrer">💼 LinkedIn</a>` : ""}
+        <label class="btn ghost">📷 ${me.avatar_url ? "החלפת תמונה" : "הוספת תמונת פרופיל"}<input type="file" id="meAvatar" accept="image/*" hidden></label>${me.avatar_url ? '<button class="btn ghost" type="button" id="meAvatarDel">הסרת התמונה</button>' : ""}
         <button class="btn" type="button" id="meEdit">עריכת פרופיל</button><a class="btn ghost" href="#settings">⚙️ הגדרות</a></div>
       <p class="small muted">👥 ${g.friends.length} חברים · <a href="#social-friends">לרשימה</a></p></section>
       <nav class="snav" aria-label="התוכן שלי">${tabs.map(([k, l]) => `<a href="#profile${k === "posts" ? "" : "-" + k}" ${tab === k ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</nav>
@@ -580,6 +642,26 @@ export function initSocial(ctx) {
   }
   async function bindMyProfile(tab = "posts") {
     if ($("#meEdit")) $("#meEdit").onclick = editMe;
+    // תמונת פרופיל: חיתוך ריבועי מהמרכז, 320 פיקסלים, JPEG (קטן ומהיר)
+    if ($("#meAvatar")) $("#meAvatar").onchange = async (e) => {
+      const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
+      try {
+        toast("מעלה את התמונה…");
+        const url = URL.createObjectURL(f);
+        const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+        const side = Math.min(im.width, im.height), cv = document.createElement("canvas"); cv.width = cv.height = 320;
+        cv.getContext("2d").drawImage(im, (im.width - side) / 2, (im.height - side) / 2, side, side, 0, 0, 320, 320);
+        URL.revokeObjectURL(url);
+        const blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", 0.85));
+        await api.setAvatar(blob);
+        people.set(meId(), api.profile());
+        toast("✓ תמונת הפרופיל עודכנה"); dispatchEvent(new HashChangeEvent("hashchange"));
+      } catch (err) { toast("לא הצלחתי להעלות את התמונה: " + (err.message || "")); }
+    };
+    if ($("#meAvatarDel")) $("#meAvatarDel").onclick = async () => {
+      if (!confirm("להסיר את תמונת הפרופיל?")) return;
+      try { await api.removeAvatar(); people.set(meId(), api.profile()); dispatchEvent(new HashChangeEvent("hashchange")); } catch (err) { toast(err.message); }
+    };
     const el = $("#meFeed"); if (!el) return;
     try {
       const me = meId();
@@ -619,5 +701,5 @@ export function initSocial(ctx) {
   // העלאת קובץ -> סיכום אישי, ומיד מכניסים אותו לספרייה במכשיר
   async function upload(file, course) { const r = await api.summarizeFile(file, course); await syncSummaries(); return r; }
 
-  return { newPasswordModal, upload, feed, friends, missed, signup, messages, dm, myProfile, bindMyProfile, editMe, counts, syncSummaries, syncNotifications, pushPrefs, restorePrefs, shareFrom, profile: profileView };
+  return { summaryHtmlToMd, newPasswordModal, upload, feed, friends, missed, signup, messages, dm, myProfile, bindMyProfile, editMe, counts, syncSummaries, syncNotifications, pushPrefs, restorePrefs, shareFrom, profile: profileView };
 }

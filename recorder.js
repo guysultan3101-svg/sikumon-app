@@ -50,6 +50,7 @@ export const store = {
   listRecordings: () => tx("recordings", "readonly", (s) => s.getAll()),
   addChunk: (chunk) => tx("chunks", "readwrite", (s) => s.add(chunk)),
   saveLesson: (l) => tx("lessons", "readwrite", (s) => s.put({ ...l, updatedAt: new Date().toISOString() })),
+  putLessonRaw: (l) => tx("lessons", "readwrite", (s) => s.put(l)),   // שמירה בלי לשנות את זמן העדכון (לסנכרון)
   getLesson: (id) => tx("lessons", "readonly", (s) => s.get(id)),
   listLessons: () => tx("lessons", "readonly", (s) => s.getAll()),
   deleteLesson: (id) => tx("lessons", "readwrite", (s) => s.delete(id)),

@@ -147,6 +147,32 @@ export function initPlanner(ctx) {
     </div>`;
   }
 
+  // ---------- 🧩 תוספים לשיעורים: דפי עבודה, תרגילים, פתרונות, סילבוס ודפי נוסחאות – לפי קורס ----------
+  async function lessonExtras() {
+    const map = (await store.getItem("course-materials"))?.map || {};
+    const formulas = (await store.listItems()).filter((x) => x.type === "summary" && x.kind === "formulas" && !x.from);
+    const open = (it) => it.type === "resource" ? it.url + (it.url.includes("?") ? "&" : "?") + "redirect=1" : it.url;
+    const keep = ["exercises", "solutions", "formulas", "syllabus", "exams", "other"];
+    const courses = [...new Set([...Object.keys(map), ...formulas.map((f) => f.course)])].sort((a, b) => a.localeCompare(b, "he"));
+    const blocks = courses.map((course) => {
+      const items = (map[course]?.items || []).filter((it) => !(map[course]?.zoom && it.url === map[course].zoom));
+      const groups = CATS.filter((c) => keep.includes(c.id)).map((c) => ({ ...c, items: items.filter((it) => catOf(it) === c.id) })).filter((g) => g.items.length);
+      const mine = formulas.filter((f) => f.course === course);
+      const n = groups.reduce((a, g) => a + g.items.length, 0) + mine.length;
+      if (!n) return "";
+      return `<details class="mat-group"><summary><b>${esc(course)}</b> <span class="muted">(${n})</span></summary>
+        ${mine.length ? `<p class="small" style="margin:8px 0 4px"><b>🧮 דפי הנוסחאות שלי</b></p><div class="list">${mine.map((f) => `<a class="item" href="#sum-${esc(f.id)}"><span class="t">📐 ${esc(f.title)}</span></a>`).join("")}</div>` : ""}
+        ${groups.map((g) => `<p class="small" style="margin:10px 0 4px"><b>${g.icon} ${g.title}</b> <span class="muted">(${g.items.length})</span></p><div class="list">${g.items.map((it) => `<a class="item" href="${esc(open(it))}" target="_blank" rel="noopener"><span class="t">${ICON[it.type] || "•"} ${esc(it.name)}</span></a>`).join("")}</div>`).join("")}
+      </details>`;
+    }).filter(Boolean);
+    view.innerHTML = `<div class="page" style="max-width:820px">
+      <h1 style="font-size:30px">🧩 תוספים לשיעורים</h1>
+      <p class="muted" style="margin-top:-6px">דפי עבודה, תרגילים, פתרונות, סילבוס, ודפי נוסחאות- והכל מהמודל.</p>
+      ${blocks.length ? blocks.join("") : '<section class="soft"><p class="muted" style="margin:0">החומרים יגיעו לכאן מהמודל בבדיקה הבאה של המחבר בכרום (צריך לחבר את המודל פעם אחת).</p></section>'}
+      <p class="small muted">הקבצים נפתחים במודל. הסיכומים של השיעורים נמצאים ב<a href="#summaries">סיכומים</a>.</p>
+    </div>`;
+  }
+
   // ---------- תיבת הודעות ----------
   async function inboxStore() { return (await store.getItem("inbox")) || { id: "inbox", type: "inbox", items: [], seenSummaries: null, seenMoodle: null }; }
   // מחשב הודעות חדשות ומוסיף לתיבה (כל הודעה פעם אחת)
@@ -246,5 +272,5 @@ export function initPlanner(ctx) {
     view.innerHTML = m ? `<div class="page"><a href="#inbox" class="small">→ הודעות</a><h1 style="font-size:28px">${m.icon || "☀️"} ${esc(m.title)}</h1><p class="small muted"><bdi>${esc(m.date || "")}</bdi></p><article class="card md-body">${miniMd(m.md || "")}</article></div>` : '<div class="page"><p>ההודעה לא נמצאה.</p><a href="#inbox">להודעות</a></div>';
   }
 
-  return { message, calendar, materials, inbox, weekly, refresh, paintBadge, inboxStore, eventsBetween };
+  return { lessonExtras, message, calendar, materials, inbox, weekly, refresh, paintBadge, inboxStore, eventsBetween };
 }

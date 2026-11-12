@@ -160,12 +160,17 @@ export function initStudy(ctx) {
 
   // ---------- סיכומים ----------
   async function summaries() {
-    const items = (await lib("summary")).sort((a, b) => (a.kind === "formulas") - (b.kind === "formulas") || isNb(b) - isNb(a) || b.date.localeCompare(a.date));
+    // סיכום שקיים גם במכשיר וגם בשרת (גיבוי, או אותה כותרת): מוצג פעם אחת – העותק במכשיר, שקשור לפודקאסט ולמבחן
+    const all = (await lib("summary")).filter((x) => x.kind !== "formulas"), localIds = new Set(all.map((x) => x.id));   // דפי נוסחאות: בדף "תוספים לשיעורים"
+    const normT = (t) => String(t || "").replace(/[\s"'״׳–-]+/g, " ").trim().toLowerCase();
+    const localTitles = new Set(all.filter((x) => !x.server && !x.from).map((x) => normT(x.title)));
+    const items = all.filter((x) => !(x.ref?.startsWith("local:") && localIds.has(x.ref.slice(6))) && !(x.server && !x.from && !isNb(x) && localTitles.has(normT(x.title)))).sort((a, b) => (a.kind === "formulas") - (b.kind === "formulas") || isNb(b) - isNb(a) || b.date.localeCompare(a.date));
     const groups = byCourse(items);
     view.innerHTML = `<div class="page">
       <h1 style="font-size:32px">הסיכומים שלי</h1>
+      <a class="notice" href="#extras" style="display:block;text-decoration:none;color:inherit">🧩 <b>תוספים לשיעורים</b>: דפי עבודה, תרגילים, פתרונות, סילבוס ודפי נוסחאות, מהמודל ←</a>
       ${pairCard()}
-      ${groups.map(([course, list], gi) => `<section class="soft"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h2 style="font-size:20px">${esc(course)}</h2>${list.filter((x) => !isNb(x) && x.kind !== "formulas" && x.server && !x.from).length >= 2 ? `<button class="btn ghost small-btn nb-btn" data-g="${gi}" type="button">${list.some(isNb) ? "🔄 עדכון המחברת המסכמת" : "📓 מחברת מסכמת"}</button>` : ""}</div>${levelPicker(course)}<div class="list" style="margin-top:10px">${list.map((s) =>
+      ${groups.map(([course, list], gi) => `<section class="soft"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h2 style="font-size:20px">${esc(course)}</h2>${list.some((x) => !isNb(x) && x.kind !== "formulas" && !x.from && !x.demo) ? `<button class="btn ghost small-btn nb-btn" data-g="${gi}" type="button">${list.some((x) => isNb(x) && !x.from) ? "🔄 עדכון המחברת המסכמת" : "📓 מחברת מסכמת"}</button>` : ""}</div>${levelPicker(course)}<div class="list" style="margin-top:10px">${list.map((s) =>
         `<a class="item" href="#sum-${esc(s.id)}"><span style="min-width:0"><span class="t">${escT(s.title)}</span><br><span class="small muted">${s.from ? "🎓 מ" + esc(s.from) + " · " : ""}${s.kind === "formulas" ? "דף נוסחאות · " : srcIcon(s)}<bdi>${esc(when(s))}</bdi></span></span>${s.kind === "formulas" ? '<span class="chip">📐 נוסחאות</span>' : ""}</a>`).join("")}</div></section>`).join("")}
       ${items.length ? "" : `<section class="soft"><h2 style="font-size:20px;margin:0">עוד אין סיכומים</h2><p class="small muted">העלו מצגת או PDF של שיעור, או חברו את המודל – והסיכומים יגיעו לכאן, מותאמים לאיך שאת/ה לומד/ת.</p><div class="row" style="margin-top:8px"><a class="btn" href="#upload">📄 העלאת מצגת</a><a class="btn ghost" href="#connect">🔗 חיבור למודל</a></div></section>`}
 
@@ -179,7 +184,11 @@ export function initStudy(ctx) {
       if (!ctx.api) return;
       b.disabled = true; const old = b.textContent; b.textContent = "בונה מחברת… (עד דקה)";
       try {
-        const r = await ctx.api.courseNotebook(course);
+        // הטקסט של כל הסיכומים שלי בקורס (מהישן לחדש), בלי דפי נוסחאות ובלי מחברת קודמת
+        const mine = groups[+b.dataset.g][1].filter((x) => !isNb(x) && x.kind !== "formulas" && !x.from && !x.demo).sort((x, y) => String(x.date).localeCompare(String(y.date)));
+        const toText = (html) => { const d = document.createElement("div"); d.innerHTML = html || ""; d.querySelectorAll("h1,h2,h3,h4,p,li,tr,br").forEach((n) => n.append("\n")); return d.textContent.replace(/\n{3,}/g, "\n\n").trim(); };
+        const text = mine.map((x) => `## ${x.title}\n${ctx.htmlToMd ? ctx.htmlToMd(x.html) : toText(x.html)}`).join("\n\n");   // Markdown: טבלאות ורשימות נשמרות
+        const r = await ctx.api.courseNotebook(course, text, Math.max(mine.length, 2));
         await ctx.syncSummaries?.();
         toast(`📓 המחברת המסכמת של ${course} מוכנה (מ-${r.count} סיכומים)`);
         summaries();
