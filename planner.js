@@ -96,12 +96,42 @@ export function initPlanner(ctx) {
   }
 
   // ---------- חומרים לשיעור (לכל קורס) ----------
+  // חלוקת חומרי הקורס לקבוצות לפי שם הקובץ: רק השיעורים מסוכמים; כל השאר (תרגילים, פתרונות, סילבוס, נוסחאות...) נשארים כאן, ישר מהמודל
+  const CATS = [
+    { id: "lessons", icon: "🎓", title: "שיעורים והרצאות", note: "הסיכומים שלהם בלשונית סיכומים", open: true },
+    { id: "exercises", icon: "✍️", title: "תרגילים ודפי עבודה", open: true },
+    { id: "solutions", icon: "✅", title: "פתרונות", open: true },
+    { id: "formulas", icon: "🧮", title: "דפי נוסחאות ועזר", open: true },
+    { id: "syllabus", icon: "📋", title: "סילבוס והנחיות", open: true },
+    { id: "exams", icon: "📝", title: "מבחנים ובחנים (גם משנים קודמות)", open: false },
+    { id: "tasks", icon: "📤", title: "מטלות ובחנים במודל", open: false },
+    { id: "other", icon: "📎", title: "קבצים נוספים וקישורים", open: false },
+  ];
+  const re = {
+    solutions: /פתרון|פתרונות|תשובות|solutions?|answers?/i,
+    exams: /בחינה|מבחן|מועד [אבג]|\bexam|בוחן|quiz|midterm|שנים קודמות|שנה שעברה/i,
+    formulas: /נוסחאות|formulas?|דף עזר|חומר עזר|טבלת|טבלה|פוטנציאלי|cheat|מחשבון/i,
+    syllabus: /סילבוס|syllabus|לוח זמנים|הנחיות|instructions|outline|תכנית הקורס|מערכת הקורס/i,
+    exercises: /תרגיל|דף עבודה|דפי עבודה|worksheet|homework|exercise|שיעורי בית|assignment sheet/i,
+    lessons: /הרצאה|שיעור|מצגת|תרגול|lecture|slides?|presentation|\btopic ?\d|נושא ?\d|\bCB\d|\bIC\.|\bL\d|פרק|שבוע|week|רישומים/i,
+  };
+  const catOf = (it) => {
+    if (it.type === "assign" || it.type === "quiz") return "tasks";
+    if (["url", "lti", "zoom", "page", "book", "forum"].includes(it.type)) return "other";
+    const n = it.name || "";
+    // שם שמתחיל ב"הרצאה/שיעור" הוא שיעור, גם אם מופיעה בו מילה כמו "הנחיות" או "מבחן" (חוץ מפתרון/תרגיל)
+    if (/^s*(הרצאה|שיעור|lecture)(?![א-תa-z])/i.test(n) && !re.solutions.test(n) && !re.exercises.test(n)) return "lessons";
+    for (const k of ["solutions", "formulas", "syllabus", "exams", "exercises"]) if (re[k].test(n)) return k;
+    if (/example|sample|דוגמ|data ?set|.xlsx|.csv|.bas/i.test(n)) return "other";
+    return "lessons";   // כמו בתוסף: כל מה שלא תרגיל/פתרון/סילבוס/נוסחאות/בחינה נחשב חומר שיעור (ואותו מסכמים)
+  };
   const ICON = { resource: "📄", folder: "📁", url: "🔗", assign: "📝", quiz: "✅", forum: "💬", lti: "🎥", zoom: "🎥", page: "📃", book: "📘" };
   async function materials(course) {
     const m = ((await store.getItem("course-materials"))?.map || {})[course] || null;
     const slots = (prefs.get().timetable || []).filter((x) => x.course === course).sort((a, b) => a.day - b.day || a.start.localeCompare(b.start));
     const open = (it) => it.type === "resource" ? it.url + (it.url.includes("?") ? "&" : "?") + "redirect=1" : it.url;
     const items = (m?.items || []).filter((it) => !(m.zoom && it.url === m.zoom));
+    const groups = CATS.map((c) => ({ ...c, items: items.filter((it) => catOf(it) === c.id) })).filter((g) => g.items.length);
     view.innerHTML = `<div class="page" style="max-width:760px">
       <h1 style="font-size:28px">📚 חומרים לשיעור</h1>
       <p class="muted" style="margin-top:-6px">${esc(course)}</p>
@@ -109,9 +139,9 @@ export function initPlanner(ctx) {
       ${slots.length ? `<section class="soft" style="display:grid;gap:6px"><h2 style="font-size:18px;margin:0">🕘 מתי ואיפה</h2>
         ${slots.map((x) => `<p style="margin:0">יום ${DAYS[x.day]} · <bdi>${x.start}–${x.end}</bdi>${x.place ? ` · 📍 <b>${esc(x.place)}</b>` : ""}${x.lecturer ? ` · 👤 ${esc(x.lecturer)}` : ""}</p>`).join("")}</section>` : ""}
       <section class="soft" style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">📂 החומרים מהמודל</h2>
-        ${items.length ? `<div class="list">${items.map((it) => `<a class="item" href="${esc(open(it))}" target="_blank" rel="noopener"><span class="t">${ICON[it.type] || "•"} ${esc(it.name)}</span></a>`).join("")}</div>`
+        ${items.length ? groups.map((g) => `<details class="mat-group" ${g.open ? "open" : ""}><summary><b>${g.icon} ${g.title}</b> <span class="muted">(${g.items.length})</span></summary>${g.note ? `<p class="small muted" style="margin:4px 0">${g.note}: <a href="#summaries">סיכומים</a></p>` : ""}<div class="list">${g.items.map((it) => `<a class="item" href="${esc(open(it))}" target="_blank" rel="noopener"><span class="t">${ICON[it.type] || "•"} ${esc(it.name)}</span></a>`).join("")}</div></details>`).join("")
           : '<p class="muted">החומרים של הקורס יגיעו לכאן מהמודל בבדיקה הבאה של המחבר בכרום (צריך שהמחשב יהיה דלוק פעם אחת).</p>'}
-        <p class="small muted">הקבצים נפתחים במודל. הסיכומים שלהם נמצאים ב<a href="#summaries">סיכומים</a>.</p></section>
+        <p class="small muted">הקבצים נפתחים במודל. רק חומר השיעור מסוכם: הסיכומים נמצאים ב<a href="#summaries">סיכומים</a>, והשאר (תרגילים, פתרונות, סילבוס ונוסחאות) נשאר כאן.</p></section>
     </div>`;
   }
 

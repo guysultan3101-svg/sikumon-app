@@ -421,7 +421,7 @@ async function courseZoomAndItems(base, sesskey, courseId) {
       } catch { /* נשאר הקישור למודל */ }
     }
   }
-  return { zoom: zoom.slice(0, 1000), items: items.slice(0, 120) };
+  return { zoom: zoom.slice(0, 1000), items: items.slice(0, 300) };
 }
 async function syncCourseMaterials(a, base, sesskey, courses) {
   for (const c of courses) {

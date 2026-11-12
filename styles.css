@@ -614,3 +614,7 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 .as-files:empty { display: none; }
 .as-how ol { margin: 6px 0 0; padding-inline-start: 20px; display: grid; gap: 4px; }
 .tt-row .tt-place, .tt-row .tt-lect { flex: 1; min-width: 140px; }
+
+.mat-group { border: 1.5px solid var(--line); border-radius: 12px; padding: 8px 12px; background: var(--paper); }
+.mat-group > summary { cursor: pointer; padding: 6px 0; font-size: 16px; }
+.mat-group[open] > summary { margin-bottom: 6px; }
