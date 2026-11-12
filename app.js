@@ -2,7 +2,7 @@
 import { LessonRecorder, store, segmentsOf, support, recoverOrphans } from "./recorder.js";
 import { quizzesLeft } from "./limits.js";
 import { demoSummary, demoQuiz, onboardingQuestions } from "./demo-data.js";
-import { InkEditor, COLORS, MARKER_COLORS, pdfToPages, makeThumb } from "./notes.js";
+import { InkEditor, COLORS, MARKER_COLORS, pdfToPages, makeThumb, fileToText } from "./notes.js";
 import { initStudy } from "./study.js";
 import { initExtras } from "./extras.js";
 import { initPractice } from "./practice.js";
@@ -1787,7 +1787,32 @@ function uploadPage() {
       <p class="small" id="upState" aria-live="polite"></p>
     </section>
     <p class="small muted">🔒 הקובץ נשלח לסיכום ולא נשמר אצלנו – רק הסיכום נשמר בחשבון שלך. משתמשים רק בחומר שקיבלת כסטודנט/ית בקורס.</p>
+    <h2 style="font-size:24px;margin:18px 0 0">📝 העלאת סיכום שכתבתי בעצמי</h2>
+    <p class="muted" style="margin:0">סיכום שלך (וורד, PDF, מצגת או טקסט) נכנס לאזור הסיכומים כמו שהוא, בלי AI ובלי מכסה. נשמר בחשבון שלך ומופיע בכל מכשיר.</p>
+    <section class="card" style="display:grid;gap:12px">
+      <label>קורס<select id="myC">${courses.map((c) => `<option>${esc(c)}</option>`).join("")}</select></label>
+      <label>כותרת<input type="text" id="myT" maxlength="200" placeholder="למשל: סיכום שיעור 4 – עקומת התמורה"></label>
+      <label>הקובץ<input type="file" id="myF" accept=".pdf,.docx,.pptx,.txt,.md,application/pdf"></label>
+      <details><summary class="small">או מדביקים את הטקסט כאן</summary><textarea id="myText" rows="8" dir="auto" placeholder="הטקסט של הסיכום…"></textarea></details>
+      <button class="btn" type="button" id="myGo">📥 הוספה לסיכומים שלי</button>
+      <p class="small" id="myState" aria-live="polite"></p>
+    </section>
   </div>`;
+  $("#myGo").onclick = async () => {
+    const f = $("#myF").files[0], pasted = $("#myText").value.trim();
+    if (!f && !pasted) return toast("בחרו קובץ או הדביקו טקסט");
+    const title = $("#myT").value.trim() || (f ? f.name.replace(/\.[^.]+$/, "") : "הסיכום שלי");
+    $("#myGo").disabled = true; $("#myState").textContent = "⏳ שומר…";
+    try {
+      const md = (f ? await fileToText(f) : pasted).trim();
+      if (md.length < 20) throw new Error("לא מצאתי טקסט בקובץ. סיכום בכתב יד? אפשר להוסיף אותו כתמונה במחברת.");
+      const id = await api.backupSummary({ ref: "local:mine-" + Date.now(), course: $("#myC").value || "כללי", title, md: md.slice(0, 300000), date: new Date().toLocaleDateString("en-CA"), quiz: [] });
+      await social.syncSummaries();
+      api.track("upload_own_summary");
+      $("#myState").textContent = "✅ נוסף לסיכומים שלך";
+      location.hash = "#sum-srv-" + id;
+    } catch (e) { $("#myState").textContent = "❌ " + e.message; $("#myGo").disabled = false; }
+  };
   $("#upGo").onclick = async () => {
     const f = $("#upF").files[0]; if (!f) return toast("בחרו קובץ");
     $("#upGo").disabled = true; $("#upState").textContent = "⏳ קורא את הקובץ וכותב סיכום… (חצי דקה עד דקה)";
@@ -1838,6 +1863,7 @@ async function adminPage() {
     <h1 style="font-size:30px">🛠️ ניהול Early Access</h1>
     ${r.smtp ? `<p class="notice">📧 המיילים מוגדרים לצאת מ-<b dir="ltr">${esc(r.from || "")}</b> (תשובות מגיעות ל-clearlyappsupport@gmail.com). כדי לוודא שהם באמת יוצאים: <button class="link" type="button" id="adTest">שליחת מייל בדיקה אליי</button></p>` : '<p class="notice alert"><b>המיילים עוד לא מחוברים.</b> אפשר לאשר אנשים, אבל המייל "Clearly פתוח בשבילך" לא יישלח עד שמוסיפים בשרת את סיסמת האפליקציה של Gmail.</p>'}
     <p class="muted">${list.length} ממתינים. <b>"אישור"</b> פותח את Clearly לאדם אחד ושולח לו מייל. <b>"השקה"</b> פותח לכולם ושולח מייל לכולם.</p>
+    <section class="soft" style="display:grid;gap:8px" id="adClass"><h2 style="font-size:20px;margin:0">🎓 הכיתה שלי: לשתף את הסיכומים שלי</h2><p class="small muted" style="margin:0">מי שמסומן רואה את כל הסיכומים שלך (גם חדשים), בלי מכסת AI. מסומן בירוק: אריאל + כלכלה. בודקים ואז לוחצים.</p><p class="small muted">טוען…</p></section>
     <section class="soft" style="display:grid;gap:8px"><h2 style="font-size:20px;margin:0">🔄 עדכון לתוסף</h2><p class="small muted" style="margin:0">שולח לכל המשתמשים המאושרים מייל עם מה חדש בגרסה האחרונה (extension/latest.json), קישור להורדה והוראות, וסרטון ההדרכה. באפליקציה עצמה קופץ להם חלון עדכון לבד.</p>
       <div class="row"><button class="btn ghost" type="button" id="adExtTest">📧 מייל לדוגמה אליי</button><button class="btn" type="button" id="adExtAll">📧 שליחה לכל המשתמשים</button></div></section>
     <div class="row"><button class="btn" type="button" id="adLaunch" ${list.length ? "" : "disabled"}>🚀 השקה: לפתוח לכולם (${list.length}) ולשלוח מייל</button></div>
@@ -1856,6 +1882,23 @@ async function adminPage() {
     for (const p of good) { try { const x = await api.notifyEmail({ action: "approve", user_id: p.id }); ok++; if (x.mailed) mailed++; } catch (e) { toast(e.message); } }
     toast(`✓ אושרו ${ok}, נשלחו ${mailed} מיילים`); adminPage();
   });
+  // "הכיתה שלי": רשימת המאושרים, וכפתור לשיתוף/ביטול לכל אחד
+  const paintClass = async () => {
+    const box = $("#adClass"); if (!box) return;
+    try {
+      const list = await api.adminClassmates();
+      const econ = (p) => /אריאל/.test(p.uni || "") && /כלכל/.test(p.degree || "");
+      list.sort((a, b) => econ(b) - econ(a));
+      box.querySelector("p.small.muted:last-child")?.remove();
+      box.insertAdjacentHTML("beforeend", `<div class="list">${list.map((p) => `<div class="item"${econ(p) ? ' style="border-color:#16a34a"' : ""}><span style="min-width:0;flex:1"><span class="t">${esc(p.full_name)} <span class="small muted" dir="ltr">@${esc(p.username)}</span></span><br><span class="small muted">${esc(p.uni || "")}${p.degree ? " · " + esc(p.degree) : ""}${econ(p) ? " · ✅ כלכלה באריאל" : ""}</span></span><button class="btn small-btn ${p.shared ? "ghost" : ""}" type="button" data-cg="${esc(p.id)}" data-on="${p.shared ? "0" : "1"}">${p.shared ? "✓ משותף · ביטול" : "שיתוף הסיכומים שלי"}</button></div>`).join("")}</div>`);
+      box.querySelectorAll("[data-cg]").forEach((b) => (b.onclick = async () => {
+        b.disabled = true;
+        try { await api.adminSetClassGrant(b.dataset.cg, b.dataset.on === "1"); toast(b.dataset.on === "1" ? "✓ הסיכומים שלך משותפים" : "השיתוף בוטל"); box.querySelector(".list")?.remove(); paintClass(); }
+        catch (e) { toast(e.message); b.disabled = false; }
+      }));
+    } catch (e) { box.insertAdjacentHTML("beforeend", `<p class="notice alert">${esc(e.message)}</p>`); }
+  };
+  paintClass();
   $("#adExtTest").onclick = async () => {
     try { const x = await api.notifyEmail({ action: "ext_update", test: true }); toast(`✓ נשלח מייל לדוגמה (גרסה ${x.version}) ל-${x.to}`); } catch (e) { toast(e.message); }
   };
@@ -1965,7 +2008,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "80";
+const APP_VERSION = "81";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

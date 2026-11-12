@@ -289,6 +289,10 @@ export async function removeAvatar() {
 // "אנשים שאולי תכירו": אותו מוסד + קורס משותף, אחר כך אותו מוסד, אחר כך קורס משותף, ואז כולם
 export async function suggestPeople(limit = 30) { const { data, error } = await sb.rpc("suggest_people", { p_limit: limit }); if (error) throw error; return data || []; }
 
+// "הכיתה שלי" (מנהל בלבד): מי מאושר, ולמי פתוחים הסיכומים של המנהל
+export async function adminClassmates() { const { data, error } = await sb.rpc("admin_classmates"); if (error) throw error; return data || []; }
+export async function adminSetClassGrant(id, on) { const { error } = await sb.rpc("admin_set_class_grant", { p_viewer: id, p_on: on }); if (error) throw error; }
+
 export async function amAdmin() { const { data } = await sb.rpc("am_admin"); return !!data; }
 export async function markRead(other) { ok(await sb.from("messages").update({ read_at: new Date().toISOString() }).eq("recipient", user().id).eq("sender", other).is("read_at", null)); }
 export async function chatAccepts() { return ok(await sb.from("chat_accepts").select("other")); }

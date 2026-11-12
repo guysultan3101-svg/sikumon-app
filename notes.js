@@ -690,6 +690,49 @@ async function loadPdfJs() {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
   return window.pdfjsLib;
 }
+// ---------- טקסט מתוך קובץ: PDF, וורד, מצגת, טקסט/Markdown (לסיכום שהסטודנט/ית כתב/ה בעצמו/ה) ----------
+async function zipEntries(buf, want) {
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let e = buf.length - 22; while (e >= 0 && dv.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error("הקובץ לא נקרא");
+  const n = dv.getUint16(e + 10, true); let p = dv.getUint32(e + 16, true); const out = {};
+  for (let i = 0; i < n && dv.getUint32(p, true) === 0x02014b50; i++) {
+    const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true), nl = dv.getUint16(p + 28, true), el = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+    const name = new TextDecoder().decode(buf.subarray(p + 46, p + 46 + nl)); p += 46 + nl + el + cl;
+    if (!want(name)) continue;
+    const st = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true), data = buf.subarray(st, st + csize);
+    out[name] = method === 0 ? new TextDecoder().decode(data) : await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text();
+  }
+  return out;
+}
+const unxml = (t) => t.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+export async function fileToText(file) {
+  const name = (file.name || "").toLowerCase();
+  if (/\.(md|txt|markdown)$/.test(name) || file.type.startsWith("text/")) return await file.text();
+  if (name.endsWith(".pdf") || file.type === "application/pdf") {
+    const lib = await loadPdfJs();
+    const doc = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const pages = [];
+    for (let k = 1; k <= doc.numPages; k++) {
+      const tc = await (await doc.getPage(k)).getTextContent();
+      let line = "", lines = [], lastY = null;
+      for (const it of tc.items) { const y = Math.round(it.transform?.[5] ?? 0); if (lastY !== null && Math.abs(y - lastY) > 3) { lines.push(line.trim()); line = ""; } line += it.str + (it.hasEOL ? "\n" : " "); lastY = y; }
+      lines.push(line.trim());
+      pages.push(lines.filter(Boolean).join("\n"));
+    }
+    return pages.join("\n\n");
+  }
+  if (/\.(docx|pptx)$/.test(name)) {
+    const pptx = name.endsWith(".pptx");
+    const files = await zipEntries(new Uint8Array(await file.arrayBuffer()), (n) => (pptx ? /^ppt\/slides\/slide\d+\.xml$/ : /^word\/document\.xml$/).test(n));
+    const keys = Object.keys(files).sort((a, b) => Number(a.match(/\d+/)?.[0] ?? 0) - Number(b.match(/\d+/)?.[0] ?? 0));
+    if (pptx) return keys.map((k, i) => "## שקף " + (i + 1) + "\n" + [...files[k].matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g)].map((m) => unxml(m[1])).join(" ")).join("\n\n");
+    // וורד: כל פסקה בשורה משלה
+    return keys.map((k) => files[k].split(/<\/w:p>/).map((par) => [...par.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((m) => unxml(m[1])).join("")).filter((x) => x.trim()).join("\n\n")).join("\n\n");
+  }
+  throw new Error("אפשר להעלות PDF, וורד (docx), מצגת (pptx) או קובץ טקסט");
+}
+
 export async function pdfToPages(file) {
   const lib = await loadPdfJs();
   const doc = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
