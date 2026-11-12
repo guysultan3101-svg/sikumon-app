@@ -1,6 +1,8 @@
 // יומן הסמסטר (שיעורים בירוק בהיר, הגשות בכתום, מבחנים באדום),
 // ותיבת הודעות באפליקציה במקום מיילים: תזכורות למבחנים ולהגשות, סיכומים חדשים, חדש במודל, וסיכום שבועי.
 
+import { matchCourse } from "./uni-merge.js";
+
 export function initPlanner(ctx) {
   const { view, $, esc, toast, prefs, store, extras, study } = ctx;
   const DAY = 864e5;
@@ -16,7 +18,7 @@ export function initPlanner(ctx) {
     for (let d = new Date(from); d <= to; d = new Date(d.getTime() + DAY)) {
       const k = key(d);
       if (k >= sem.start && k <= sem.end) {
-        for (const s of (p.timetable || []).filter((x) => +x.day === d.getDay())) out.push({ date: k, kind: "lesson", time: s.start, end: s.end, title: s.course, course: s.course, place: s.place || "", lecturer: s.lecturer || "" });
+        for (const s of (p.timetable || []).filter((x) => +x.day === d.getDay())) out.push({ date: k, kind: "lesson", time: s.start, end: s.end, title: s.course, course: s.course, place: s.place || "", lecturer: s.lecturer || "", uniCourse: s.uniCourse || "" });
       }
     }
     for (const x of dl) { const k = x.due.slice(0, 10); if (k >= key(from) && k <= key(to)) out.push({ date: k, kind: "deadline", time: x.due.slice(11, 16), title: x.name, course: x.course, url: x.url, done: x.done }); }
@@ -68,12 +70,14 @@ export function initPlanner(ctx) {
       const mats = (await store.getItem("course-materials"))?.map || {};
       const extra = (e) => {
         if (e.kind !== "lesson") return "";
-        const zoom = mats[e.course]?.zoom;
+        // הקורס כפי שהוא במודל (השם אצלנו יכול להיות מקוצר)
+        const mk = (e.uniCourse && mats[e.uniCourse] ? e.uniCourse : null) || matchCourse(e.course, Object.keys(mats)) || (e.uniCourse && matchCourse(e.uniCourse, Object.keys(mats))) || e.course;
+        const zoom = mats[mk]?.zoom;
         const bits = [
-          e.place ? `<span>📍 <b>${esc(e.place)}</b></span>` : e.lecturer ? `<span class="muted">📍 אין מיקום עדיין</span>` : "",
+          e.place ? `<span>📍 <b>${esc(e.place)}</b></span>` : zoom ? "" : `<span class="muted">💻 בלי חדר (כנראה בזום)</span>`,
           e.lecturer ? `<span>👤 ${esc(e.lecturer)}</span>` : "",
-          zoom ? `<a href="${esc(zoom)}" target="_blank" rel="noopener">🎥 כניסה לזום</a>` : "",
-          `<a href="#materials-${encodeURIComponent(e.course)}">📚 חומרים לשיעור</a>`,
+          zoom ? `<a href="${esc(zoom)}" target="_blank" rel="noopener"${e.place ? "" : ' style="font-weight:700"'}>🎥 כניסה לזום</a>` : "",
+          `<a href="#materials-${encodeURIComponent(mk)}">📚 חומרים לשיעור</a>`,
         ].filter(Boolean);
         return `<div class="row small day-extra">${bits.join("")}</div>`;
       };
@@ -127,8 +131,9 @@ export function initPlanner(ctx) {
   };
   const ICON = { resource: "📄", folder: "📁", url: "🔗", assign: "📝", quiz: "✅", forum: "💬", lti: "🎥", zoom: "🎥", page: "📃", book: "📘" };
   async function materials(course) {
-    const m = ((await store.getItem("course-materials"))?.map || {})[course] || null;
-    const slots = (prefs.get().timetable || []).filter((x) => x.course === course).sort((a, b) => a.day - b.day || a.start.localeCompare(b.start));
+    const all = (await store.getItem("course-materials"))?.map || {};
+    const m = all[course] || all[matchCourse(course, Object.keys(all))] || null;
+    const slots = (prefs.get().timetable || []).filter((x) => x.course === course || x.uniCourse === course || matchCourse(x.course, [course]) === course).sort((a, b) => a.day - b.day || a.start.localeCompare(b.start));
     const open = (it) => it.type === "resource" ? it.url + (it.url.includes("?") ? "&" : "?") + "redirect=1" : it.url;
     const items = (m?.items || []).filter((it) => !(m.zoom && it.url === m.zoom));
     setTimeout(() => study?.bindLevels?.(view), 0);

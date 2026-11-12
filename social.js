@@ -186,7 +186,7 @@ export function initSocial(ctx) {
       if (!local.some((x) => x.id === id)) fresh++;
       // סיכום של הקלטה (source_ref "rec:<id>"): תאריך השיעור = תאריך ההקלטה, כדי לחשב את מספר השיעור
       const rec = r.source_ref?.startsWith("rec:") ? await store.getRecording(r.source_ref.slice(4)).catch(() => null) : null;
-      await store.putItem({ id, type: "summary", course: r.course || "כללי", title: r.title, date: r.created_at.slice(0, 10), html: mdToHtml(r.md), from, server: true, ref: r.source_ref || null,
+      await store.putItem({ id, type: "summary", course: r.course || "כללי", title: r.title, date: r.created_at.slice(0, 10), html: mdToHtml(r.md), from, server: true, ref: r.source_ref || null, ...(/^דף נוסחאות/.test(r.title || "") ? { kind: "formulas" } : {}),
         source: r.source_ref?.startsWith("rec:") ? "recording" : r.source, lessonDate: rec?.startedAt?.slice(0, 10) || (r.source_ref?.startsWith("rec:") ? r.created_at.slice(0, 10) : null) });
       if (Array.isArray(r.quiz) && r.quiz.length) {
         const qid = "srvq-" + r.id; keep.add(qid);

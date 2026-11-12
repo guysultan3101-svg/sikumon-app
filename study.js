@@ -166,11 +166,12 @@ export function initStudy(ctx) {
     const localTitles = new Set(all.filter((x) => !x.server && !x.from).map((x) => normT(x.title)));
     const items = all.filter((x) => !(x.ref?.startsWith("local:") && localIds.has(x.ref.slice(6))) && !(x.server && !x.from && !isNb(x) && localTitles.has(normT(x.title)))).sort((a, b) => (a.kind === "formulas") - (b.kind === "formulas") || isNb(b) - isNb(a) || b.date.localeCompare(a.date));
     const groups = byCourse(items);
+    for (const c of prefs.get()?.courses || []) if (c && !groups.some(([k]) => k === c)) groups.push([c, []]);
     view.innerHTML = `<div class="page">
       <h1 style="font-size:32px">הסיכומים שלי</h1>
       <a class="notice" href="#extras" style="display:block;text-decoration:none;color:inherit">🧩 <b>תוספים לשיעורים</b>: דפי עבודה, תרגילים, פתרונות, סילבוס ודפי נוסחאות, מהמודל ←</a>
       ${pairCard()}
-      ${groups.map(([course, list], gi) => `<section class="soft"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h2 style="font-size:20px">${esc(course)}</h2>${list.some((x) => !isNb(x) && x.kind !== "formulas" && !x.from && !x.demo) ? `<button class="btn ghost small-btn nb-btn" data-g="${gi}" type="button">${list.some((x) => isNb(x) && !x.from) ? "🔄 עדכון המחברת המסכמת" : "📓 מחברת מסכמת"}</button>` : ""}</div>${levelPicker(course)}<div class="list" style="margin-top:10px">${list.map((s) =>
+      ${groups.map(([course, list], gi) => `<section class="soft"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h2 style="font-size:20px">${esc(course)}</h2>${list.some((x) => !isNb(x) && x.kind !== "formulas" && !x.from && !x.demo) ? `<button class="btn ghost small-btn nb-btn" data-g="${gi}" type="button">${list.some((x) => isNb(x) && !x.from) ? "🔄 עדכון המחברת המסכמת" : "📓 מחברת מסכמת"}</button>` : ""}<button class="btn ghost small-btn my-up" data-g="${gi}" type="button">📝 העלאת סיכום שלי</button></div>${levelPicker(course)}<div class="list" style="margin-top:10px">${list.map((s) =>
         `<a class="item" href="#sum-${esc(s.id)}"><span style="min-width:0"><span class="t">${escT(s.title)}</span><br><span class="small muted">${s.from ? "🎓 מ" + esc(s.from) + " · " : ""}${s.kind === "formulas" ? "דף נוסחאות · " : srcIcon(s)}<bdi>${esc(when(s))}</bdi></span></span>${s.kind === "formulas" ? '<span class="chip">📐 נוסחאות</span>' : ""}</a>`).join("")}</div></section>`).join("")}
       ${items.length ? "" : `<section class="soft"><h2 style="font-size:20px;margin:0">עוד אין סיכומים</h2><p class="small muted">העלו מצגת או PDF של שיעור, או חברו את המודל – והסיכומים יגיעו לכאן, מותאמים לאיך שאת/ה לומד/ת.</p><div class="row" style="margin-top:8px"><a class="btn" href="#upload">📄 העלאת מצגת</a><a class="btn ghost" href="#connect">🔗 חיבור למודל</a></div></section>`}
 
@@ -179,6 +180,7 @@ export function initStudy(ctx) {
     bindPair(summaries);
     bindLevels(view);
     // מחברת מסכמת: כל הסיכומים של הקורס בסיכום אחד (נספר כסיכום אחד מהמכסה היומית)
+    view.querySelectorAll(".my-up").forEach((b) => (b.onclick = () => ctx.ownSummary?.(groups[+b.dataset.g][0])));
     view.querySelectorAll(".nb-btn").forEach((b) => (b.onclick = async () => {
       const course = groups[+b.dataset.g][0];
       if (!ctx.api) return;
@@ -203,6 +205,7 @@ export function initStudy(ctx) {
     view.innerHTML = `<div class="page summary">
       <a href="#summaries" class="small">→ כל הסיכומים</a>
       <div class="row"><span class="chip">${esc(s.course)}</span><span class="chip">${srcIcon(s)}<bdi>${esc(when(s))}</bdi></span></div>
+      ${!s.from && !s.demo ? `<div class="row" style="gap:8px;align-items:center"><label class="small" for="sumCourse">📂 הקורס של הסיכום:</label><select id="sumCourse" style="min-width:180px">${[...new Set([s.course, ...(prefs.get()?.courses || [])].filter(Boolean))].map((c) => `<option ${c === s.course ? "selected" : ""}>${esc(c)}</option>`).join("")}</select><button class="btn ghost small-btn" type="button" id="sumCourseGo">שמירה</button></div>` : ""}
       <h1 style="font-size:clamp(24px,4vw,34px)">${escT(s.title)}</h1>
       <article class="card md-body">${s.html}</article>
       <div class="row">${quiz ? `<a class="btn" href="#quiz-${esc(quiz.id)}">${svg("check")} למבחן על הסיכום (${quiz.questions.length} שאלות)</a>` : ""}<button class="btn ghost" id="sumPdf" type="button">📄 ייצוא ל-PDF</button></div>
@@ -210,6 +213,18 @@ export function initStudy(ctx) {
     // טבלאות רחבות נגללות הצידה בטלפון
     view.querySelectorAll(".md-body table").forEach((t) => { const w = document.createElement("div"); w.className = "tablewrap"; t.replaceWith(w); w.appendChild(t); });
     $("#sumPdf").onclick = () => exportPdf(s);
+    if ($("#sumCourseGo")) $("#sumCourseGo").onclick = async () => {
+      const c = $("#sumCourse").value; if (!c || c === s.course) return toast("זה כבר הקורס של הסיכום");
+      try {
+        if (s.server && s.id.startsWith("srv-")) await ctx.api.setSummaryCourse(s.id.slice(4), c);
+        else {
+          const copy = (await lib("summary")).find((x) => x.ref === "local:" + s.id);
+          if (copy) { await ctx.api.setSummaryCourse(copy.id.slice(4), c); await store.putItem({ ...copy, course: c }); }
+        }
+        await store.putItem({ ...s, course: c });
+        toast(`✓ הסיכום עבר ל${c}`); summaryPage(id);
+      } catch (e) { toast("לא הצלחתי לשנות: " + e.message); }
+    };
   }
 
   // ייצוא סיכום / מחברת מסכמת ל-PDF: דף הדפסה עם הלוגו של Clearly בפינה הימנית העליונה של כל עמוד

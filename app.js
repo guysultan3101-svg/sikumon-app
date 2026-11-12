@@ -1616,7 +1616,7 @@ async function syncNotebooks() {
     for (const l of local) {
       if (l.id === editingLesson?.id) continue;   // השיעור הפתוח עכשיו: עולה כשסוגרים אותו
       const r = remote.get(fname(l));
-      const dirty = !l.syncedAt || (l.updatedAt || "") > l.syncedAt;
+      const dirty = !l.syncedAt || (l.updatedAt || "0") > l.syncedAt;
       const remoteChanged = r && (!l.remoteAt || r > l.remoteAt);
       if (!r && l.remoteAt && !dirty) { await store.deleteLesson(l.id); changed++; continue; }   // נמחק במכשיר אחר
       if (remoteChanged) {
@@ -1634,7 +1634,7 @@ async function syncNotebooks() {
     }
     if (uploaded.length) {
       const after = new Map((await api.nbList()).map((f) => [f.name, f.updated_at || f.created_at]));
-      for (const l of uploaded) { const cur = await store.getLesson(l.id); if (cur && cur.updatedAt === l.updatedAt) await store.putLessonRaw({ ...cur, syncedAt: l.updatedAt, remoteAt: after.get(fname(l)) || null }); }
+      for (const l of uploaded) { const cur = await store.getLesson(l.id); if (cur && cur.updatedAt === l.updatedAt) await store.putLessonRaw({ ...cur, syncedAt: l.updatedAt || "0", remoteAt: after.get(fname(l)) || null }); }
     }
   } catch { /* ננסה בסנכרון הבא */ } finally { nbSyncing = false; }
   if (changed && location.hash === "#notebooks") route();
@@ -1774,30 +1774,20 @@ async function applyUniSchedule() {
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") serverSync(); });
 
 // ---------- 📄 העלאת מצגת / PDF -> סיכום אישי ----------
-function uploadPage() {
-  const courses = prefs.get()?.courses || [];
-  view.innerHTML = `<div class="page" style="max-width:640px">
-    <h1 style="font-size:30px">📄 סיכום ממצגת או PDF</h1>
-    <p class="muted">מעלים קובץ של שיעור (מצגת מהמודל, PDF, וורד או צילום של הלוח), ומקבלים סיכום אישי לפי איך שאת/ה לומד/ת, עם מבחן קצר בסוף.</p>
-    <section class="card" style="display:grid;gap:12px">
-      <label>קורס<select id="upC">${courses.map((c) => `<option>${esc(c)}</option>`).join("")}</select></label>
-      <label>הקובץ<input type="file" id="upF" accept=".pdf,.pptx,.docx,.txt,.md,image/*,application/pdf"></label>
-      <p class="small muted">PDF, מצגת (pptx), וורד (docx), תמונה או טקסט · עד 15MB · עד 10 סיכומים ביום</p>
-      <button class="btn" type="button" id="upGo">✨ סכם לי</button>
-      <p class="small" id="upState" aria-live="polite"></p>
-    </section>
-    <p class="small muted">🔒 הקובץ נשלח לסיכום ולא נשמר אצלנו – רק הסיכום נשמר בחשבון שלך. משתמשים רק בחומר שקיבלת כסטודנט/ית בקורס.</p>
-    <h2 style="font-size:24px;margin:18px 0 0">📝 העלאת סיכום שכתבתי בעצמי</h2>
-    <p class="muted" style="margin:0">סיכום שלך (וורד, PDF, מצגת או טקסט) נכנס לאזור הסיכומים כמו שהוא, בלי AI ובלי מכסה. נשמר בחשבון שלך ומופיע בכל מכשיר.</p>
-    <section class="card" style="display:grid;gap:12px">
-      <label>קורס<select id="myC">${courses.map((c) => `<option>${esc(c)}</option>`).join("")}</select></label>
-      <label>כותרת<input type="text" id="myT" maxlength="200" placeholder="למשל: סיכום שיעור 4 – עקומת התמורה"></label>
-      <label>הקובץ<input type="file" id="myF" accept=".pdf,.docx,.pptx,.txt,.md,application/pdf"></label>
-      <details><summary class="small">או מדביקים את הטקסט כאן</summary><textarea id="myText" rows="8" dir="auto" placeholder="הטקסט של הסיכום…"></textarea></details>
-      <button class="btn" type="button" id="myGo">📥 הוספה לסיכומים שלי</button>
-      <p class="small" id="myState" aria-live="polite"></p>
-    </section>
-  </div>`;
+function ownSummaryModal(course) {
+  document.getElementById("ownModal")?.remove();
+  document.body.insertAdjacentHTML("beforeend", `<div class="modal" id="ownModal" role="dialog" aria-labelledby="ownT"><div class="card" style="max-width:560px;display:grid;gap:10px">
+    <h2 id="ownT" style="margin:0">📝 העלאת סיכום שלי · ${esc(course)}</h2>
+    <p class="small muted" style="margin:0">סיכום שכתבת בעצמך (וורד, PDF, מצגת או טקסט) נכנס לסיכומים כמו שהוא, בלי AI ובלי מכסה, ומופיע בכל מכשיר.</p>
+    <label>כותרת<input type="text" id="myT" maxlength="200" placeholder="למשל: סיכום שיעור 4 – עקומת התמורה"></label>
+    <label>הקובץ<input type="file" id="myF" accept=".pdf,.docx,.pptx,.txt,.md,application/pdf"></label>
+    <details><summary class="small">או מדביקים את הטקסט כאן</summary><textarea id="myText" rows="7" dir="auto" placeholder="הטקסט של הסיכום…"></textarea></details>
+    <div class="row"><button class="btn" type="button" id="myGo">📥 הוספה לסיכומים</button><button class="btn ghost" type="button" id="myNo">ביטול</button></div>
+    <p class="small" id="myState" aria-live="polite"></p>
+  </div></div>`);
+  const m = document.getElementById("ownModal"), close = () => m.remove();
+  $("#myNo").onclick = close;
+  m.addEventListener("click", (e) => { if (e.target === m) close(); });
   $("#myGo").onclick = async () => {
     const f = $("#myF").files[0], pasted = $("#myText").value.trim();
     if (!f && !pasted) return toast("בחרו קובץ או הדביקו טקסט");
@@ -1806,18 +1796,35 @@ function uploadPage() {
     try {
       const md = (f ? await fileToText(f) : pasted).trim();
       if (md.length < 20) throw new Error("לא מצאתי טקסט בקובץ. סיכום בכתב יד? אפשר להוסיף אותו כתמונה במחברת.");
-      const id = await api.backupSummary({ ref: "local:mine-" + Date.now(), course: $("#myC").value || "כללי", title, md: md.slice(0, 300000), date: new Date().toLocaleDateString("en-CA"), quiz: [] });
+      const id = await api.backupSummary({ ref: "local:mine-" + Date.now(), course, title, md: md.slice(0, 300000), date: new Date().toLocaleDateString("en-CA"), quiz: [] });
       await social.syncSummaries();
       api.track("upload_own_summary");
-      $("#myState").textContent = "✅ נוסף לסיכומים שלך";
+      close(); toast("✅ הסיכום נוסף");
       location.hash = "#sum-srv-" + id;
     } catch (e) { $("#myState").textContent = "❌ " + e.message; $("#myGo").disabled = false; }
   };
+}
+studyCtx.ownSummary = (course) => ownSummaryModal(course);
+
+function uploadPage() {
+  const courses = prefs.get()?.courses || [];
+  view.innerHTML = `<div class="page" style="max-width:640px">
+    <h1 style="font-size:30px">📄 סיכום ממצגת או PDF</h1>
+    <p class="muted">מעלים קובץ של שיעור (מצגת מהמודל, PDF, וורד או צילום של הלוח), ומקבלים סיכום אישי לפי איך שאת/ה לומד/ת, עם מבחן קצר בסוף.</p>
+    <section class="card" style="display:grid;gap:12px">
+      <label>קורס<select id="upC"><option value="">אבחר אחרי הסיכום</option>${courses.map((c) => `<option>${esc(c)}</option>`).join("")}</select></label>
+      <label>הקובץ<input type="file" id="upF" accept=".pdf,.pptx,.docx,.txt,.md,image/*,application/pdf"></label>
+      <p class="small muted">PDF, מצגת (pptx), וורד (docx), תמונה או טקסט · עד 15MB · עד 10 סיכומים ביום</p>
+      <button class="btn" type="button" id="upGo">✨ סכם לי</button>
+      <p class="small" id="upState" aria-live="polite"></p>
+    </section>
+    <p class="small muted">🔒 הקובץ נשלח לסיכום ולא נשמר אצלנו – רק הסיכום נשמר בחשבון שלך. משתמשים רק בחומר שקיבלת כסטודנט/ית בקורס.</p>
+  </div>`;
   $("#upGo").onclick = async () => {
     const f = $("#upF").files[0]; if (!f) return toast("בחרו קובץ");
     $("#upGo").disabled = true; $("#upState").textContent = "⏳ קורא את הקובץ וכותב סיכום… (חצי דקה עד דקה)";
     try {
-      const r = await social.upload(f, $("#upC").value);
+      const r = await social.upload(f, $("#upC").value || "כללי");
       api.track("upload");
       $("#upState").textContent = "✅ הסיכום מוכן!";
       location.hash = "#sum-srv-" + r.id;
@@ -2008,7 +2015,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "81";
+const APP_VERSION = "83";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
