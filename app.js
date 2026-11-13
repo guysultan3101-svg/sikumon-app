@@ -1104,6 +1104,16 @@ async function lessonPage(id) {
   </div>`;
 
   // --- כתב יד ---
+  // כשכותבים בעט והיד נחה על המסך: אייפד מסמן בטעות טקסט של כפתורים ("עמוד חלק"). במחברת מבטלים סימון טקסט, חוץ מבשדות הקלדה
+  if (window.__inkSel) document.removeEventListener("selectionchange", window.__inkSel);
+  window.__inkSel = () => {
+    if (!document.querySelector(".page.lesson")) return;
+    const sel = document.getSelection(); if (!sel || sel.isCollapsed) return;
+    const n = sel.anchorNode?.nodeType === 1 ? sel.anchorNode : sel.anchorNode?.parentElement;
+    if (n?.closest?.("input, textarea, [contenteditable], .md-body")) return;
+    sel.removeAllRanges();
+  };
+  document.addEventListener("selectionchange", window.__inkSel);
   editor = new InkEditor($("#sheets"), l.pages || []);
   l.pages = editor.pages;
   const paintTools = () => {
@@ -1139,7 +1149,7 @@ async function lessonPage(id) {
   $("#penOnly").onclick = () => { editor.setPenOnly(!editor.penOnly); toast(editor.penOnly ? "רק העט כותב. האצבע גוללת את הדף." : "עכשיו גם האצבע כותבת."); };
   editor.addEventListener("change", () => { paintTools(); l.pages = editor.pages; saveSoon(); });
   editor.addEventListener("penonly", () => { paintTools(); toast("זוהה עט: מעכשיו האצבע גוללת והעט כותב"); });
-  view.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => { editor.addPage(b.dataset.add).scrollIntoView({ behavior: "smooth", block: "start" }); }));
+  view.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => { if (performance.now() - (editor._penAt || 0) < 900) return; /* כף יד בזמן כתיבה – לא לחיצה */ editor.addPage(b.dataset.add).scrollIntoView({ behavior: "smooth", block: "start" }); }));
   // מצגת/PDF של השיעור: כל שקף נכנס כעמוד שאפשר לכתוב עליו (כמו ב-Notability)
   view.querySelectorAll(".slidesIn").forEach((inp) => (inp.onchange = async (e) => {
     const files = [...(e.target.files || [])]; e.target.value = "";
@@ -2016,7 +2026,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "85";
+const APP_VERSION = "86";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

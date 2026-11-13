@@ -649,3 +649,8 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
   .set-row:has(select) { flex-direction: column; align-items: stretch; gap: 6px; }
   .set-row select { width: 100% !important; max-width: none !important; flex: none !important; }
 }
+
+/* מחברת: בלי סימון טקסט ובלי תפריט "העתק" כשהיד או העט נוגעים בכפתורים (אייפד) */
+.page.lesson, .page.lesson * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.page.lesson input, .page.lesson textarea, .page.lesson select, .page.lesson [contenteditable], .page.lesson .md-body, .page.lesson .md-body * { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+body.focus .toolbar, body.focus .toolbar * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
