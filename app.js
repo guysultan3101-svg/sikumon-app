@@ -1570,7 +1570,8 @@ async function routeInner() {
   paintCounts();
   if (hash !== "home" && !hash.startsWith("lesson-")) {
     const pg = view.querySelector(".page");
-    if (pg) { pg.insertAdjacentHTML("afterbegin", '<button class="back-btn" type="button" aria-label="חזרה לדף הקודם">→ חזרה</button>'); pg.querySelector(".back-btn").onclick = goBack; }
+    const own = pg && [...pg.children].slice(0, 2).some((el) => el.matches("a.small") && /^\s*→/.test(el.textContent));
+    if (pg && !own) { pg.insertAdjacentHTML("afterbegin", '<button class="back-btn" type="button" aria-label="חזרה לדף הקודם">→ חזרה</button>'); pg.querySelector(".back-btn").onclick = goBack; }
   }
   view.focus({ preventScroll: true });
   window.scrollTo(0, 0);
@@ -2015,7 +2016,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "84";
+const APP_VERSION = "85";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

@@ -644,3 +644,8 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 }
 
 .av-img { object-fit: cover; background: var(--grid); padding: 0; }
+
+@media (max-width: 600px) {
+  .set-row:has(select) { flex-direction: column; align-items: stretch; gap: 6px; }
+  .set-row select { width: 100% !important; max-width: none !important; flex: none !important; }
+}

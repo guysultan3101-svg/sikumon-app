@@ -425,7 +425,7 @@ export function initStudy(ctx) {
     const newCount = mc.sections.reduce((a, s) => a + s.items.filter(isNew).length, 0);
     return `<section class="soft"><div class="row" style="justify-content:space-between"><h2 style="font-size:20px">מהמודל ${newCount ? `<span class="chip new">${newCount} חדשים</span>` : ""}</h2><a class="small" href="${esc(mc.url)}" target="_blank" rel="noopener">פתיחה במודל</a></div>
       ${mc.sections.map((s) => `<details class="msec" ${s.items.some(isNew) ? "open" : ""}><summary><b>${esc(s.title || "כללי")}</b> <span class="small muted">(${s.items.length})</span></summary><div class="list" style="margin-top:8px">${s.items.map((it) => moodleItem(it)).join("")}</div></details>`).join("")}
-      <p class="small muted" style="margin-top:8px">עודכן <bdi>${new Date(mc.updated).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</bdi>. קבצים שסוכמו נפתחים כאן, באפליקציה.</p></section>`;
+      <p class="small muted" style="margin-top:8px">${mc.updated && !isNaN(new Date(mc.updated)) ? `עודכן <bdi>${new Date(mc.updated).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</bdi>. ` : ""}קבצים שסוכמו נפתחים כאן, באפליקציה.</p></section>`;
   }
 
   return { levelOf, levelPicker, bindLevels, podcastAudio, syncNow, getCode, pairCard, bindPair, moodleCourse, moodleNew, moodleItem, moodleSection, moodleFilePage, summaryForMoodle, isNew, summaries, summaryPage, quizzes, quizById, mixQuiz, quizEditor, importPack };

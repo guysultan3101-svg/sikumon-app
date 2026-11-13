@@ -198,7 +198,7 @@ export function initTools(ctx) {
     const items = await store.listItems();
     const lessons = await store.listLessons();
     const feed = items.find((x) => x.id === "moodle-feed");
-    const text = (h) => new DOMParser().parseFromString(h, "text/html").body.textContent;
+    const text = (h) => { const d = new DOMParser().parseFromString(h || "", "text/html").body; d.querySelectorAll("td,th,li,p,h1,h2,h3,h4,tr,br").forEach((n) => n.append(" · ")); return d.textContent.replace(/(\s·\s)+/g, " · ").replace(/^\s*·\s*/, ""); };
     const docs = [
       ...items.filter((x) => x.type === "summary").map((s) => ({ icon: s.kind === "formulas" ? "📐" : "📄", title: s.title, sub: s.course, body: text(s.html), link: "#sum-" + s.id })),
       ...lessons.map((l) => ({ icon: "📓", title: ctx.lessonTitle(l), sub: l.course, body: l.text || "", link: "#lesson-" + l.id })),
