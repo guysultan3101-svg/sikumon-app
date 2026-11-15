@@ -112,7 +112,8 @@ async function withExtras(list) {
   const ex = new Map((data || []).map((x) => [x.id, x]));
   return list.map((p) => ({ bio: "", ig: "", li: "", courses: [], ...p, ...(ex.get(p.id) || {}) }));
 }
-export async function findUser(username) { const p = ok(await sb.from("profiles").select(PCOLS).eq("username", username.toLowerCase()).maybeSingle()); return p ? (await withExtras([p]))[0] : null; }
+export async function findUser(username) { if (username.toLowerCase().replace(/^@/, "") === "smtptest") return null;   // חשבון הבדיקה לא נמצא בחיפוש חברים
+  const p = ok(await sb.from("profiles").select(PCOLS).eq("username", username.toLowerCase()).maybeSingle()); return p ? (await withExtras([p]))[0] : null; }
 export async function profiles(ids) { if (!ids.length) return []; return withExtras(ok(await sb.from("profiles").select(PCOLS).in("id", ids))); }
 export async function friendships() { return ok(await sb.from("friendships").select("*")); }
 export async function requestFriend(id) { ok(await sb.from("friendships").insert({ requester: user().id, addressee: id })); }

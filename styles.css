@@ -675,3 +675,13 @@ body.focus .toolbar, body.focus .toolbar * { -webkit-user-select: none; user-sel
 .fp-text { white-space: pre-wrap; line-height: 1.7; max-height: 58dvh; overflow-y: auto; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--paper); font-size: 16px; }
 .fp-nav { flex-wrap: wrap; gap: 6px; }
 @media (max-width: 600px) { .sr-file { flex-direction: column; } .sr-file .sr-open { align-self: stretch; } }
+
+/* ---------- 🤝 סיכומים ששיתפו איתי: תיקייה לכל אדם (v88) ---------- */
+.sh-panel { margin-top: 10px; display: grid; gap: 8px; padding: 10px; border: 1.5px dashed var(--line); border-radius: 14px; background: var(--paper); }
+.sh-folder > summary { cursor: pointer; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--paper); list-style: none; font-weight: 600; }
+.sh-folder > summary::-webkit-details-marker { display: none; }
+.sh-folder[open] > summary { border-color: var(--blue); }
+.sh-folder > .list { margin: 8px 0 4px; }
+/* כותרת ארוכה בלי רווחים (שם קובץ) לא מרחיבה את הדף בטלפון */
+.item .t, .item span { overflow-wrap: anywhere; }
+.sh-folder > summary { overflow-wrap: anywhere; }

@@ -876,6 +876,32 @@ async function courseRecordings(course) {
   return `<section class="soft"><h3>🎙️ הקלטות ותמלולים (${all.length})</h3><div class="list" style="margin-top:8px">${all.map(row).join("")}</div></section>`;
 }
 
+// חלון קטן: לאיזו תיקייה (קורס) להכניס את הקובץ. מחזיר את שם הקורס, או null אם ביטלו
+function pickCourse(courses, what) {
+  return new Promise((done) => {
+    document.getElementById("pickModal")?.remove();
+    document.body.insertAdjacentHTML("beforeend", `<div class="modal" id="pickModal" role="dialog" aria-modal="true" aria-labelledby="pickT"><div class="card" style="max-width:460px">
+      <h2 id="pickT" style="margin:0;font-size:20px">📥 לאיזה קורס להכניס?</h2><p class="small muted" style="margin:0">${esc(what)}</p>
+      <div class="list">${courses.map((c, i) => `<button type="button" class="item" data-i="${i}" style="text-align:right;width:100%;cursor:pointer"><span class="t">${esc(c)}</span></button>`).join("")}</div>
+      <button type="button" class="btn ghost" id="pickX">ביטול</button></div></div>`);
+    const m = document.getElementById("pickModal");
+    const back = document.activeElement;
+    // Escape סוגר, ו-Tab נשאר בתוך החלון (לא בורח לדף שמאחור)
+    const key = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); end(null); return; }
+      if (e.key !== "Tab") return;
+      const f = [...m.querySelectorAll("button")]; const i = f.indexOf(document.activeElement);
+      if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+      else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+    };
+    const end = (v) => { removeEventListener("keydown", key, true); m.remove(); back?.focus?.(); done(v); };
+    addEventListener("keydown", key, true);
+    m.querySelectorAll("[data-i]").forEach((b) => (b.onclick = () => end(courses[+b.dataset.i])));
+    m.querySelector("#pickX").onclick = () => end(null);
+    m.onclick = (e) => { if (e.target === m) end(null); };
+    m.querySelector("[data-i]")?.focus();
+  });
+}
 async function notebooks(sel = null) { // sel = אינדקס הקורס, או null = כל השיעורים
   const p = prefs.get();
   const courses = p.courses || [];
@@ -910,7 +936,7 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
       <div class="row" style="justify-content:space-between">
         <div><h1 style="font-size:clamp(24px,3.5vw,32px)${course ? `;color:${color(sel)}` : ""}">${course ? esc(course) : "כל השיעורים"}</h1>${course ? `<a href="#deadlines" class="cd-row">${(await extras.upcoming(course)).slice(0, 2).map(extras.chip).join("")}</a>` : ""}</div>
         <div class="row" style="gap:8px">
-          ${course ? `<label class="btn ghost small-btn">${svg("download")} ייבוא PDF (מצגות / Notability)<input type="file" id="pdfIn" accept="application/pdf,.pdf" multiple hidden></label>` : ""}
+          ${courses.length ? `<label class="btn ghost small-btn" id="pdfInBtn" tabindex="0" role="button">${svg("download")} ייבוא PDF למחברת (Pages / Notability / קבצים)<input type="file" id="pdfIn" accept="application/pdf,.pdf" multiple hidden></label>` : ""}
           <button class="btn ghost small-btn" id="editNb" aria-pressed="false">עריכה</button>
           <button class="btn small-btn" id="newLesson">${svg("plus")} חדש</button>
         </div>
@@ -964,24 +990,29 @@ async function notebooks(sel = null) { // sel = אינדקס הקורס, או nu
     location.hash = "lesson-" + l.id;
   };
   // ייבוא קובצי PDF מ-Notability: כל קובץ הופך לשיעור בתיקייה הזו
+  // גם מהמקלדת: Enter / רווח על הכפתור פותחים את בחירת הקבצים
+  $("#pdfInBtn") && ($("#pdfInBtn").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#pdfIn").click(); } });
   $("#pdfIn") && ($("#pdfIn").onchange = async (e) => {
     const files = [...(e.target.files || [])];
     e.target.value = "";
     if (!files.length) return;
+    // מ"כל השיעורים": קודם בוחרים לאיזו תיקייה (קורס) הקובץ נכנס
+    const target = course || (await pickCourse(courses, files.length === 1 ? files[0].name : `${files.length} קבצים`));
+    if (!target) return;
     let done = 0;
     for (const f of files) {
       try {
         toast(`מייבא ${done + 1} מתוך ${files.length}: ${f.name}`);
         const pages = await pdfToPages(f);
         const date = todayKey(new Date(f.lastModified || Date.now()));
-        const l = { ...newLesson(course, date), title: f.name.replace(/\.pdf$/i, "").trim(), pages, source: "notability" };
+        const l = { ...newLesson(target, date), title: f.name.replace(/\.pdf$/i, "").trim(), pages, source: "notability" };
         l.thumb = await makeThumb(pages[0]);
         await store.saveLesson(l);
         done += 1;
       } catch (err) { toast(`לא הצלחתי לייבא את ${f.name}: ${err.message}`); }
     }
-    toast(`יובאו ${done} שיעורים ל"${course}". אפשר להמשיך לכתוב עליהם`);
-    notebooks(sel);
+    toast(`יובאו ${done} שיעורים ל"${target}". אפשר להמשיך לכתוב עליהם`);
+    if (course) notebooks(sel); else location.hash = "#course-" + courses.indexOf(target);
   });
   // תצוגה מקדימה לשיעורים ישנים שעוד אין להם (נוצרת פעם אחת ונשמרת)
   for (const l of list.filter((x) => !x.thumb && (x.pages || []).some((pg) => pg.strokes.length || pg.image || pg.images?.length))) {
@@ -2026,7 +2057,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "87";
+const APP_VERSION = "88";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

@@ -2,7 +2,7 @@
 // הכול נשמר במכשיר (IndexedDB) – שום דבר לא עולה לשרת.
 
 import { takeQuizSlot, markQuizStarted } from "./limits.js";
-import { makeQuery, markDom } from "./search-he.js";
+import { makeQuery, markDom, courseKey } from "./search-he.js";
 
 export function initStudy(ctx) {
   const { view, $, esc, svg, toast, prefs, store, demoQuiz } = ctx;
@@ -166,14 +166,20 @@ export function initStudy(ctx) {
     const normT = (t) => String(t || "").replace(/[\s"'״׳–-]+/g, " ").trim().toLowerCase();
     const localTitles = new Set(all.filter((x) => !x.server && !x.from).map((x) => normT(x.title)));
     const items = all.filter((x) => !(x.ref?.startsWith("local:") && localIds.has(x.ref.slice(6))) && !(x.server && !x.from && !isNb(x) && localTitles.has(normT(x.title)))).sort((a, b) => (a.kind === "formulas") - (b.kind === "formulas") || isNb(b) - isNb(a) || b.date.localeCompare(a.date));
-    const groups = byCourse(items);
+    // סיכום ששיתפו איתי: נכנס לקורס שלי באותו שם (גם אם אצל החבר הקורס כתוב קצת אחרת)
+    const myKeys = new Map(); for (const c of [...(prefs.get()?.courses || []), ...items.filter((x) => !x.from).map((x) => x.course)]) { const k = courseKey(c); if (c && !myKeys.has(k)) myKeys.set(k, c); }
+    const shown = items.map((x) => (x.from ? { ...x, course: myKeys.get(courseKey(x.course)) || x.course } : x));
+    const groups = byCourse(shown);
     for (const c of prefs.get()?.courses || []) if (c && !groups.some(([k]) => k === c)) groups.push([c, []]);
+    // הסיכומים ששיתפו איתי – בתיקייה לכל אדם (לפי השם שלו), ולא בתוך הרשימה שלי
+    const sharedOf = (list) => { const m = new Map(); for (const s of list.filter((x) => x.from)) { const k = s.fromId || s.from; if (!m.has(k)) m.set(k, { name: s.from, list: [] }); m.get(k).list.push(s); } return [...m.values()].sort((a, b) => b.list.length - a.list.length || a.name.localeCompare(b.name, "he")); };
+    const sumItem = (s) => `<a class="item" href="#sum-${esc(s.id)}"><span style="min-width:0"><span class="t">${escT(s.title)}</span><br><span class="small muted">${s.kind === "formulas" ? "דף נוסחאות · " : srcIcon(s)}<bdi>${esc(when(s))}</bdi></span></span>${s.kind === "formulas" ? '<span class="chip">📐 נוסחאות</span>' : ""}</a>`;
+    const sharedPanel = (list, gi) => { const people = sharedOf(list); return `<div class="sh-panel" id="shp-${gi}" hidden>${people.length ? people.map((p) => `<details class="sh-folder"><summary>📁 הסיכומים ששותפו על ידי <b><bdi>${esc(p.name)}</bdi></b> <span class="muted">(${p.list.length})</span></summary><div class="list">${p.list.map(sumItem).join("")}</div></details>`).join("") : '<p class="small muted" style="margin:0">עוד אף אחד לא שיתף איתך סיכומים בקורס הזה. חברים יכולים לשתף איתך קורס מהפרופיל שלהם (🤝 שיתוף).</p>'}</div>`; };
     view.innerHTML = `<div class="page">
       <h1 style="font-size:32px">הסיכומים שלי</h1>
       <a class="notice" href="#extras" style="display:block;text-decoration:none;color:inherit">🧩 <b>תוספים לשיעורים</b>: דפי עבודה, תרגילים, פתרונות, סילבוס ודפי נוסחאות, מהמודל ←</a>
       ${pairCard()}
-      ${groups.map(([course, list], gi) => `<section class="soft"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h2 style="font-size:20px">${esc(course)}</h2>${list.some((x) => !isNb(x) && x.kind !== "formulas" && !x.from && !x.demo) ? `<button class="btn ghost small-btn nb-btn" data-g="${gi}" type="button">${list.some((x) => isNb(x) && !x.from) ? "🔄 עדכון המחברת המסכמת" : "📓 מחברת מסכמת"}</button>` : ""}<button class="btn ghost small-btn my-up" data-g="${gi}" type="button">📝 העלאת סיכום שלי</button></div>${levelPicker(course)}<div class="list" style="margin-top:10px">${list.map((s) =>
-        `<a class="item" href="#sum-${esc(s.id)}"><span style="min-width:0"><span class="t">${escT(s.title)}</span><br><span class="small muted">${s.from ? "🎓 מ" + esc(s.from) + " · " : ""}${s.kind === "formulas" ? "דף נוסחאות · " : srcIcon(s)}<bdi>${esc(when(s))}</bdi></span></span>${s.kind === "formulas" ? '<span class="chip">📐 נוסחאות</span>' : ""}</a>`).join("")}</div></section>`).join("")}
+      ${groups.map(([course, list], gi) => `<section class="soft"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h2 style="font-size:20px">${esc(course)}</h2>${list.some((x) => !isNb(x) && x.kind !== "formulas" && !x.from && !x.demo) ? `<button class="btn ghost small-btn nb-btn" data-g="${gi}" type="button">${list.some((x) => isNb(x) && !x.from) ? "🔄 עדכון המחברת המסכמת" : "📓 מחברת מסכמת"}</button>` : ""}<button class="btn ghost small-btn sh-btn" data-g="${gi}" type="button" aria-expanded="false" aria-controls="shp-${gi}">🤝 שיתפו איתי (${list.filter((x) => x.from).length})</button><button class="btn ghost small-btn my-up" data-g="${gi}" type="button">📝 העלאת סיכום שלי</button></div>${levelPicker(course)}${sharedPanel(list, gi)}<div class="list" style="margin-top:10px">${list.filter((s) => !s.from).map(sumItem).join("")}</div></section>`).join("")}
       ${items.length ? "" : `<section class="soft"><h2 style="font-size:20px;margin:0">עוד אין סיכומים</h2><p class="small muted">העלו מצגת או PDF של שיעור, או חברו את המודל – והסיכומים יגיעו לכאן, מותאמים לאיך שאת/ה לומד/ת.</p><div class="row" style="margin-top:8px"><a class="btn" href="#upload">📄 העלאת מצגת</a><a class="btn ghost" href="#connect">🔗 חיבור למודל</a></div></section>`}
 
     </div>`;
@@ -182,6 +188,10 @@ export function initStudy(ctx) {
     bindLevels(view);
     // מחברת מסכמת: כל הסיכומים של הקורס בסיכום אחד (נספר כסיכום אחד מהמכסה היומית)
     view.querySelectorAll(".my-up").forEach((b) => (b.onclick = () => ctx.ownSummary?.(groups[+b.dataset.g][0])));
+    view.querySelectorAll(".sh-btn").forEach((b) => (b.onclick = () => {
+      const p = view.querySelector("#shp-" + b.dataset.g); p.hidden = !p.hidden; b.setAttribute("aria-expanded", String(!p.hidden));
+      if (!p.hidden) { const f = p.querySelectorAll("details"); if (f.length === 1) f[0].open = true; }   // אדם אחד – פותחים ישר את התיקייה שלו
+    }));
     view.querySelectorAll(".nb-btn").forEach((b) => (b.onclick = async () => {
       const course = groups[+b.dataset.g][0];
       if (!ctx.api) return;

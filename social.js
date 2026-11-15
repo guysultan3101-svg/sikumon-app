@@ -19,7 +19,7 @@ export function initSocial(ctx) {
   const color = (id = "") => COLORS[[...id].reduce((n, c) => n + c.charCodeAt(0), 0) % COLORS.length];
   const people = new Map(); // מטמון פרופילים לפי id
   const meId = () => api.user()?.id;
-  const nameOf = (id) => people.get(id)?.full_name || "משתמש/ת";
+  const nameOf = (id) => people.get(id)?.full_name?.trim() || (people.get(id)?.username ? "@" + people.get(id).username : "משתמש/ת");   // בלי שם מלא – שם המשתמש
   const unameOf = (id) => people.get(id)?.username || "";
   const AV_OK = /^https:\/\/islplhnlvaukixaglxof\.supabase\.co\/storage\/v1\/object\/public\/avatars\//;
   const avatar = (id, big = false) => { const u = people.get(id)?.avatar_url; return u && AV_OK.test(u) ? `<img class="av av-img${big ? " big" : ""}" src="${esc(u)}" alt="" loading="lazy">` : `<span class="av${big ? " big" : ""}" style="background:${color(id)}" aria-hidden="true">${esc((people.get(id)?.full_name || "?")[0])}</span>`; };
@@ -186,7 +186,7 @@ export function initSocial(ctx) {
       if (!local.some((x) => x.id === id)) fresh++;
       // סיכום של הקלטה (source_ref "rec:<id>"): תאריך השיעור = תאריך ההקלטה, כדי לחשב את מספר השיעור
       const rec = r.source_ref?.startsWith("rec:") ? await store.getRecording(r.source_ref.slice(4)).catch(() => null) : null;
-      await store.putItem({ id, type: "summary", course: r.course || "כללי", title: r.title, date: r.created_at.slice(0, 10), html: mdToHtml(r.md), from, server: true, ref: r.source_ref || null, ...(/^דף נוסחאות/.test(r.title || "") ? { kind: "formulas" } : {}),
+      await store.putItem({ id, type: "summary", course: r.course || "כללי", title: r.title, date: r.created_at.slice(0, 10), html: mdToHtml(r.md), from, fromId: from ? r.owner : null, server: true, ref: r.source_ref || null, ...(/^דף נוסחאות/.test(r.title || "") ? { kind: "formulas" } : {}),
         source: r.source_ref?.startsWith("rec:") ? "recording" : r.source, lessonDate: rec?.startedAt?.slice(0, 10) || (r.source_ref?.startsWith("rec:") ? r.created_at.slice(0, 10) : null) });
       if (Array.isArray(r.quiz) && r.quiz.length) {
         const qid = "srvq-" + r.id; keep.add(qid);
