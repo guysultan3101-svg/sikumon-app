@@ -1,4 +1,6 @@
 import { takeQuizSlot, markQuizStarted } from "./limits.js";
+import * as api from "./api.js";
+import { makeQuery, score, snippet, markHtml, courseKey } from "./search-he.js";
 // כלים לסטודנט: 🔊 הקראת סיכום, ⏱️ סימולציית מבחן, 🎯 "כמה אני צריך במבחן", 🔍 חיפוש בכל החומר,
 // 🖨️ הדפסת סיכום / דף נוסחאות, ו-🙋 שאלות למתרגל. הכול עובד במכשיר, בלי AI ובלי שרת.
 
@@ -190,31 +192,174 @@ export function initTools(ctx) {
   }
 
   // ---------- 🔍 חיפוש בכל החומר ----------
+  // הטקסט של קבצי הקורס (התוסף קורא אותו מהמודל ושומר בתיקייה הפרטית). נשמר במטמון של המכשיר, כדי שלא יורד שוב בכל חיפוש
+  let ctMem = null, ctAt = 0, ctUser = null;
+  const ctSupported = () => "DecompressionStream" in window;
+  async function courseTexts(onProgress) {
+    const uid = api.user()?.id || null;
+    if (ctMem && ctUser === uid && Date.now() - ctAt < 10 * 60 * 1000) return ctMem;   // לכל משתמש בנפרד
+    ctUser = uid;
+    if (!uid || !ctSupported()) return (ctMem = []);
+    const list = await api.ctList();
+    let cache = null; try { cache = await caches.open("clearly-ctext-v1"); } catch { /* בלי מטמון – מורידים */ }
+    const key = (f) => `https://ctext.local/${f.name}?u=${encodeURIComponent(f.updated_at || "")}`;
+    const out = [], queue = [...list]; let done = 0;
+    const worker = async () => {
+      for (let f; (f = queue.shift()); ) {
+        try {
+          const hit = cache && (await cache.match(key(f)));
+          let j;
+          if (hit) j = await hit.json();
+          else { j = await api.ctGet(f.name); try { await cache?.put(key(f), new Response(JSON.stringify(j))); } catch { /* מטמון מלא */ } }
+          if (Array.isArray(j?.pages)) out.push(j);
+        } catch { /* קובץ אחד שלא נטען לא עוצר את החיפוש */ }
+        onProgress?.(++done, list.length);
+      }
+    };
+    await Promise.all([1, 2, 3, 4].map(worker));
+    try { const keep = new Set(list.map(key)); for (const r of await cache.keys()) if (!keep.has(r.url)) await cache.delete(r); } catch { /* לא חובה */ }
+    ctAt = Date.now();
+    return (ctMem = out);
+  }
+
+  // ---------- 🔍 חיפוש בכל החומר ----------
+  // סיכומים, דפי נוסחאות, מחברות, מבחנים, כרטיסיות, שאלות למתרגל – ובתוך כל עמוד בקבצים מהמודל.
+  // חיפוש בעברית (תחיליות, אותיות סופיות, ניקוד), תוצאות מקובצות לפי קורס, ולחיצה מגיעה ישר למקום עם סימון.
+  // שם קובץ בעברית עם סיומת באנגלית ("פתרון 02.pdf") מתהפך בתצוגה מימין לשמאל – הסיומת מוצגת כתווית נפרדת
+  // "עמוד" ב-PDF, "שקף" במצגת, "חלק" בוורד (בוורד אין עמודים – הקובץ נחתך לחלקים של כ-1,800 תווים)
+  const UNIT = (name) => (/\.pptx$/i.test(name) ? ["שקף", "שקפים"] : /\.docx$/i.test(name) ? ["חלק", "חלקים"] : ["עמוד", "עמודים"]);
+  const fileLabel = (n) => { const m = String(n || "").match(/^(.*)\.(pdf|pptx|docx)$/i); return m ? `<bdi>${esc(m[1])}</bdi> <span class="chip">${m[2].toUpperCase()}</span>` : `<bdi>${esc(n)}</bdi>`; };
+  const KINDS = [["all", "הכול"], ["sum", "📄 סיכומים"], ["file", "📚 קבצי הקורס"], ["note", "📓 מחברות"], ["quiz", "✅ מבחנים וכרטיסיות"]];
+  const KIND_N = { sum: ["סיכום", "סיכומים"], file: ["קובץ", "קבצים"], note: ["מחברת", "מחברות"], quiz: ["שאלה", "שאלות"], moodle: ["פריט במודל", "פריטים במודל"] };
   async function search(q0 = "") {
-    view.innerHTML = `<div class="page">
+    let course0 = ""; try { course0 = sessionStorage.getItem("clearly-search-course") || ""; sessionStorage.removeItem("clearly-search-course"); } catch { /* בלי אחסון */ }
+    view.innerHTML = `<div class="page search-page">
       <h1 style="font-size:30px">🔍 חיפוש בכל החומר</h1>
-      <label class="nb-search" style="max-width:640px">${svg("search")}<input type="search" id="gq" name="q" value="${esc(q0)}" placeholder="למשל: עלות שולית, מאזן, F4…" autocomplete="off" aria-label="חיפוש"></label>
-      <div id="gres" class="list"></div></div>`;
+      <label class="nb-search" style="max-width:640px">${svg("search")}<input type="search" id="gq" name="q" value="${esc(q0)}" placeholder="למשל: עלות אלטרנטיבית, מכפיל, F4…" autocomplete="off" aria-label="חיפוש"></label>
+      <div class="sf-row" role="group" aria-label="סינון תוצאות"><select id="gc" name="gc" aria-label="קורס"><option value="">כל הקורסים</option></select>
+        ${KINDS.map(([k, l]) => `<button type="button" class="sf-chip${k === "all" ? " on" : ""}" data-k="${k}" aria-pressed="${k === "all"}">${l}</button>`).join("")}</div>
+      <p id="gidx" class="small muted" aria-live="polite"></p>
+      <div id="gres"></div></div>`;
     const items = await store.listItems();
     const lessons = await store.listLessons();
     const feed = items.find((x) => x.id === "moodle-feed");
     const text = (h) => { const d = new DOMParser().parseFromString(h || "", "text/html").body; d.querySelectorAll("td,th,li,p,h1,h2,h3,h4,tr,br").forEach((n) => n.append(" · ")); return d.textContent.replace(/(\s·\s)+/g, " · ").replace(/^\s*·\s*/, ""); };
     const docs = [
-      ...items.filter((x) => x.type === "summary").map((s) => ({ icon: s.kind === "formulas" ? "📐" : "📄", title: s.title, sub: s.course, body: text(s.html), link: "#sum-" + s.id })),
-      ...lessons.map((l) => ({ icon: "📓", title: ctx.lessonTitle(l), sub: l.course, body: l.text || "", link: "#lesson-" + l.id })),
-      ...items.filter((x) => x.type === "quiz").flatMap((q) => q.questions.map((x) => ({ icon: "✅", title: x.q, sub: q.course, body: x.options[x.a] + " " + (x.why || ""), link: "#quiz-" + q.id }))),
-      ...items.filter((x) => x.type === "card").map((c) => ({ icon: "🃏", title: c.front, sub: c.course, body: c.back, link: "#cards" })),
-      ...items.filter((x) => x.type === "tq").map((t) => ({ icon: "🙋", title: t.text, sub: t.course, body: t.answer || "", link: "#questions" })),
-      ...(feed?.courses || []).flatMap((c) => c.sections.flatMap((s) => s.items.map((it) => ({ icon: "🎓", title: it.name, sub: c.course + " · מודל", body: s.title, link: it.url, ext: true })))),
+      ...items.filter((x) => x.type === "summary").map((s) => ({ kind: "sum", icon: s.kind === "formulas" ? "📐" : "📄", title: s.title, course: s.course, body: text(s.html), link: "#sum-" + s.id, hl: true })),
+      ...lessons.map((l) => ({ kind: "note", icon: "📓", title: ctx.lessonTitle(l), course: l.course, body: l.text || "", link: "#lesson-" + l.id })),
+      ...items.filter((x) => x.type === "quiz").flatMap((q) => q.questions.map((x) => ({ kind: "quiz", icon: "✅", title: x.q, course: q.course, body: x.options[x.a] + " " + (x.why || ""), link: "#quiz-" + q.id }))),
+      ...items.filter((x) => x.type === "card").map((c) => ({ kind: "quiz", icon: "🃏", title: c.front, course: c.course, body: c.back, link: "#cards" })),
+      ...items.filter((x) => x.type === "tq").map((t) => ({ kind: "note", icon: "🙋", title: t.text, course: t.course, body: t.answer || "", link: "#questions" })),
+      ...(feed?.courses || []).flatMap((c) => c.sections.flatMap((s) => s.items.map((it) => ({ kind: "file", moodle: true, icon: "🎓", title: it.name, course: c.course, body: s.title, link: it.url, ext: true })))),
     ];
-    const run = () => {
-      const q = $("#gq").value.trim().toLowerCase();
-      if (q.length < 2) { $("#gres").innerHTML = '<p class="muted">מקלידים לפחות 2 אותיות. החיפוש עובר על סיכומים, דפי נוסחאות, מה שהקלדתם בשיעורים, שאלות מבחן, כרטיסיות, שאלות למתרגל וחומרים מהמודל.</p>'; return; }
-      const hits = docs.map((d) => { const t = (d.title + " " + d.body).toLowerCase(); const k = t.indexOf(q); return k < 0 ? null : { d, k, score: (d.title.toLowerCase().includes(q) ? 0 : 1) }; }).filter(Boolean).sort((a, b) => a.score - b.score).slice(0, 60);
-      const snip = (d) => { const b = d.body.replace(/\s+/g, " "); const k = b.toLowerCase().indexOf(q); if (k < 0) return ""; const s = Math.max(0, k - 50); return (s ? "…" : "") + esc(b.slice(s, k)) + "<mark>" + esc(b.slice(k, k + q.length)) + "</mark>" + esc(b.slice(k + q.length, k + q.length + 70)) + "…"; };
-      $("#gres").innerHTML = hits.map(({ d }) => `<a class="item" href="${esc(d.link)}" ${d.ext ? 'target="_blank" rel="noopener"' : ""}><span style="min-width:0"><span class="t">${d.icon} ${esc(d.title)}</span><br><span class="small muted">${esc(d.sub)}${snip(d) ? " · " + snip(d) : ""}</span></span></a>`).join("") || '<p class="muted">לא נמצא כלום.</p>';
+    // שם הקורס במודל ("10126 - מבוא למאקרו כלכלה - 2026א") ושמו באפליקציה ("מבוא למאקרו כלכלה") = אותו קורס, קבוצה אחת
+    // הקורסים שבחרתם באפליקציה קודמים: השם שלהם הוא שמוצג
+    const appCourses = [...new Set([...(prefs.get()?.courses || []), ...items.filter((x) => x.type === "summary").map((s) => s.course)].filter(Boolean))];
+    const byKey = new Map(); for (const c of appCourses) { const k = courseKey(c); if (k && !byKey.has(k)) byKey.set(k, c); }
+    const canon = (c) => (c && byKey.get(courseKey(c))) || c;
+    docs.forEach((d) => { d.course = canon(d.course); });
+    course0 = canon(course0);
+    let kind = "all", fileDocs = [];
+    const fillCourses = () => {
+      const sel = $("#gc"), cur = sel.value || course0;
+      const cs = [...new Set(docs.concat(fileDocs).map((d) => d.course).filter(Boolean))].sort((a, b) => a.localeCompare(b, "he"));
+      sel.innerHTML = '<option value="">כל הקורסים</option>' + cs.map((c) => `<option${c === cur ? " selected" : ""}>${esc(c)}</option>`).join("");
     };
+    fillCourses();
+    const plural = (k, n) => `${n} ${KIND_N[k][n === 1 ? 0 : 1]}`;
+    let Q = makeQuery("");
+    const run = () => {
+      Q = makeQuery($("#gq").value);
+      const gres = $("#gres");
+      if (!Q.ok) { gres.innerHTML = '<p class="muted">מקלידים לפחות 2 אותיות. החיפוש עובר על סיכומים, דפי נוסחאות, מה שכתבתם בשיעורים, שאלות מבחן, כרטיסיות, שאלות למתרגל – ובתוך הקבצים של הקורס מהמודל.</p>'; return; }
+      const course = $("#gc").value;
+      const pool = docs.concat(fileDocs).filter((d) => (!course || d.course === course) && (kind === "all" || d.kind === kind));
+      const hits = [];
+      for (const d of pool) { const s = score(Q, d.title, d.body); if (s) hits.push({ d, ...s }); }
+      // עמודים מאותו קובץ = תוצאה אחת (העמוד הכי מתאים), ושאר העמודים ככפתורים
+      const files = new Map(), rest = [];
+      for (const h of hits) {
+        if (!h.d.file) { rest.push(h); continue; }
+        const g = files.get(h.d.file.key);
+        if (!g) files.set(h.d.file.key, { ...h, pages: [h] });
+        else { g.pages.push(h); if (h.score > g.score) Object.assign(g, { d: h.d, score: h.score }); }
+      }
+      const all = rest.concat([...files.values()].map((g) => ({ ...g, score: g.score + Math.min(g.pages.length, 6) }))).sort((a, b) => b.score - a.score).slice(0, 120);
+      if (!all.length) { gres.innerHTML = `<p class="muted">לא נמצא כלום${course ? " בקורס הזה" : ""}. נסו מילה אחרת, או פחות מילים.</p>`; return; }
+      // מקבצים לפי קורס: רואים במקום אחד איפה המושג מופיע – בסיכום, באיזה קובץ ובאיזה עמוד
+      const groups = new Map();
+      for (const h of all) { const c = h.d.course || "כללי"; if (!groups.has(c)) groups.set(c, []); groups.get(c).push(h); }
+      const item = (h) => {
+        const d = h.d;
+        if (d.file) {
+          const pg = h.pages.map((x) => x.d.page).sort((a, b) => a - b);
+          const [u1, u2] = UNIT(d.title);
+          return `<div class="item sr-file" data-f="${esc(d.file.key)}"><span style="min-width:0;flex:1"><span class="t">📚 ${fileLabel(d.title)}</span> <span class="small muted">· ${u1} ${d.page + 1}${d.file.pages.length > 1 ? ` מתוך ${d.file.pages.length}` : ""}</span><br>
+            <span class="small muted sr-snip">${snippet(Q, d.body, esc)}</span>
+            ${pg.length > 1 ? `<span class="sr-pages">מופיע גם ב${pg.length > 12 ? "-" + pg.length + " " + u2 + ":" : u2} ${pg.filter((p) => p !== d.page).slice(0, 12).map((p) => `<button type="button" class="sf-pg" data-p="${p}" aria-label="${u1} ${p + 1}">${p + 1}</button>`).join("")}</span>` : ""}</span>
+            <button type="button" class="btn small-btn sr-open" data-p="${d.page}">פתיחה ב${u1} ${d.page + 1}</button></div>`;
+        }
+        const sn = snippet(Q, d.body, esc);
+        return `<a class="item${d.hl ? " sr-hl" : ""}" href="${esc(d.link)}" ${d.ext ? 'target="_blank" rel="noopener"' : ""}><span style="min-width:0"><span class="t">${d.icon} ${esc(d.title)}</span>${d.moodle ? ' <span class="small muted">· במודל</span>' : ""}<br><span class="small muted">${sn || ""}</span></span></a>`;
+      };
+      const head = (c, list) => {
+        const n = {}; for (const h of list) { const k = h.d.moodle ? "moodle" : h.d.kind; n[k] = (n[k] || 0) + 1; }
+        const pages = list.filter((h) => h.d.file).reduce((a, h) => a + h.pages.length, 0);
+        return Object.entries(n).map(([k, v]) => plural(k, v) + (k === "file" && pages ? ` (${pages} מקומות בתוכם)` : "")).join(" · ");
+      };
+      gres.innerHTML = `<p class="small muted">נמצא ב-${all.length} מקומות${groups.size > 1 ? ` ב-${groups.size} קורסים` : ""}</p>` + [...groups].map(([c, list]) => `<section class="sr-group"><h2 class="sr-h">${esc(c)}</h2><p class="small muted sr-sum">${head(c, list)}</p><div class="list">${list.map(item).join("")}</div></section>`).join("");
+      gres.querySelectorAll(".sr-hl").forEach((a) => a.addEventListener("click", () => { try { sessionStorage.setItem("clearly-hl", Q.q); } catch { /* בלי סימון */ } }));
+      gres.querySelectorAll(".sr-file").forEach((el) => {
+        const j = fileDocs.find((d) => d.file.key === el.dataset.f)?.file;
+        el.querySelectorAll("[data-p]").forEach((b) => (b.onclick = () => openPage(j, +b.dataset.p)));
+      });
+    };
+    // עמוד מתוך קובץ: הטקסט של העמוד עם סימון, מעבר בין עמודים, וקישור לקובץ במודל
+    const openPage = (j, i) => {
+      if (!j) return;
+      document.getElementById("fpModal")?.remove();
+      const hitPages = j.pages.map((t, k) => (score(Q, "", t) ? k : -1)).filter((k) => k >= 0);
+      const [u1] = UNIT(j.name);
+      document.body.insertAdjacentHTML("beforeend", `<div class="modal" id="fpModal" role="dialog" aria-modal="true" aria-labelledby="fpT"><div class="card fp-box">
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:8px"><span style="min-width:0"><h2 id="fpT" style="font-size:20px;margin:0">📚 ${fileLabel(j.name)}</h2><span class="small muted">${esc(canon(j.course) || "")} · <span id="fpN"></span></span></span><button type="button" class="link" id="fpX" aria-label="סגירה" style="font-size:22px">✕</button></div>
+        <div id="fpText" class="fp-text" tabindex="0"></div>
+        <div class="row fp-nav"><button type="button" class="btn ghost small-btn" id="fpPrev">→ ${u1} קודם</button><button type="button" class="btn ghost small-btn" id="fpNext">${u1} הבא ←</button>
+          <button type="button" class="btn ghost small-btn" id="fpHit">⏭ ההופעה הבאה של "${esc(Q.q)}"</button>
+          ${/^https:\/\//.test(j.url || "") ? `<a class="btn small-btn" id="fpOpen" target="_blank" rel="noopener">פתיחת הקובץ במודל ↗</a>` : ""}</div>
+        <p class="small muted" style="margin:0">זה הטקסט כפי שנקרא מהקובץ (בלי תמונות וגרפים, ולפעמים מספרים מסודרים אחרת). הקובץ המקורי – במודל.</p></div></div>`);
+      const m = document.getElementById("fpModal");
+      const show = (k) => {
+        i = Math.max(0, Math.min(j.pages.length - 1, k));
+        $("#fpN").textContent = `${u1} ${i + 1} מתוך ${j.pages.length}`;
+        $("#fpText").innerHTML = j.pages[i] ? markHtml(Q, j.pages[i].replace(/\n{2,}/g, "\n"), esc) : `<p class="muted">אין טקסט ב${u1} הזה (אולי תמונה או גרף).</p>`;
+        $("#fpText").scrollTop = 0; $("#fpText").querySelector("mark")?.scrollIntoView({ block: "center" });
+        $("#fpPrev").disabled = i === 0; $("#fpNext").disabled = i === j.pages.length - 1;
+        const nx = hitPages.find((k2) => k2 > i) ?? hitPages[0]; $("#fpHit").hidden = hitPages.length < 2; $("#fpHit").dataset.p = nx;
+        const o = $("#fpOpen"); if (o) o.href = j.url + (/\.pdf$/i.test(j.name) ? "#page=" + (i + 1) : "");
+      };
+      const close = () => { m.remove(); removeEventListener("keydown", key); };
+      const key = (e) => { if (e.key === "Escape") close(); };
+      addEventListener("keydown", key);
+      $("#fpX").onclick = close; m.onclick = (e) => { if (e.target === m) close(); };
+      $("#fpPrev").onclick = () => show(i - 1); $("#fpNext").onclick = () => show(i + 1); $("#fpHit").onclick = () => show(+$("#fpHit").dataset.p);
+      show(i); $("#fpX").focus();
+    };
+    view.querySelectorAll(".sf-chip").forEach((b) => (b.onclick = () => { kind = b.dataset.k; view.querySelectorAll(".sf-chip").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", x === b); }); run(); }));
+    $("#gc").onchange = run;
     $("#gq").oninput = run; run(); $("#gq").focus();
+    // קבצי הקורס נטענים ברקע; כשמוכנים – החיפוש רץ שוב
+    const idx = $("#gidx");
+    idx.textContent = "📚 טוען את הטקסט של קבצי הקורס…";
+    try {
+      const fl = await courseTexts((d, n) => { if (n > 8) idx.textContent = `📚 טוען את קבצי הקורס… ${d}/${n}`; });
+      if (!view.contains(idx)) return;   // עברו לדף אחר בינתיים
+      fileDocs = fl.flatMap((j) => { const c = canon(j.course); return j.pages.map((t, i) => ({ kind: "file", file: j, page: i, title: j.name, course: c, body: t })); });
+      const pages = fl.reduce((a, j) => a + j.pages.length, 0);
+      idx.innerHTML = fl.length ? `📚 מחפש גם בתוך ${fl.length} קבצים מהמודל (${pages.toLocaleString("he-IL")} עמודים ושקפים)`
+        : !ctSupported() ? "הדפדפן הזה ישן מדי לחיפוש בתוך קבצי הקורס – אחרי עדכון של המכשיר (iOS / ספארי) זה יעבוד. בינתיים מחפשים בשאר החומר."
+        : 'כדי לחפש גם <b>בתוך</b> הקבצים מהמודל (באיזה עמוד כתוב מה) – צריך את <a href="#connect">המחבר למודל</a> בגרסה 1.6.14 ומעלה. הוא קורא את הקבצים בהדרגה.';
+      fillCourses(); run();
+    } catch { if (view.contains(idx)) idx.textContent = "לא הצלחנו לטעון את קבצי הקורס כרגע – מחפשים בשאר החומר."; }
   }
 
   // ---------- 🙋 שאלות למתרגל ----------

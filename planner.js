@@ -144,6 +144,7 @@ export function initPlanner(ctx) {
       <p class="muted" style="margin-top:-6px">${esc(course)}</p>
       ${study?.levelPicker ? study.levelPicker(course) : ""}
       ${m?.zoom ? `<a class="btn" href="${esc(m.zoom)}" target="_blank" rel="noopener" style="justify-self:start">🎥 כניסה לזום של הקורס</a>` : ""}
+      <a class="btn ghost" href="#search" id="matSearch" style="justify-self:start">🔍 חיפוש בתוך החומרים של הקורס</a>
       ${slots.length ? `<section class="soft" style="display:grid;gap:6px"><h2 style="font-size:18px;margin:0">🕘 מתי ואיפה</h2>
         ${slots.map((x) => `<p style="margin:0">יום ${DAYS[x.day]} · <bdi>${x.start}–${x.end}</bdi>${x.place ? ` · 📍 <b>${esc(x.place)}</b>` : ""}${x.lecturer ? ` · 👤 ${esc(x.lecturer)}` : ""}</p>`).join("")}</section>` : ""}
       <section class="soft" style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">📂 החומרים מהמודל</h2>
@@ -151,6 +152,8 @@ export function initPlanner(ctx) {
           : '<p class="muted">החומרים של הקורס יגיעו לכאן מהמודל בבדיקה הבאה של המחבר בכרום (צריך שהמחשב יהיה דלוק פעם אחת).</p>'}
         <p class="small muted">הקבצים נפתחים במודל. רק חומר השיעור מסוכם: הסיכומים נמצאים ב<a href="#summaries">סיכומים</a>, והשאר (תרגילים, פתרונות, סילבוס ונוסחאות) נשאר כאן.</p></section>
     </div>`;
+    // החיפוש נפתח כבר מסונן לקורס הזה (בשם שלו במודל, כמו שהתוסף שומר)
+    $("#matSearch").onclick = () => { try { sessionStorage.setItem("clearly-search-course", matchCourse(course, Object.keys(all)) || course); } catch { /* בלי סינון */ } };
   }
 
   // ---------- 🧩 תוספים לשיעורים: דפי עבודה, תרגילים, פתרונות, סילבוס ודפי נוסחאות – לפי קורס ----------

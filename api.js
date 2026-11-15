@@ -85,7 +85,10 @@ export async function signIn(email, password) {
   session = r.data.session;
   return loadMe();
 }
-export async function signOut() { await sb.auth.signOut(); session = null; me = null; }
+export async function signOut() {
+  await sb.auth.signOut(); session = null; me = null;
+  try { await caches.delete("clearly-ctext-v1"); } catch { /* הטקסט של קבצי הקורס לא נשאר במכשיר אחרי יציאה */ }
+}
 export async function resetPassword(email) { ok(await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })); }
 export async function changePassword(password, confirm) { await checkPassword(password, confirm); ok(await sb.auth.updateUser({ password })); recovering = false; }
 export async function updateMe(fields) { ok(await sb.from("profiles").update(fields).eq("id", user().id)); return loadMe(); }
@@ -265,6 +268,26 @@ export async function nbGet(name) {
   return JSON.parse(await data.text());
 }
 export async function nbDel(id) { if (user()) await sb.storage.from(NB).remove([`${user().id}/${encodeURIComponent(id)}.json`]); }
+
+// ---------- הטקסט מתוך קבצי הקורס במודל (לחיפוש). התוסף שומר, כל סטודנט רואה רק את שלו ----------
+const CT = "course-texts";
+export async function ctList() {
+  if (!user()) return [];
+  const out = [];
+  for (let off = 0; ; off += 1000) {
+    const { data, error } = await sb.storage.from(CT).list(user().id, { limit: 1000, offset: off });
+    if (error) throw error;
+    out.push(...(data || []).filter((f) => f.name.endsWith(".json.gz")));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+export async function ctGet(name) {
+  const { data, error } = await sb.storage.from(CT).download(`${user().id}/${name}`);
+  if (error) throw error;
+  try { return JSON.parse(await new Response(data.stream().pipeThrough(new DecompressionStream("gzip"))).text()); }
+  catch { return JSON.parse(await data.text()); }   // אם הדפדפן כבר פתח את הדחיסה בעצמו
+}
 
 // ---------- תמונת פרופיל ----------
 export async function setAvatar(blob) {

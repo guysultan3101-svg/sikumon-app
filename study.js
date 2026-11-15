@@ -2,6 +2,7 @@
 // הכול נשמר במכשיר (IndexedDB) – שום דבר לא עולה לשרת.
 
 import { takeQuizSlot, markQuizStarted } from "./limits.js";
+import { makeQuery, markDom } from "./search-he.js";
 
 export function initStudy(ctx) {
   const { view, $, esc, svg, toast, prefs, store, demoQuiz } = ctx;
@@ -212,6 +213,20 @@ export function initStudy(ctx) {
     </div>`;
     // טבלאות רחבות נגללות הצידה בטלפון
     view.querySelectorAll(".md-body table").forEach((t) => { const w = document.createElement("div"); w.className = "tablewrap"; t.replaceWith(w); w.appendChild(t); });
+    // הגענו מהחיפוש: מסמנים את המילה בסיכום וגוללים ישר למקום הראשון שבו היא מופיעה
+    let hq = ""; try { hq = sessionStorage.getItem("clearly-hl") || ""; sessionStorage.removeItem("clearly-hl"); } catch { /* בלי אחסון */ }
+    if (hq) {
+      const first = markDom(view.querySelector(".md-body"), makeQuery(hq));
+      if (first) {
+        const n = view.querySelectorAll(".md-body mark.hl").length;
+        view.querySelector(".page h1").insertAdjacentHTML("afterend", `<p class="small hl-note" role="status">🔍 מסומן: "${esc(hq)}" · ${n === 1 ? "מקום אחד" : n + " מקומות"} <button type="button" class="link" id="hlNext">הבא ↓</button> <button type="button" class="link" id="hlClear">ניקוי הסימון</button></p>`);
+        let at = 0; const marks = [...view.querySelectorAll(".md-body mark.hl")];
+        const go = (k) => { marks.forEach((m) => m.classList.remove("now")); const m = marks[k]; m.classList.add("now"); m.scrollIntoView({ block: "center", behavior: "smooth" }); };
+        $("#hlNext").onclick = () => { at = (at + 1) % marks.length; go(at); };
+        $("#hlClear").onclick = () => { marks.forEach((m) => m.replaceWith(m.textContent)); view.querySelector(".hl-note")?.remove(); };
+        requestAnimationFrame(() => setTimeout(() => go(0), 120));
+      }
+    }
     $("#sumPdf").onclick = () => exportPdf(s);
     if ($("#sumCourseGo")) $("#sumCourseGo").onclick = async () => {
       const c = $("#sumCourse").value; if (!c || c === s.course) return toast("זה כבר הקורס של הסיכום");

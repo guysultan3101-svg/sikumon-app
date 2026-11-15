@@ -198,6 +198,104 @@ async function summarize(a, blob, filename, course, ref) {
   return j;
 }
 
+// ---------- חיפוש בתוך חומרי הקורס (1.6.14) ----------
+// הטקסט של כל עמוד בקבצי הקורס נקרא כאן במחשב (בלי AI, לא נספר במכסה), נדחס, ונשמר בתיקייה הפרטית של הסטודנט/ית.
+// האפליקציה (גם באייפד) מחפשת בו: "באיזה עמוד במצגת המרצה הסביר את X". הקובץ של המרצה עצמו לא נשמר אצלנו.
+const TEXT_MAX = 25;          // בכל בדיקה אוטומטית – עד 25 קבצים ישנים (קבצים חדשים נקראים מיד אחרי הסיכום)
+const TEXT_MANUAL_MAX = 80;   // כשלוחצים "בדיקה עכשיו"
+const TEXT_MS = 4 * 60 * 1000;
+async function hexOf(s) { const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s))); return [...d].map((b) => b.toString(16).padStart(2, "0")).join(""); }
+// סוגי תקלות: "setup" = בעיה אצלנו/בכרום (לא בקובץ) – עוצרים ומנסים בבדיקה הבאה, בלי לסמן את הקובץ.
+// "file" = הקובץ עצמו פגום/מוגן – אחרי 3 ניסיונות מוותרים עליו.
+const setupErr = (m) => Object.assign(new Error(m), { code: "setup" });
+async function pdfTextPages(buf) {
+  if (!(await ensureOffscreen())) throw setupErr("no_offscreen");
+  let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  let r;
+  try { r = await chrome.runtime.sendMessage({ cmd: "pdfText", data: btoa(bin) }); } catch (e) { throw setupErr("offscreen_msg " + e.message); }
+  if (!r) throw setupErr("offscreen_no_reply");
+  if (r.error) throw Object.assign(new Error(r.error), { code: "file" });
+  return r.pages;
+}
+// מה שירד מהמודל באמת קובץ? (כשההתחברות למודל פגה מגיע דף HTML של התחברות במקום הקובץ)
+function looksLike(buf, fname) {
+  const head = new TextDecoder("latin1").decode(buf.subarray(0, 1024));
+  return /\.pdf$/i.test(fname) ? head.includes("%PDF") : head.startsWith("PK");
+}
+// מצגת: עמוד = שקף. וורד: חלקים של כ-1,800 תווים (בגבולות פסקה)
+export function officePages(text, pptx) {
+  if (pptx) return text.split(/--- שקף \d+ ---\n?/).slice(1).map((t) => t.trim());
+  const out = []; let cur = "";
+  // בוורד אין שורות – חותכים גם בסוף משפט
+  for (const para of text.split(/\n+|(?<=[.!?:])\s+/)) { if (cur && cur.length + para.length > 1800) { out.push(cur.trim()); cur = ""; } cur += para + " "; }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+// מחזיר "ok" (נשמר), "empty" (אין טקסט, למשל סריקה), או זורק שגיאה
+export async function indexText(a, buf, fname, course, fkey, url) {
+  // לא קובץ אמיתי: או שההתחברות למודל פגה (אז כל הקבצים ייראו ככה), או שהקובץ הזה נמחק/חסום במודל
+  if (!looksLike(buf, fname)) throw Object.assign(new Error("not_a_file"), { code: "notfile" });
+  let pages = [];
+  if (/\.pdf$/i.test(fname)) pages = await pdfTextPages(buf);
+  else if (OFFICE_EXT.test(fname)) { try { pages = officePages(await officeText(buf, fname), /\.pptx$/i.test(fname)); } catch (e) { if (e.code !== "unsupported") throw e; } }
+  if (!pages.join("").replace(/\s/g, "")) return "empty";
+  const json = JSON.stringify({ v: 1, key: fkey, course, name: fname, url, at: new Date().toISOString(), pages });
+  const gz = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream("gzip"))).blob();
+  const name = (await hexOf(fkey)).slice(0, 32) + ".json.gz";
+  const r = await fetch(`${SB}/storage/v1/object/course-texts/${a.user}/${name}`, { method: "POST", headers: { apikey: ANON, Authorization: `Bearer ${a.access}`, "x-upsert": "true", "Content-Type": "application/gzip", "cache-control": "0" }, body: gz });
+  // 5xx = השרת עמוס (ננסה שוב). 4xx = אין הרשאה/אין מקום אחסון (למשל עוד לא הוגדר בשרת) – זו לא בעיה של הקובץ
+  // 413 = הטקסט של הקובץ הזה גדול מדי – בעיה של הקובץ, לא של כולם
+  if (!r.ok) throw Object.assign(new Error("upload " + r.status), { code: r.status >= 500 ? "network" : r.status === 413 ? "file" : "setup" });
+  return "ok";
+}
+// קבצים שסוכמו בגרסאות קודמות (או שלא מסוכמים בכלל, כמו תרגילים ופתרונות) – נקראים בהדרגה, כמה בכל בדיקה
+async function indexBacklog(a, base, files, seen, manual) {
+  const lim = manual ? TEXT_MANUAL_MAX : TEXT_MAX, t0 = Date.now();
+  let n = 0, left = 0, pendingDead = null;
+  // קובץ אחד שלא יורד = כנראה נמחק במודל: ממשיכים לבא, ונספר לו ניסיון רק אם הבא כן ירד.
+  // שניים ברצף = כנראה ההתחברות למודל פגה: עוצרים בלי לספור לאף אחד מהם
+  const fail = (k) => { seen["tn:" + k] = (seen["tn:" + k] || 0) + 1; if (seen["tn:" + k] >= 3) seen["t:" + k] = "x"; };
+  const commitDead = () => { if (pendingDead) { fail(pendingDead); pendingDead = null; } };
+  for (const it of files) {
+    if (it.type === "resource" && seen["t:" + it.key]) continue;
+    if (n >= lim || Date.now() - t0 > TEXT_MS) { left++; continue; }
+    let urls;
+    try { urls = await fileUrls(base, it); } catch { left++; continue; }
+    for (const f of urls) {
+      const fname = decodeURIComponent(f.url.split("?")[0].split("/").pop() || it.name);
+      const fkey = it.type === "folder" ? `${it.key}:${fname}` : it.key;
+      if (seen["t:" + fkey]) continue;
+      if (!OK_EXT.test(fname)) { seen["t:" + fkey] = "x"; continue; }
+      if (n >= lim || Date.now() - t0 > TEXT_MS) { left++; continue; }
+      try {
+        await status({ state: `קורא לחיפוש: ${it.name}` });
+        const blob = await (f.res || (await fetch(f.url, { credentials: "include" }))).blob();
+        if (blob.size > (OFFICE_EXT.test(fname) ? 250 : 30) * 1024 * 1024) { seen["t:" + fkey] = "big"; continue; }
+        seen["t:" + fkey] = await indexText(a, new Uint8Array(await blob.arrayBuffer()), fname, it.course, fkey, it.url);
+        n++; commitDead();
+      } catch (e) {
+        if (e.code === "notfile") {
+          if (pendingDead) {
+            // שניים ברצף: בודקים את ההתחברות למודל עצמה. מחובר = הקבצים באמת מתים (נספר להם ניסיון וממשיכים); לא מחובר = עוצרים
+            let loggedIn = false; try { await moodleSession(base); loggedIn = true; } catch { /* ההתחברות פגה */ }
+            if (!loggedIn) { pendingDead = null; await set({ seen }); return { n, left: left + 1, stopped: "moodle_login" }; }
+            commitDead(); fail(fkey); continue;
+          }
+          pendingDead = fkey; continue;
+        }
+        // רשת, או בעיה שאינה בקובץ (שרת לא מוכן, דף הרקע) – עוצרים בלי לסמן, ננסה בבדיקה הבאה
+        if (e.code === "network" || e.code === "setup" || e instanceof TypeError) { await set({ seen }); return { n, left: left + 1, stopped: e.code || "network" }; }
+        // הקובץ עצמו לא נקרא (פגום/מוגן/גדול מדי): אחרי 3 ניסיונות (בבדיקות שונות) מוותרים עליו
+        commitDead(); fail(fkey);
+      }
+    }
+    if (it.type === "resource" && !urls.length) seen["t:" + it.key] = "x";   // פריט בלי קובץ להורדה
+    await set({ seen });
+  }
+  commitDead(); await set({ seen });
+  return { n, left };
+}
+
 // ---------- בדיקה אחת: מה חדש במודל -> סיכום ----------
 let running = false;
 export async function syncOnce({ manual = false } = {}) {
@@ -260,11 +358,13 @@ export async function syncOnce({ manual = false } = {}) {
     }
     // כל הקבצים מתחילת הסמסטר, מהחדש לישן, לסירוגין בין הקורסים (כך כל קורס מקבל סיכומים מהר).
     // הקצב מוגבל במכסה היומית בשרת, אז זה נגמר תוך כמה ימים – ממשיכים לבד בכל בדיקה.
-    const perCourse = [];
+    const perCourse = [], allFiles = [];
     for (const c of courses) {
       const course = (c.fullname || c.shortname || "").trim();
       if (NOT_COURSE.test(course)) continue;
       const items = await courseItems(base, sesskey, c.id);
+      // לחיפוש: כל הקבצים של הקורס (גם תרגילים, פתרונות וסילבוס – לא רק מה שמסוכם)
+      for (const it of items) allFiles.push({ ...it, key: `${new URL(base).host}:${it.id}`, course });
       const list = [];
       // רק חומר שיעור, בלי תרגילים/פתרונות/נתונים/חומר של שנה שעברה ובלי כפילויות (classify.js)
       for (const it of planCourse(items).keep) {
@@ -300,6 +400,8 @@ export async function syncOnce({ manual = false } = {}) {
             await summarize(a, blob, fname, it.course, fkey);
             seen[fkey] = "done"; seen["h:" + hash] = 1; made++; netFails = 0;
             await markItem(a, { item_key: fkey, course: it.course, name: fname, kind: it.type, url: it.url, status: "done" });
+            // הקובץ כבר כאן: קוראים גם את הטקסט שלו לחיפוש (לא חובה – אם נכשל, ננסה שוב בהשלמה)
+            if (!seen["t:" + fkey]) try { seen["t:" + fkey] = await indexText(a, new Uint8Array(await blob.arrayBuffer()), fname, it.course, fkey, it.url); } catch { /* ננסה בהשלמה */ }
           } catch (e) {
             if (e.code === "limit" || e.code === "global_cap") { seen[fkey] = "retry"; stop = "הגעתם למכסת הסיכומים להיום – נמשיך מחר"; break; }
             // תקלת רשת/זמן (למשל גוגל איטי): לא קשור לקובץ. לא סופרים ככישלון של הקובץ, ואחרי 3 ברצף עוצרים ומנסים בריצה הבאה
@@ -318,9 +420,13 @@ export async function syncOnce({ manual = false } = {}) {
       if (stop) break;
     }
     await set({ seen });
+    // השלמה לחיפוש: קבצים שעוד לא נקראו (בלי AI ובלי מכסה). לא כשהחיבור איטי
+    let idx = { n: 0, left: 0 };
+    if (!/איטי/.test(stop)) try { idx = await indexBacklog(a, base, allFiles, seen, manual); } catch { /* לא חובה */ }
+    await set({ seen, textLeft: idx.left });
     chrome.action.setBadgeText({ text: made ? String(made) : "" });
     const left = Math.max(backlog - made, 0);
-    const more = left ? ` · נשארו עוד כ-${left} קבצים מהסמסטר – ממשיכים לבד (לפי המכסה היומית)` : "";
+    const more = (left ? ` · נשארו עוד כ-${left} קבצים מהסמסטר – ממשיכים לבד (לפי המכסה היומית)` : "") + (idx.n ? ` · 🔍 ${idx.n} קבצים נוספו לחיפוש באפליקציה` : "");
     await set({ backlogLeft: left });
     return await status({ state: (stop || (made ? `✅ ${made} סיכומים חדשים נשלחו לאפליקציה` : "✅ אין קבצים חדשים")) + more, courses: courses.length, error: "", last: new Date().toISOString() });
   } catch (e) {
