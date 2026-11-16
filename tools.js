@@ -11,7 +11,13 @@ export function initTools(ctx) {
   // מקריא את הסיכום חלק אחרי חלק, ומסמן את החלק שמוקרא עכשיו
   function attachReader() {
     const body = view.querySelector(".md-body");
-    if (!body || !("speechSynthesis" in window)) return;
+    if (!body) return;
+    // דפדפן בלי הקראה בקול: מציגים רק את כפתור ה-PDF
+    if (!("speechSynthesis" in window)) {
+      view.querySelector(".page h1")?.insertAdjacentHTML("afterend", `<div class="reader row"><button class="btn ghost small-btn" id="printBtn">📄 PDF</button></div>`);
+      $("#printBtn").onclick = () => { const p = document.getElementById("sumPdf"); if (p) p.click(); else printView(); };
+      return;
+    }
     // מקריאים רק את השיעור עצמו: בלי "המקור", בלי "לבדוק" ובלי הערות טכניות
     const SKIP_H = /^(לבדוק|מקור|הערות?|הערה טכנית)/;
     const blocks = [];
@@ -25,7 +31,7 @@ export function initTools(ctx) {
     view.querySelector(".page h1")?.insertAdjacentHTML("afterend", `<div class="reader row" role="group" aria-label="הקראה">
       <button class="btn small-btn" id="rdPlay">🔊 הקראה</button><button class="btn ghost small-btn" id="rdStop" hidden>⏹ עצירה</button>
       <select id="rdRate" name="rdRate" aria-label="מהירות" style="width:auto"><option value="0.9">איטי</option><option value="1" selected>רגיל</option><option value="1.25">מהיר</option><option value="1.5">מהיר מאוד</option></select>
-      <button class="btn ghost small-btn" id="printBtn">🖨️ הדפסה / PDF</button></div>`);
+      <button class="btn ghost small-btn" id="printBtn">📄 PDF</button></div>`);
     let i = 0, playing = false, paused = false, fails = 0;
     const voice = () => speechSynthesis.getVoices().find((v) => /^he|iw/i.test(v.lang));
     // טקסט נקי להקראה: בלי אימוג'י ובלי כפתורים, וסימנים נקראים כמילים
@@ -63,7 +69,8 @@ export function initTools(ctx) {
     $("#rdStop").onclick = stop;
     // לחיצה על חלק בסיכום בזמן הקראה – ממשיכים משם
     blocks.forEach((b, k) => b.addEventListener("click", () => { if (playing) { speechSynthesis.cancel(); i = k; setTimeout(speakNext, 50); } }));
-    $("#printBtn").onclick = () => printView();
+    // PDF: בדף סיכום – הייצוא המעוצב (עם הלוגו של Clearly); בשאר הדפים – שמירה רגילה כ-PDF. מה-PDF אפשר גם להדפיס
+    $("#printBtn").onclick = () => { stop(); const p = document.getElementById("sumPdf"); if (p) p.click(); else printView(); };
     window.addEventListener("hashchange", stop, { once: true });
   }
 

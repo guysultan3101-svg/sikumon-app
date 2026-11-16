@@ -324,10 +324,29 @@ async function attachAI(id) {
     $("#chatIn").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#chatForm").requestSubmit(); } };
     view.querySelectorAll("#chatSugg [data-q]").forEach((b) => (b.onclick = () => send(b.dataset.q)));
   }
-  view.querySelectorAll(".explain-btn").forEach((b) => (b.onclick = () => {
-    const h = b.closest("h2"); let t = h.textContent.replace("🪄 הסבר נוסף", "").trim() + "\n";
+  // "הסבר נוסף": ההסבר נפתח ממש מתחת לכותרת שנלחצה (לא בצ'אט בתחתית הדף, שם לא רואים שקרה משהו)
+  view.querySelectorAll(".explain-btn").forEach((b) => (b.onclick = async (e) => {
+    e.preventDefault(); e.stopPropagation();   // שלא ייתפס כלחיצה של ההקראה על הכותרת
+    if (!hasKey) { location.hash = "settings-ai"; toast("קודם מחברים AI בהגדרות"); return; }
+    const h = b.closest("h2");
+    // לחיצה שנייה: סוגרים את ההסבר (ועוצרים אם הוא עוד נכתב)
+    const open = h.nextElementSibling?.classList.contains("explain-box") ? h.nextElementSibling : null;
+    if (open) { open._ctrl?.abort(); open.remove(); return; }
+    let t = h.textContent.replace("🪄 הסבר נוסף", "").trim() + "\n";
     for (let el = h.nextElementSibling; el && el.tagName !== "H2"; el = el.nextElementSibling) t += el.textContent + "\n";
-    send("תסביר לי את החלק הזה מהשיעור בצורה פשוטה יותר, עם דוגמה:\n\n" + t.trim().slice(0, 2500));
+    const question = "תסביר לי את החלק הזה מהשיעור בצורה פשוטה יותר, עם דוגמה:\n\n" + t.trim().slice(0, 2500);
+    h.insertAdjacentHTML("afterend", `<div class="explain-box" role="status" aria-live="polite"><div class="explain-head"><b>🪄 הסבר נוסף</b><button type="button" class="link explain-x" aria-label="סגירת ההסבר">✕</button></div><div class="explain-text"><span class="typing">חושב…</span></div></div>`);
+    const box = h.nextElementSibling, out = box.querySelector(".explain-text");
+    const c = (box._ctrl = new AbortController());
+    box.querySelector(".explain-x").onclick = () => { c.abort(); box.remove(); };
+    box.scrollIntoView({ behavior: "smooth", block: "nearest" });   // שרואים מיד שההסבר נפתח
+    let text = "";
+    try {
+      const full = await ai.ask({ lessonTitle: sum.title, course: sum.course, lessonText, history: [], question, signal: c.signal, onText: (x) => { text += x; out.innerHTML = ai.miniMd(text); } });
+      out.innerHTML = ai.miniMd(full);
+    } catch (err) {
+      if (err.code !== "abort") out.innerHTML = `<span class="err">${esc(err.message)}</span>`;
+    }
   }));
   // סימון טקסט בסיכום -> סרגל "הסבר נוסף"
   const bar = document.createElement("div"); bar.className = "sel-bar"; bar.hidden = true;
@@ -345,7 +364,7 @@ async function attachAI(id) {
     const q = b.dataset.m === "simple" ? `תסביר לי בפשטות את זה מהשיעור: "${picked}"` : `תן לי דוגמה פשוטה (אם אפשר עם מספרים) ל: "${picked}"`;
     bar.hidden = true; getSelection().removeAllRanges(); send(q);
   }));
-  window.addEventListener("hashchange", () => { document.removeEventListener("selectionchange", onSel); bar.remove(); ctrl?.abort(); }, { once: true });
+  window.addEventListener("hashchange", () => { document.removeEventListener("selectionchange", onSel); bar.remove(); ctrl?.abort(); view.querySelectorAll(".explain-box").forEach((x) => x._ctrl?.abort()); }, { once: true });
 }
 
 // ----- 🎧 פודקאסטים: שני מגישים (נועה ואיתי) משוחחים על כל שיעור -----
@@ -2057,7 +2076,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "88";
+const APP_VERSION = "89";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

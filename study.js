@@ -17,7 +17,7 @@ export function initStudy(ctx) {
     return [...m.entries()].sort((a, b) => (order.indexOf(a[0]) + 1 || 99) - (order.indexOf(b[0]) + 1 || 99));
   };
   // טווח מספרים בכותרת (1–2) מוצג משמאל לימין, כדי שלא יתהפך
-  const escT = (t) => esc(t).replace(/(d+)s*([–-])s*(d+)/g, '<bdi dir="ltr">$1$2$3</bdi>');
+  const escT = (t) => esc(t).replace(/(\d+)\s*([–-])\s*(\d+)/g, '<bdi dir="ltr">$1$2$3</bdi>');
   const lib = async (type) => (await store.listItems()).filter((x) => x.type === type);
 
   // ---------- ייבוא החבילה מ-Drive ----------
@@ -219,7 +219,7 @@ export function initStudy(ctx) {
       ${!s.from && !s.demo ? `<div class="row" style="gap:8px;align-items:center"><label class="small" for="sumCourse">📂 הקורס של הסיכום:</label><select id="sumCourse" style="min-width:180px">${[...new Set([s.course, ...(prefs.get()?.courses || [])].filter(Boolean))].map((c) => `<option ${c === s.course ? "selected" : ""}>${esc(c)}</option>`).join("")}</select><button class="btn ghost small-btn" type="button" id="sumCourseGo">שמירה</button></div>` : ""}
       <h1 style="font-size:clamp(24px,4vw,34px)">${escT(s.title)}</h1>
       <article class="card md-body">${s.html}</article>
-      <div class="row">${quiz ? `<a class="btn" href="#quiz-${esc(quiz.id)}">${svg("check")} למבחן על הסיכום (${quiz.questions.length} שאלות)</a>` : ""}<button class="btn ghost" id="sumPdf" type="button">📄 ייצוא ל-PDF</button></div>
+      <div class="row">${quiz ? `<a class="btn" href="#quiz-${esc(quiz.id)}">${svg("check")} למבחן על הסיכום (${quiz.questions.length} שאלות)</a>` : ""}<button class="btn ghost" id="sumPdf" type="button" hidden>📄 PDF</button></div>
     </div>`;
     // טבלאות רחבות נגללות הצידה בטלפון
     view.querySelectorAll(".md-body table").forEach((t) => { const w = document.createElement("div"); w.className = "tablewrap"; t.replaceWith(w); w.appendChild(t); });
@@ -252,21 +252,172 @@ export function initStudy(ctx) {
     };
   }
 
-  // ייצוא סיכום / מחברת מסכמת ל-PDF: דף הדפסה עם הלוגו של Clearly בפינה הימנית העליונה של כל עמוד
-  // (כותרת עליונה בטבלה חוזרת בכל עמוד מודפס). בחלון ההדפסה בוחרים "שמירה כ-PDF"; באייפד: שיתוף ← הדפסה.
+  // ייצוא סיכום / מחברת מסכמת לקובץ PDF אמיתי (בלי חלון הדפסה): הלוגו של Clearly בפינה הימנית העליונה של כל עמוד.
+  // במחשב הקובץ יורד; באייפון/אייפד נפתח "שיתוף" – משם שומרים בקבצים או מדפיסים.
+  // הדף נבנה מחוץ למסך, הדפדפן עצמו מצייר כל עמוד (SVG ← תמונה) – כך עברית, אנגלית ומספרים יוצאים בדיוק כמו במסך –
+  // וכל העמודים נכנסים לקובץ PDF אחד.
+  const JSPDF = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+  const loadPdfLib = () => window.jspdf ? Promise.resolve() : new Promise((ok, bad) => {
+    const sc = document.createElement("script"); sc.src = JSPDF; sc.onload = ok;
+    sc.onerror = () => { sc.remove(); bad(new Error("אין חיבור לאינטרנט – לא הצלחתי להכין PDF")); };
+    document.head.appendChild(sc);
+  });
+  const toDataUrl = (blob) => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = bad; r.readAsDataURL(blob); });
+  // הגופנים של האפליקציה (Heebo / Rubik) מוטמעים בתמונה, אחרת היא נכתבת בגופן ברירת מחדל
+  let fontCss = null;
+  async function embeddedFonts() {
+    if (fontCss !== null) return fontCss;
+    fontCss = "";
+    try {
+      const links = [...document.querySelectorAll('link[rel="stylesheet"][href*="fonts.googleapis"]')];
+      for (const l of links) {
+        let css = await (await fetch(l.href)).text();
+        // רק עברית ולטינית בסיסית – לא מורידים את כל השפות
+        const faces = css.split("}").filter((f) => /@font-face/.test(f) && /U\+0590|U\+0000-00FF/i.test(f));
+        for (const f of faces) {
+          const u = f.match(/url\((https:[^)]+)\)/)?.[1]; if (!u) continue;
+          const data = await toDataUrl(await (await fetch(u)).blob());
+          fontCss += f.replace(u, data) + "}\n";
+        }
+      }
+    } catch { /* בלי חיבור – גופן ברירת מחדל */ }
+    return fontCss;
+  }
+  // כל ה-CSS של האפליקציה (מהקבצים שלנו), כדי שהעמוד ייראה כמו הסיכום במסך
+  const appCss = () => [...document.styleSheets].map((sh) => { try { return [...sh.cssRules].map((r) => r.cssText).join("\n"); } catch { return ""; } }).join("\n");
+  let pdfBusy = false;
   async function exportPdf(s) {
-    document.getElementById("printRoot")?.remove();
-    const root = document.createElement("div");
-    root.id = "printRoot";
-    root.innerHTML = `<table class="print-wrap"><thead><tr><td><div class="ph"><img src="icons/logo-mark.png" alt="" width="40" height="40"><b>Clearly</b></div></td></tr></thead><tbody><tr><td>
-      <div class="pmeta">${esc(s.course)} · <bdi>${esc(when(s))}</bdi></div><h1>${escT(s.title)}</h1><article class="md-body">${s.html}</article></td></tr></tbody></table>`;
-    document.body.appendChild(root);
-    try { await root.querySelector("img").decode(); } catch { /* ממשיכים גם בלי הלוגו */ }
-    const old = document.title; document.title = String(s.title || "סיכום").replace(/[\\/:*?"<>|]/g, " ").slice(0, 80) + " - Clearly";
-    document.body.classList.add("printing");
-    const done = () => { document.body.classList.remove("printing"); root.remove(); document.title = old; window.removeEventListener("afterprint", done); };
-    window.addEventListener("afterprint", done);
-    window.print();
+    if (pdfBusy) return; pdfBusy = true;
+    const btn = document.getElementById("printBtn"), label = btn?.textContent;
+    if (btn) { btn.disabled = true; btn.textContent = "⏳ מכין PDF…"; }
+    const name = String(s.title || "סיכום").replace(/[\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) + " - Clearly.pdf";
+    document.getElementById("pdfHold")?.remove();
+    const hold = document.createElement("div"); hold.id = "pdfHold";
+    hold.innerHTML = `<div id="pdfRoot" dir="rtl" lang="he"><div class="pmeta">${esc(s.course)} · <bdi>${esc(when(s))}</bdi></div><h1>${escT(s.title)}</h1><article class="md-body">${s.html}</article></div>`;
+    document.body.appendChild(hold);
+    const root = hold.firstElementChild;
+    try {
+      const [, fonts] = await Promise.all([loadPdfLib(), embeddedFonts()]);
+      // תמונות בתוך הסיכום: מוטמעות (תמונה חיצונית לא נטענת בתוך SVG)
+      await Promise.all([...root.querySelectorAll("img")].map(async (im) => {
+        try { if (!im.src.startsWith("data:")) im.src = await toDataUrl(await (await fetch(im.src)).blob()); await im.decode(); } catch { im.remove(); }
+      }));
+      try { await document.fonts.ready; } catch { /* */ }
+      const logo = new Image(); logo.src = "icons/logo-mark.png";
+      try { await logo.decode(); } catch { /* ממשיכים גם בלי הלוגו */ }
+      // מידות: עמוד A4, שוליים (מ"מ) – למעלה מקום ללוגו. רוחב התוכן במסך = 700px
+      const MM = { top: 22, side: 12, bottom: 14 }, PW = 210, PH = 297, CW = 700;
+      const pxPerMm = CW / (PW - 2 * MM.side), pageH = Math.floor((PH - MM.top - MM.bottom) * pxPerMm);
+      // איפה מותר לחתוך עמוד: בין שורות/פסקאות/שורות טבלה, לא באמצע שורה. כותרת לא נשארת לבד בתחתית עמוד
+      // תמונה גבוהה מעמוד מוקטנת לגובה עמוד – שלא תיחתך באמצע
+      root.querySelectorAll("img").forEach((im) => { im.style.maxHeight = pageH - 110 + "px"; im.style.width = "auto"; im.style.maxWidth = "100%"; });
+      // טבלה רחבה מהעמוד – שום עמודה לא נחתכת: (1) גופן קטן יותר, (2) מילים ארוכות נשברות בתוך התא, (3) אם עדיין רחבה – כל הטבלה מוקטנת
+      const W0 = root.clientWidth;
+      root.querySelectorAll("table").forEach((tb) => {
+        for (let f = 13; tb.scrollWidth > W0 + 1 && f > 9; f--) tb.style.fontSize = f + "px";
+        // קודם שוברים רק כותרות עמודות, אחר כך מקטינים את הטבלה (עד 60%), ורק בסוף שוברים גם מספרים בתאים
+        const fits = () => tb.getBoundingClientRect().width <= W0 + 1;   // כולל את ההקטנה (zoom)
+        if (!fits()) tb.querySelectorAll("th").forEach((c) => { c.style.overflowWrap = "anywhere"; });
+        if (!fits()) tb.style.zoom = String(Math.max(0.6, (W0 - 2) / tb.scrollWidth));
+        if (!fits()) { tb.style.zoom = ""; tb.querySelectorAll("td").forEach((c) => { c.style.overflowWrap = "anywhere"; }); }
+        if (!fits()) tb.style.zoom = String(Math.max(0.3, (W0 - 2) / tb.scrollWidth));
+      });
+      const top0 = root.getBoundingClientRect().top, total = Math.ceil(root.scrollHeight);
+      const box = (el) => { const r = el.getBoundingClientRect(); return { top: Math.floor(r.top - top0), y: Math.ceil(r.bottom - top0) }; };
+      // שורות הטקסט (כל שורה במקום שלה בדף). שורות בתוך כותרת או טבלה לא משמשות לחיתוך
+      const lines = [], lineCuts = [];
+      const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const rg = document.createRange();
+      while (tw.nextNode()) {
+        const n = tw.currentNode, inner = n.parentElement.closest("h1, h2, h3, h4, table");
+        rg.selectNodeContents(n);
+        for (const r of rg.getClientRects()) if (r.height) { const l = { top: Math.floor(r.top - top0), y: Math.ceil(r.bottom - top0) }; lines.push(l); if (!inner) lineCuts.push(l.y); }
+      }
+      // דברים שאסור לחתוך דרכם: שורה, שורת טבלה, תמונה
+      const solid = lines.concat([...root.querySelectorAll("tr, img")].map(box));
+      // מקומות חיתוך: סוף פסקה/פריט/שורת טבלה/בלוק, בין שתי שורות טקסט, או ממש לפני כותרת (כך כותרת לא נשארת לבד בתחתית עמוד)
+      const heads = [...root.querySelectorAll("h1, h2, h3, h4")].map(box);
+      // כותרת לא נשארת לבד בתחתית עמוד: אסור לחתוך בתוך כותרת, ואסור לחתוך אם מאז הכותרת האחרונה שמעל החיתוך
+      // עוד לא הופיעה אף שורה של תוכן (טקסט, שורת טבלה או תמונה). כך גם "פרק" ומיד "סעיף" עוברים יחד לעמוד הבא
+      const inHead = (l) => heads.some((h) => l.top >= h.top - 1 && l.y <= h.y + 1);
+      const content = lines.filter((l) => !inHead(l)).concat([...root.querySelectorAll("tr, img")].map(box));
+      const headOk = (y) => {
+        if (heads.some((h) => y > h.top + 1 && y < h.y)) return false;
+        const above = heads.filter((h) => h.y <= y + 1).reduce((m, h) => (!m || h.y > m.y ? h : m), null);
+        return !above || content.some((c) => c.top >= above.y - 1 && c.y <= y + 1);
+      };
+      const cand = [...new Set([
+        ...[...root.querySelectorAll("p, li, tr, blockquote, pre, hr, img, .pmeta, table, ul, ol")].map((el) => box(el).y),
+        ...lineCuts, ...heads.map((h) => h.top),
+      ])].filter(headOk).sort((a, b) => b - a);
+      // גיבוי לשורת טבלה ענקית (גבוהה מעמוד): מותר לחתוך גם בין שורות טקסט בתוך התא
+      const allLines = [...new Set(lines.map((l) => l.y))].filter(headOk).sort((a, b) => b - a);
+      const clear = (y, list) => !list.some((s) => s.top < y - 1 && s.y > y + 1);
+      const pages = []; let start = 0;
+      while (start < total - 2) {
+        let end = start + pageH;
+        if (end < total) {
+          let fit = cand.find((y) => y > start + 20 && y <= end && clear(y, solid));
+          // עמוד שנשאר כמעט ריק (למשל רק כותרות של טבלה ואחריהן שורה ענקית) – עדיף לחתוך בין שורות טקסט בתוך הטבלה
+          if (!fit || fit < start + pageH * 0.5) {
+            const inner = allLines.find((y) => y > start + 20 && y <= end && clear(y, lines));
+            if (inner && (!fit || inner > fit)) fit = inner;
+          }
+          if (fit) end = fit;
+        } else end = total;
+        pages.push([start, end]); start = end;
+      }
+      const css = fonts + appCss();
+      const body = new XMLSerializer().serializeToString(root);
+      const pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+      const SCALE = 2;
+      for (let i = 0; i < pages.length; i++) {
+        const [a, b] = pages[i], h = b - a;
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CW}" height="${h}"><foreignObject x="0" y="0" width="${CW}" height="${h}"><div xmlns="http://www.w3.org/1999/xhtml" style="width:${CW}px;height:${h}px;overflow:hidden;background:#fff"><style>${css.replace(/<\/style/gi, "<\/style")}</style><div style="margin-top:${-a}px">${body}</div></div></foreignObject></svg>`;
+        const img = new Image();
+        img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+        await img.decode();
+        const cv = document.createElement("canvas"); cv.width = CW * SCALE; cv.height = h * SCALE;
+        const g = cv.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, 0, 0, cv.width, cv.height);
+        if (i) pdf.addPage();
+        pdf.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", MM.side, MM.top, PW - 2 * MM.side, h / pxPerMm);
+      }
+      // הלוגו + Clearly בפינה הימנית העליונה של כל עמוד, ומספר עמוד למטה
+      const n = pdf.internal.getNumberOfPages(), W = PW;
+      for (let i = 1; i <= n; i++) {
+        pdf.setPage(i);
+        if (logo.naturalWidth) pdf.addImage(logo, "PNG", W - 12 - 9, 7, 9, 9);
+        pdf.setFont("helvetica", "bold"); pdf.setFontSize(13); pdf.setTextColor(38, 43, 107);
+        pdf.text("Clearly", W - 12 - 11, 13.5, { align: "right" });
+        pdf.setDrawColor(213, 222, 242); pdf.setLineWidth(0.4); pdf.line(12, 18, W - 12, 18);
+        pdf.setFont("helvetica", "normal"); pdf.setFontSize(9); pdf.setTextColor(120, 130, 150);
+        pdf.text(`${i} / ${n}`, W / 2, PH - 7, { align: "center" });
+      }
+      const blob = pdf.output("blob");
+      const file = new File([blob], name, { type: "application/pdf" });
+      // באייפון/אייפד: חלון השיתוף (שמירה בקבצים / הדפסה / שליחה). אחרת – הורדה רגילה
+      const touch = navigator.maxTouchPoints > 1 && /iPhone|iPad|Macintosh|Android/.test(navigator.userAgent);
+      if (touch && navigator.canShare?.({ files: [file] })) {
+        const share = async () => { try { await navigator.share({ files: [file], title: name }); return true; } catch (e) { if (e?.name === "AbortError") return true; if (e?.name === "NotAllowedError") return false; throw e; } };
+        // ההכנה לוקחת כמה שניות, ואז הדפדפן לפעמים דורש לחיצה חדשה כדי לפתוח שיתוף – מציגים כפתור "ה-PDF מוכן"
+        if (!(await share())) {
+          document.body.insertAdjacentHTML("beforeend", `<div class="modal" id="pdfReady" role="dialog" aria-modal="true"><div class="card" style="display:grid;gap:12px;text-align:center;max-width:340px"><b style="font-size:19px">📄 ה-PDF מוכן</b><button class="btn" id="pdfShare">שמירה / שיתוף / הדפסה</button><button class="btn ghost small-btn" id="pdfClose">סגירה</button></div></div>`);
+          const m = document.getElementById("pdfReady");
+          document.getElementById("pdfShare").onclick = async () => { m.remove(); await share().catch((e) => toast("לא הצלחתי לשתף: " + e.message)); };
+          document.getElementById("pdfClose").onclick = () => m.remove();
+        }
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        toast("📄 ה-PDF ירד למחשב");
+      }
+    } catch (e) {
+      toast("לא הצלחתי להכין PDF: " + (e?.message || e));
+    } finally {
+      hold.remove(); pdfBusy = false;
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+    }
   }
 
   // ---------- מבחנים ----------

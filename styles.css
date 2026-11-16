@@ -422,6 +422,9 @@ body.split main { padding-inline-end: calc(42vw + 24px); }
 .bubble .err { color: var(--red); }
 .typing { color: var(--ink-soft); animation: pulse-t 1s ease-in-out infinite alternate; } @keyframes pulse-t { from { opacity: .4; } to { opacity: 1; } }
 .chat-form { display: flex; gap: 8px; align-items: flex-end; } .chat-form textarea { flex: 1; min-height: 52px; resize: none; }
+.explain-box { border: 1.5px solid var(--violet); border-radius: 14px; padding: 10px 14px; margin: 6px 0 14px; background: var(--paper); font-size: 16px; }
+.explain-head { display: flex; justify-content: space-between; align-items: center; color: var(--violet); margin-bottom: 4px; }
+.explain-x { font-size: 18px; }
 .explain-btn { font: 600 13px var(--font-body); border: 1.5px solid var(--line); background: var(--paper); color: var(--violet); border-radius: 999px; padding: 3px 10px; cursor: pointer; vertical-align: middle; }
 .sel-bar { position: fixed; z-index: 60; inset-inline: 0; bottom: calc(var(--tabbar-h) + 18px + env(safe-area-inset-bottom, 0px)); margin-inline: auto; width: max-content; display: flex; gap: 8px; padding: 8px; background: var(--paper); border: 2px solid var(--ink); border-radius: 16px; box-shadow: 4px 4px 0 var(--ink); }
 @media (min-width: 821px) { .sel-bar { bottom: 24px; } }
@@ -466,7 +469,7 @@ mark { background: var(--marker); color: #0F172A; border-radius: 3px; padding: 0
 .tq-ans { margin-top: 8px; min-height: 60px; }
 /* הדפסה / PDF: רק הסיכום, נקי וצפוף */
 @media print {
-  .side, .tabs, .reader, #chat, .explain-btn, .sel-bar, .toast, .page > a.small, .btn, .row .chip { display: none !important; }
+  .side, .tabs, .reader, #chat, .explain-btn, .explain-box, .sel-bar, .toast, .page > a.small, .btn, .row .chip { display: none !important; }
   .app { display: block !important; } main { padding: 0 !important; } body { background: #fff !important; }
   .md-body { border: 0 !important; box-shadow: none !important; padding: 0 !important; font-size: 12px; line-height: 1.45; column-count: 2; column-gap: 22px; }
   .md-body h2 { break-after: avoid; font-size: 15px; } .md-body table { break-inside: avoid; font-size: 11px; }
@@ -625,7 +628,22 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 .lvl-b[aria-pressed="true"] { background: var(--blue); border-color: var(--blue); color: var(--on-blue); }
 .small-btn.nb-btn { white-space: nowrap; }
 
-/* ייצוא ל-PDF (study.js exportPdf): רק דף ההדפסה, הלוגו בפינה הימנית העליונה של כל עמוד */
+/* ייצוא לקובץ PDF (study.js exportPdf): נבנה מחוץ למסך, תמיד בהיר (גם כשהאפליקציה במצב כהה) */
+#pdfRoot { overflow-wrap: break-word;
+  --bg: #FFFFFF; --paper: #FFFFFF; --grid: #E6ECF8; --ink: #0F172A; --ink-soft: #475569; --blue: #2563EB; --violet: #6D28D9;
+  --marker: #FDE047; --pink: #DB2777; --red: #DC2626; --green: #16A34A; --line: #D5DEF2; color-scheme: light;
+  width: 700px; padding: 0 4px; background: #fff; color: #0F172A;
+  direction: rtl; text-align: right; font: 400 15px/1.6 var(--font-body);
+}
+#pdfHold { position: fixed; top: 0; left: -10000px; pointer-events: none; }   /* מחוץ למסך: ממנו מודדים איפה לחתוך עמודים, ומעתיקים את התוכן לציור */
+#pdfRoot .pmeta { color: #475569; font-size: 13px; }
+#pdfRoot h1 { font-size: 26px; margin: 4px 0 12px; }
+#pdfRoot .md-body { display: block; column-count: 1; border: 0; box-shadow: none; padding: 0; background: none; }
+#pdfRoot .md-body h2 { font-size: 19px; }
+#pdfRoot .md-body table { font-size: 13px; width: 100% !important; max-width: 100%; table-layout: auto; }
+#pdfRoot .md-body th, #pdfRoot .md-body td { overflow-wrap: break-word; min-width: 0; }
+#pdfRoot .md-body pre { overflow: visible; } #pdfRoot .md-body pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
+#pdfRoot .tablewrap { overflow: visible; }
 #printRoot { display: none; }
 @media print {
   body.printing > *:not(#printRoot) { display: none !important; }
