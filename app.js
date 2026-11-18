@@ -198,7 +198,7 @@ async function home() {
     </section>
     <div class="grid2">
       <section class="soft"><h3>הסיכום האחרון</h3>
-        ${lastSum ? `<a class="item" href="#sum-${esc(lastSum.id)}" style="margin-top:12px"><span style="min-width:0"><span class="t">${esc(lastSum.course)}</span><br><span class="small muted">${esc(lastSum.title)}</span></span></a>` : `<a class="item" href="#upload" style="margin-top:12px"><span><span class="t">📄 הסיכום הראשון שלך</span><br><span class="small muted">מעלים מצגת או PDF של שיעור</span></span></a>`}
+        ${lastSum ? `<a class="item" href="#sum-${esc(lastSum.id)}" style="margin-top:12px"><span style="min-width:0"><span class="t">${esc(lastSum.course)}</span><br><span class="small muted">${esc(lastSum.title).replace(/(?<![\d.\/]|\d\s*[–-]\s*)(\d+)\s*([–-])\s*(\d+)(?![\d.\/]|\s*[–-]\s*\d)/g, '<bdi dir="ltr">$1$2$3</bdi>')}</span></span></a>` : `<a class="item" href="#upload" style="margin-top:12px"><span><span class="t">📄 הסיכום הראשון שלך</span><br><span class="small muted">מעלים מצגת או PDF של שיעור</span></span></a>`}
       </section>
       <section class="soft"><h3>המבחנים שלי</h3>
         <a class="item" href="${quizCount ? "#quizzes" : "#upload"}" style="margin-top:12px"><span><span class="t">${quizCount ? quizCount + " מבחנים מחכים לך" : "עוד אין מבחנים"}</span><br><span class="small muted">${quizCount ? "על כל סיכום, וגם מבחנים שתכתוב בעצמך" : "מבחן קצר נוצר לבד עם כל סיכום"}</span></span></a>
@@ -852,7 +852,7 @@ async function recordingDetail(id) {
 }
 
 // ----- מחברות: תיקייה לכל קורס, דף לכל שיעור -----
-const FOLDER_COLORS = ["#2563EB", "#6D28D9", "#DB2777", "#16A34A", "#EA580C", "#0891B2", "#CA8A04", "#475569"];
+const FOLDER_COLORS = ["#4649CF", "#6D28D9", "#DB2777", "#16A34A", "#EA580C", "#0891B2", "#CA8A04", "#475569"];
 const todayKey = (d = new Date()) => d.toLocaleDateString("en-CA"); // YYYY-MM-DD לפי השעון המקומי
 const fmtDay = (key) => new Date(key + "T12:00").toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "numeric" });
 const courseIndex = (name) => (prefs.get().courses || []).indexOf(name);
@@ -2076,7 +2076,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "89";
+const APP_VERSION = "90";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

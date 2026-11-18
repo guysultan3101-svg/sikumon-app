@@ -17,7 +17,8 @@ export function initStudy(ctx) {
     return [...m.entries()].sort((a, b) => (order.indexOf(a[0]) + 1 || 99) - (order.indexOf(b[0]) + 1 || 99));
   };
   // טווח מספרים בכותרת (1–2) מוצג משמאל לימין, כדי שלא יתהפך
-  const escT = (t) => esc(t).replace(/(\d+)\s*([–-])\s*(\d+)/g, '<bdi dir="ltr">$1$2$3</bdi>');
+  // רק טווח של שני מספרים ("1–2"); תאריך כמו 12-11-2026 נשאר כמו שהוא (הוא כבר מוצג נכון)
+  const escT = (t) => esc(t).replace(/(?<![\d.\/]|\d\s*[–-]\s*)(\d+)\s*([–-])\s*(\d+)(?![\d.\/]|\s*[–-]\s*\d)/g, '<bdi dir="ltr">$1$2$3</bdi>');
   const lib = async (type) => (await store.listItems()).filter((x) => x.type === type);
 
   // ---------- ייבוא החבילה מ-Drive ----------

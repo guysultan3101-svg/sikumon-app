@@ -15,7 +15,7 @@ export function initSocial(ctx) {
     public: "כל מי שמשתמש באפליקציה",
   };
   const UNIS = [...INSTITUTIONS, "אחר"];
-  const COLORS = ["#DB2777", "#2563EB", "#16A34A", "#6D28D9", "#EA580C", "#0891B2", "#CA8A04", "#475569"];
+  const COLORS = ["#DB2777", "#4649CF", "#16A34A", "#6D28D9", "#EA580C", "#0891B2", "#CA8A04", "#475569"];
   const color = (id = "") => COLORS[[...id].reduce((n, c) => n + c.charCodeAt(0), 0) % COLORS.length];
   const people = new Map(); // מטמון פרופילים לפי id
   const meId = () => api.user()?.id;
