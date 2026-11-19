@@ -1,7 +1,7 @@
 /* סיכומון AI – עיצוב: דף מחברת משובץ, כחול/סגול, מרקר צהוב. מותאם לאייפד קודם. */
 :root {
   --bg: #F7F9FE; --paper: #FFFFFF; --grid: #E6ECF8; --ink: #0F172A; --ink-soft: #475569;
-  --blue: #4649CF; --on-blue: #FFFFFF; --violet: #6D28D9; --marker: #FDE047; --pink: #DB2777;
+  --blue: #0017A0; --on-blue: #FFFFFF; --violet: #6D28D9; --marker: #FDE047; --pink: #DB2777;
   --red: #DC2626; --green: #16A34A; --line: #D5DEF2;
   --chip-ok: #166534; --chip-warn: #B91C1C;
   --font-display: "Rubik", "Arial Hebrew", "Segoe UI", sans-serif;
@@ -14,7 +14,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0B1120; --paper: #121b30; --grid: #17223a; --ink: #E7ECF7; --ink-soft: #A3B0C8;
-    --blue: #7C7FEA; --on-blue: #0B1120; --violet: #A78BFA; --marker: #FACC15; --pink: #F472B6;
+    --blue: #7085FF; --on-blue: #0B1120; --violet: #A78BFA; --marker: #FACC15; --pink: #F472B6;
     --red: #F87171; --green: #4ADE80; --line: #26324d; --chip-ok: #4ADE80; --chip-warn: #F87171; color-scheme: dark;
   }
 }
@@ -42,6 +42,9 @@ button { font: inherit; color: inherit; }
 }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font: 900 21px/1 var(--font-display); }
 .brand svg, .brand img { width: 32px; height: 32px; }
+/* במצב כהה: הלוגו בגוון הבהיר של הכחול (#7085FF), כדי שיראו אותו על רקע כהה */
+:root[data-theme="dark"] img[src$="icons/logo-mark.png"] { content: url("icons/logo-mark-dark.png"); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) img[src$="icons/logo-mark.png"] { content: url("icons/logo-mark-dark.png"); } }
 .tabs { display: grid; gap: 6px; }
 .tabs a {
   display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 14px; border-radius: 12px;
@@ -230,17 +233,17 @@ bdi { unicode-bidi: isolate; }
 .sheet.bg-grid { background-image: linear-gradient(transparent calc(100% - 1px), #D5DEF2 0), linear-gradient(90deg, transparent calc(100% - 1px), #D5DEF2 0); background-size: 3.5% calc(100% / 40); }
 .pimg { position: absolute; overflow: hidden; pointer-events: none; }
 .pimg img { position: absolute; max-width: none; height: auto; display: block; pointer-events: none; }
-.imgsel { position: absolute; z-index: 4; border: 2px solid #4649CF; touch-action: none; cursor: move; }
+.imgsel { position: absolute; z-index: 4; border: 2px solid #0017A0; touch-action: none; cursor: move; }
 .imgsel.locked { pointer-events: none; border-style: dashed; }
 .imgsel.cropping { border-width: 3px; border-color: #F97316; }
 .imgsel .ghost { position: absolute; opacity: .38; max-width: none; pointer-events: none; }
-.imgsel .hd { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; background: #fff; border: 2.5px solid #4649CF; border-radius: 50%; box-shadow: 0 1px 4px rgba(0,0,0,.3); touch-action: none; }
+.imgsel .hd { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; background: #fff; border: 2.5px solid #0017A0; border-radius: 50%; box-shadow: 0 1px 4px rgba(0,0,0,.3); touch-action: none; }
 .imgsel .hd::after { content: ""; position: absolute; inset: -14px; }
 .imgsel.cropping .hd { border-radius: 4px; border-color: #F97316; }
 .hd-tl { left: 0; top: 0; cursor: nwse-resize; } .hd-tr { left: 100%; top: 0; cursor: nesw-resize; } .hd-bl { left: 0; top: 100%; cursor: nesw-resize; } .hd-br { left: 100%; top: 100%; cursor: nwse-resize; }
 .hd-t { left: 50%; top: 0; cursor: ns-resize; } .hd-b { left: 50%; top: 100%; cursor: ns-resize; } .hd-l { left: 0; top: 50%; cursor: ew-resize; } .hd-r { left: 100%; top: 50%; cursor: ew-resize; }
-.hd-rot { left: 50%; top: -34px; background: #4649CF; cursor: grab; }
-.hd-rot::before { content: ""; position: absolute; left: 50%; top: 100%; width: 2px; height: 22px; margin-left: -1px; background: #4649CF; }
+.hd-rot { left: 50%; top: -34px; background: #0017A0; cursor: grab; }
+.hd-rot::before { content: ""; position: absolute; left: 50%; top: 100%; width: 2px; height: 22px; margin-left: -1px; background: #0017A0; }
 .immenu { position: absolute; z-index: 6; display: flex; gap: 2px; padding: 4px; background: #1F2937; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.3); transform: translateX(-50%); white-space: nowrap; }
 .immenu button { border: 0; background: none; color: #fff; font: 600 14px/1 var(--font-body); min-height: 40px; padding: 0 12px; border-radius: 10px; cursor: pointer; }
 .immenu button:hover, .immenu button:active { background: rgba(255,255,255,.16); }
@@ -552,13 +555,13 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 .calm *, .calm *::before, .calm *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 :root[data-theme="dark"] {
   --bg: #0B1120; --paper: #121b30; --grid: #17223a; --ink: #E7ECF7; --ink-soft: #A3B0C8;
-  --blue: #7C7FEA; --on-blue: #0B1120; --violet: #A78BFA; --marker: #FACC15; --pink: #F472B6;
+  --blue: #7085FF; --on-blue: #0B1120; --violet: #A78BFA; --marker: #FACC15; --pink: #F472B6;
   --red: #F87171; --green: #4ADE80; --line: #26324d; --chip-ok: #4ADE80; --chip-warn: #F87171; color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
   :root[data-theme="light"] {
     --bg: #F7F9FE; --paper: #FFFFFF; --grid: #E6ECF8; --ink: #0F172A; --ink-soft: #475569;
-    --blue: #4649CF; --on-blue: #FFFFFF; --violet: #6D28D9; --marker: #FDE047; --pink: #DB2777;
+    --blue: #0017A0; --on-blue: #FFFFFF; --violet: #6D28D9; --marker: #FDE047; --pink: #DB2777;
     --red: #DC2626; --green: #16A34A; --line: #D5DEF2; --chip-ok: #166534; --chip-warn: #B91C1C; color-scheme: light;
   }
 }
@@ -641,7 +644,7 @@ body:has(.pod-bar) .ai-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 
 /* ייצוא לקובץ PDF (study.js exportPdf): נבנה מחוץ למסך, תמיד בהיר (גם כשהאפליקציה במצב כהה) */
 #pdfRoot { overflow-wrap: break-word;
-  --bg: #FFFFFF; --paper: #FFFFFF; --grid: #E6ECF8; --ink: #0F172A; --ink-soft: #475569; --blue: #4649CF; --violet: #6D28D9;
+  --bg: #FFFFFF; --paper: #FFFFFF; --grid: #E6ECF8; --ink: #0F172A; --ink-soft: #475569; --blue: #0017A0; --violet: #6D28D9;
   --marker: #FDE047; --pink: #DB2777; --red: #DC2626; --green: #16A34A; --line: #D5DEF2; color-scheme: light;
   width: 700px; padding: 0 4px; background: #fff; color: #0F172A;
   direction: rtl; text-align: right; font: 400 15px/1.6 var(--font-body);

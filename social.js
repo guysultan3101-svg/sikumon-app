@@ -118,14 +118,16 @@ export function initSocial(ctx) {
   function restorePrefs() {
     const p = api.profile(); if (!p || prefs.get()) return;
     if (!p.learn || !Object.keys(p.learn).length) return;
-    prefs.set({ ...p.learn, name: p.full_name.split(" ")[0], inst: p.uni, courses: p.courses || [], createdAt: p.created_at });
+    prefs.set({ ...p.learn, name: p.full_name.split(" ")[0], inst: p.uni, studyYear: p.study_year || null, courses: p.courses || [], createdAt: p.created_at });
   }
   // השאלון והקורסים נשמרים גם בשרת (בשביל הסיכומים האישיים)
   async function pushPrefs() {
     const p = prefs.get(); if (!p || !api.user()) return;
     const learn = Object.fromEntries(["style", "length", "tone", "hard", "quiz"].filter((k) => p[k]).map((k) => [k, p[k]]));
     if (p.levels && Object.keys(p.levels).length) learn.levels = p.levels;   // רמת קושי 1-5 לכל קורס (לסיכומים ולמבחנים בשרת)
-    try { await api.updateMe({ learn, courses: (p.courses || []).slice(0, 40) }); } catch { /* ננסה בפעם הבאה */ }
+    // שנת הלימודים נשלחת רק אם נבחרה (לא מוחקים שנה ששמורה בשרת)
+    const extra = p.studyYear ? { study_year: p.studyYear } : {};
+    try { await api.updateMe({ learn, courses: (p.courses || []).slice(0, 40), ...extra }); } catch { /* ננסה בפעם הבאה */ }
   }
 
   // ---------- גיבוי לשרת של סיכומים שנמצאים רק במכשיר ----------
@@ -415,8 +417,13 @@ export function initSocial(ctx) {
     const m = modal(`<h2>🎓 אותה כיתה עם ${esc(nameOf(friendId))}</h2>
       <p class="small">מסמנים קורסים שלומדים ביחד. הסיכומים שלך בקורסים האלה יופיעו אצל ${esc(nameOf(friendId))}, <b>רק אם גם הוא/היא ישתף/תשתף איתך</b>. אפשר לבטל בכל רגע.</p>
       ${theirs.length ? `<p class="notice small">✅ ${esc(nameOf(friendId))} כבר משתף/ת איתך: <b>${theirs.map(esc).join(", ")}</b></p>` : `<p class="small muted">${esc(nameOf(friendId))} עוד לא שיתף/ה איתך קורסים.</p>`}
+      ${courses.length > 1 ? `<div class="row" style="justify-content:flex-start;margin:0 0 6px"><button class="btn ghost small-btn" id="shAll" type="button">בחר הכל</button></div>` : ""}
       <fieldset class="vis"><legend>הקורסים שלי לשתף</legend>${courses.map((c) => `<label><input type="checkbox" value="${esc(c)}" ${mine.includes(c) ? "checked" : ""}> ${esc(c)}</label>`).join("") || '<p class="small muted">אין לך קורסים ברשימה (הגדרות ← לימודים)</p>'}</fieldset>
       <div class="row"><button class="btn" id="shGo" type="button">שמירה</button><button class="btn ghost" data-x type="button">אחר כך</button></div>`);
+    // "בחר הכל": מסמן את כל הקורסים בלחיצה אחת (וכשהכול מסומן – "נקה הכל")
+    const boxes = [...m.querySelectorAll("fieldset input[type=checkbox]")], allBtn = $("#shAll", m);
+    const paintAll = () => { if (allBtn) allBtn.textContent = boxes.every((b) => b.checked) ? "נקה הכל" : "בחר הכל"; };
+    if (allBtn) { paintAll(); allBtn.onclick = () => { const on = !boxes.every((b) => b.checked); boxes.forEach((b) => (b.checked = on)); paintAll(); }; boxes.forEach((b) => b.addEventListener("change", paintAll)); }
     $("#shGo", m).onclick = async () => {
       const want = [...m.querySelectorAll("fieldset input:checked")].map((i) => i.value);
       try {
@@ -458,7 +465,7 @@ export function initSocial(ctx) {
           toast(`הבקשה נשלחה ל${p.full_name}`); api.track("friend_request"); friends();
         } catch (err) { toast(err.message); }
       };
-      // אנשים שאולי תכירו: אותו מוסד + קורס משותף קודם, אחר כך אותו מוסד, אחר כך קורס משותף, ואז כולם
+      // אנשים שאולי תכירו (הסדר בשרת): קורס+מוסד+שנה, קורס+מוסד, קורס, מוסד, ואז כולם
       api.suggestPeople(30).then((list) => {
         const box = $("#frSuggest"); if (!box) return;
         if (!list.length) { box.remove(); return; }
@@ -679,6 +686,7 @@ export function initSocial(ctx) {
       <label>על עצמי<textarea id="eBio" rows="3" maxlength="300">${esc(me.bio)}</textarea></label>
       <label>מוסד<select id="eUni">${UNIS.map((u) => `<option ${u === me.uni ? "selected" : ""}>${u}</option>`).join("")}</select></label>
       <label>תואר ושנה<input id="eDeg" value="${esc(me.degree)}" maxlength="80"></label>
+      <label>שנת לימודים (בשביל "אנשים שאולי תכירו")<select id="eYear"><option value="">לא נבחר</option>${api.STUDY_YEARS.map((y, i) => `<option value="${i + 1}" ${i + 1 === me.study_year ? "selected" : ""}>${y}</option>`).join("")}</select></label>
       <label>מייל של מוסד הלימודים (רק את/ה רואה)<input id="eUniMail" type="email" dir="ltr" value="${esc(me.uni_email || "")}" placeholder="name@msmail.ariel.ac.il"></label>
       <p class="small muted">המייל האישי (להתחברות ולשחזור סיסמה): <b dir="ltr">${esc(api.user()?.email || "")}</b></p>
       <label>יום הולדת<input id="eBday" type="date" value="${esc(me.birthday || "")}"></label>
@@ -692,7 +700,8 @@ export function initSocial(ctx) {
       const uniMail = $("#eUniMail", m).value.trim().toLowerCase();
       if (uniMail && !/^[^@\s]+@[^@\s]+\.ac\.il$/i.test(uniMail)) return toast("המייל של מוסד הלימודים צריך להיגמר ב-ac.il");
       try {
-        await api.updateMe({ full_name: $("#eName", m).value.trim() || me.full_name, bio: $("#eBio", m).value.trim(), uni: $("#eUni", m).value, degree: $("#eDeg", m).value.trim(), birthday: $("#eBday", m).value || null, ig: safeLink(ig, "instagram.com"), li: safeLink(li, "linkedin.com"), uni_email: uniMail || null });
+        await api.updateMe({ full_name: $("#eName", m).value.trim() || me.full_name, bio: $("#eBio", m).value.trim(), uni: $("#eUni", m).value, degree: $("#eDeg", m).value.trim(), birthday: $("#eBday", m).value || null, ig: safeLink(ig, "instagram.com"), li: safeLink(li, "linkedin.com"), uni_email: uniMail || null, study_year: +$("#eYear", m).value || null });
+        const pr = prefs.get(); if (pr) { pr.studyYear = +$("#eYear", m).value || null; prefs.set(pr); }
         m.remove(); toast("נשמר ✓"); dispatchEvent(new HashChangeEvent("hashchange"));
       } catch (e) { toast(e.message); }
     };

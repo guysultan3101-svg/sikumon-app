@@ -116,45 +116,46 @@ window.addEventListener("unhandledrejection", (e) => logError("promise", e.reaso
 function onboarding(step = 0, answers = {}) {
   renderTabs(null);
   if (step === 0) {
+    const name = answers.name ?? (api.profile()?.full_name || "").split(" ")[0];
     view.innerHTML = `<div class="page">
       <p class="eyebrow">ברוכים הבאים</p>
       <h1 style="font-size:clamp(32px,5vw,48px)">נתאים את <span class="mark">Clearly</span> בדיוק אלייך</h1>
-      <p class="muted">חמש שאלות קצרות על איך שאת/ה לומד/ת, ואז כמה פרטים על הקורסים. לוקח פחות מדקה.</p>
-      <label class="field">איך לקרוא לך?<input type="text" id="name" name="name" autocomplete="given-name" placeholder="השם הפרטי שלך" value="${esc((api.profile()?.full_name || "").split(" ")[0])}"></label>
-      <label class="field">מוסד לימודים<select id="inst" name="inst">${INSTITUTIONS.map((n) => `<option>${n}</option>`).join("")}<option>אחר</option></select></label>
+      <p class="muted">חמש שאלות קצרות על איך שאת/ה לומד/ת. את הקורסים נביא מהמודל. לוקח פחות מדקה.</p>
+      <label class="field">איך לקרוא לך?<input type="text" id="name" name="name" autocomplete="given-name" placeholder="השם הפרטי שלך" value="${esc(name)}"></label>
+      <label class="field">מוסד לימודים<select id="inst" name="inst">${[...INSTITUTIONS, "אחר"].map((n) => `<option${n === answers.inst ? " selected" : ""}>${n}</option>`).join("")}</select></label>
+      <label class="field">באיזו שנה את/ה בלימודים?<select id="year" name="year" required aria-required="true"><option value="">בחירה</option>${api.STUDY_YEARS.map((y, i) => `<option value="${i + 1}"${i + 1 === answers.studyYear ? " selected" : ""}>${y}</option>`).join("")}</select></label>
       <div class="row"><button class="btn" id="go">מתחילים</button></div>
     </div>`;
-    $("#go").onclick = () => onboarding(1, { name: $("#name").value.trim(), inst: $("#inst").value });
+    $("#go").onclick = () => {
+      const studyYear = +$("#year").value || null;
+      if (!studyYear) { toast("בחרו באיזו שנה את/ה בלימודים"); $("#year").focus(); return; }
+      onboarding(1, { ...answers, name: $("#name").value.trim(), inst: $("#inst").value, studyYear });
+    };
     return;
   }
   const q = onboardingQuestions[step - 1];
-  if (!q) return onboardingCourses(answers);
+  if (!q) return onboardingDone(answers);
+  const cur = answers[q.id];
   view.innerHTML = `<div class="page">
-    <div class="progress" aria-hidden="true"><i style="width:${(step / (onboardingQuestions.length + 1)) * 100}%"></i></div>
+    <div class="progress" aria-hidden="true"><i style="width:${(step / onboardingQuestions.length) * 100}%"></i></div>
     <p class="eyebrow">שאלה ${step} מתוך ${onboardingQuestions.length}</p>
     <h2 style="font-size:28px">${q.q}</h2>
-    <div class="options">${q.options.map((o, i) => `<button class="opt" data-i="${i}">${o}</button>`).join("")}</div>
+    <div class="options">${q.options.map((o, i) => `<button class="opt" data-i="${i}" aria-pressed="${o === cur}">${o}</button>`).join("")}</div>
+    <div class="row" style="margin-top:18px"><button class="btn ghost" id="obBack">→ חזרה</button></div>
   </div>`;
   view.querySelectorAll(".opt").forEach((b) => (b.onclick = () => onboarding(step + 1, { ...answers, [q.id]: q.options[+b.dataset.i] })));
+  // חזרה לשאלה הקודמת (או לפרטים בהתחלה). התשובות שכבר נבחרו נשמרות ומסומנות
+  $("#obBack").onclick = () => onboarding(step - 1, answers);
 }
 
-function onboardingCourses(answers) {
-  view.innerHTML = `<div class="page">
-    <p class="eyebrow">כמעט סיימנו</p>
-    <h2 style="font-size:28px">אילו קורסים יש לך בסמסטר?</h2>
-    <p class="muted">שורה לכל קורס. אפשר לשנות אחר כך בהגדרות ← לימודים.</p>
-    <textarea id="courses" name="courses" rows="7" autocomplete="off" placeholder="מבוא לכלכלה מיקרו&#10;מתמטיקה לכלכלנים א&#10;יסודות החשבונאות"></textarea>
-    <div class="row"><button class="btn" id="done">סיום</button></div>
-  </div>`;
-  $("#done").onclick = () => {
-    const courses = $("#courses").value.split("\n").map((s) => s.trim()).filter(Boolean);
-    if (!courses.length) { toast("כתבו לפחות קורס אחד (שורה לכל קורס)"); return; }
-    prefs.set({ ...answers, courses, createdAt: new Date().toISOString() });
-    social.pushPrefs(); api.track("onboarding_done");
-    // אם הכתובת כבר #home – אין "מעבר", אז מציירים את הבית ידנית
-    if (location.hash === "#home") route(); else location.hash = "home";
-    toast("מעולה! הפרופיל נשמר");
-  };
+// סוף השאלון: אין יותר שלב "כתבו קורסים" – הקורסים מגיעים מהמודל ומערכת השעות
+function onboardingDone(answers) {
+  prefs.set({ ...answers, courses: [], createdAt: new Date().toISOString() });
+  social.pushPrefs(); api.track("onboarding_done");
+  // אם הכתובת כבר #home – אין "מעבר", אז מציירים את הבית ידנית
+  if (location.hash === "#home") route(); else location.hash = "home";
+  toast("מעולה! הפרופיל נשמר");
+  serverSync(true);   // מביאים מיד קורסים ומערכת שעות מהשרת (אם המודל כבר מחובר), ושולחים אותם גם לפרופיל
 }
 
 async function home() {
@@ -1505,14 +1506,29 @@ async function profile(tab = "posts") {
       <a class="item" href="#feedback"><span><span class="t">✉️ משוב על הגרסה</span></span></a>
     </section>
     ${!st.standalone ? '<p class="notice"><b>להתקנה באייפד/אייפון:</b> ב-Safari לוחצים על כפתור השיתוף ובוחרים "הוסף למסך הבית".</p>' : ""}
+    <div class="row" style="margin-top:8px"><button class="btn danger" id="profLogout" type="button">↪ יציאה מהחשבון</button></div>
     <p class="small muted">גרסת האפליקציה: <b>${APP_VERSION}</b></p>
   </div>`;
+  $("#profLogout").onclick = settings.logout;
   social.bindMyProfile(tab);
 }
 
 // ---------- ניתוב ----------
+// הודעה על עדכון תנאי השימוש: למי שהסכים לגרסה קודמת. נסגרת ב"הבנתי" (נזכר במכשיר)
+function termsNotice() {
+  const p = api.profile();
+  if (!p || p.access === "waitlist" || !prefs.get()) return;
+  if ((p.terms_version || "") >= api.TERMS_VERSION) return;
+  let seen = ""; try { seen = localStorage.getItem("clearly-terms-seen") || ""; } catch { /* */ }
+  if (seen >= api.TERMS_VERSION || view.querySelector("#termsNotice")) return;
+  view.insertAdjacentHTML("afterbegin", `<div class="notice" id="termsNotice" role="status" style="margin:12px auto;max-width:900px">
+    <b>עדכנו את תנאי השימוש ואת מדיניות הפרטיות.</b> הוספנו סעיף על החיבור לחשבון שלכם במוסד, הבהרנו מה מותר לשתף עם חברים לקורס, ופירטנו מה קורה לדף שנשלח דרך "הדף שלי לא נתמך". השינויים נכנסים לתוקף ב-26.11.2026.
+    <div class="row" style="margin-top:8px"><a class="btn ghost" href="#legal-terms">לתנאי השימוש</a><a class="btn ghost" href="#legal-privacy">למדיניות הפרטיות</a><button class="btn" id="termsOk">הבנתי</button></div></div>`);
+  $("#termsOk").onclick = () => { try { localStorage.setItem("clearly-terms-seen", api.TERMS_VERSION); } catch { /* */ } $("#termsNotice")?.remove(); };
+}
+
 async function route() {
-  try { await routeInner(); }
+  try { await routeInner(); termsNotice(); }
   catch (e) {
     // במקום מסך ריק: הודעה ברורה, כפתור רענון, ופרטים לדוח תקלה
     logError("route " + location.hash, e);
@@ -1742,6 +1758,7 @@ async function applyCourseMaterials() {
   if (add.length) {
     p.courses = [...(p.courses || []), ...add];
     prefs.set(p);
+    social.pushPrefs();   // הקורסים נשלחים גם לשרת (בשביל "אנשים שאולי תכירו" ושיתוף קורסים)
     if (["#notebooks", "#home", "", "#summaries", "#record", "#calendar"].includes(location.hash)) route();
   }
 }
@@ -1830,6 +1847,7 @@ async function applyUniSchedule() {
   p.courses = [...(p.courses || []), ...add];
   p.uniScheduleAt = row.updated_at;
   prefs.set(p);
+  if (add.length) social.pushPrefs();   // קורסים חדשים ממערכת השעות נשלחים גם לשרת
   return true;
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") serverSync(); });
@@ -2076,7 +2094,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "90";
+const APP_VERSION = "91";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

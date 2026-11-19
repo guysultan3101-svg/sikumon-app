@@ -413,11 +413,11 @@ export class InkEditor extends EventTarget {
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, c.width, c.height);
       ctx.setTransform(v.scale, 0, 0, v.scale, 0, 0);
       if (cur?.shape) drawStroke(ctx, makeShape(cur));
-      else if (cur?.lasso) { ctx.setLineDash([10, 8]); ctx.strokeStyle = "#4649CF"; ctx.lineWidth = 2.5; ctx.beginPath(); cur.pts.forEach((q, k) => (k % 2 ? 0 : k ? ctx.lineTo(q, cur.pts[k + 1]) : ctx.moveTo(q, cur.pts[1]))); ctx.stroke(); ctx.setLineDash([]); }
+      else if (cur?.lasso) { ctx.setLineDash([10, 8]); ctx.strokeStyle = "#0017A0"; ctx.lineWidth = 2.5; ctx.beginPath(); cur.pts.forEach((q, k) => (k % 2 ? 0 : k ? ctx.lineTo(q, cur.pts[k + 1]) : ctx.moveTo(q, cur.pts[1]))); ctx.stroke(); ctx.setLineDash([]); }
       else if (cur && !cur.erasing && !cur.moving) drawStroke(ctx, cur);
       if (this.sel?.v === v && this.sel.strokes.length) {
         const b = bbox(this.sel.strokes); this.sel.box = b;
-        ctx.setLineDash([8, 6]); ctx.strokeStyle = "#4649CF"; ctx.lineWidth = 2; ctx.strokeRect(b.x, b.y, b.w, b.h); ctx.setLineDash([]);
+        ctx.setLineDash([8, 6]); ctx.strokeStyle = "#0017A0"; ctx.lineWidth = 2; ctx.strokeRect(b.x, b.y, b.w, b.h); ctx.setLineDash([]);
       }
     };
     v.paintLive = paintLive;

@@ -65,7 +65,9 @@ export async function checkPassword(password, confirm) {
   if (await passwordLeaked(password)) throw new Error("הסיסמה הזו כבר דלפה ברשת ומופיעה ברשימות של האקרים. בחרו סיסמה אחרת");
 }
 // הגרסה של תנאי השימוש ומדיניות הפרטיות שהמשתמש/ת מאשר/ת בהרשמה (לעדכן יחד עם התאריך בדפים המשפטיים)
-export const TERMS_VERSION = "2026-11-04";
+export const TERMS_VERSION = "2026-11-19";
+// שנת הלימודים (בשביל "אנשים שאולי תכירו": קודם מי שבאותו קורס, מוסד ושנה). נשמרת בפרופיל כמספר 1-6
+export const STUDY_YEARS = ["שנה א'", "שנה ב'", "שנה ג'", "שנה ד'", "שנה ה' ומעלה", "תואר שני ומעלה"];
 export async function signUp({ email, password, username, full_name, uni, degree, birthday, uni_email }) {
   // כבר מחובר/ת אבל הפרופיל לא נוצר (למשל האינטרנט נפל באמצע) – רק משלימים את הפרופיל
   if (!session) {
@@ -310,7 +312,7 @@ export async function removeAvatar() {
   if (data?.length) await sb.storage.from("avatars").remove(data.map((f) => `${user().id}/${f.name}`));
   await loadMe();
 }
-// "אנשים שאולי תכירו": אותו מוסד + קורס משותף, אחר כך אותו מוסד, אחר כך קורס משותף, ואז כולם
+// "אנשים שאולי תכירו": קורס משותף+מוסד+שנה, קורס+מוסד, קורס, מוסד, ואז כולם
 export async function suggestPeople(limit = 30) { const { data, error } = await sb.rpc("suggest_people", { p_limit: limit }); if (error) throw error; return data || []; }
 
 // "הכיתה שלי" (מנהל בלבד): מי מאושר, ולמי פתוחים הסיכומים של המנהל
