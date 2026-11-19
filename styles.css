@@ -97,6 +97,7 @@ main {
 .btn svg { width: 20px; height: 20px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--grid); font: 500 13px/1.2 var(--font-mono); color: var(--ink-soft); }
 .chip.demo { background: var(--marker); color: #0F172A; }
+.chip[aria-pressed="true"] { background: var(--blue); color: var(--on-blue); border-color: var(--blue); }
 .chip.ok { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--chip-ok); }
 .chip.warn { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--chip-warn); }
 .mark { background: linear-gradient(transparent 55%, var(--marker) 55%, var(--marker) 92%, transparent 92%); color: inherit; }

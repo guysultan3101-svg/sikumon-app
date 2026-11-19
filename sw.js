@@ -1,6 +1,6 @@
 // Service worker: שומר את קבצי האפליקציה במכשיר, כדי שתיפתח מהר וגם בלי אינטרנט
-const CACHE = "sikumon-v91";
-const FILES = ["./", "index.html", "styles.css", "app.js", "recorder.js", "demo-data.js", "notes.js", "study.js", "extras.js", "practice.js", "planner.js", "uni-merge.js", "institutions.js", "ai.js", "tools.js", "social.js", "settings.js", "assistant.js", "assignments.js", "api.js", "limits.js", "md.js", "search-he.js", "manifest.webmanifest", "favicon.ico", "icons/favicon-32.png", "icons/logo-mark.png", "icons/logo-mark-dark.png", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
+const CACHE = "sikumon-v92";
+const FILES = ["./", "index.html", "rights.js", "rights-data.js", "styles.css", "app.js", "recorder.js", "demo-data.js", "notes.js", "study.js", "extras.js", "practice.js", "planner.js", "uni-merge.js", "institutions.js", "ai.js", "tools.js", "social.js", "settings.js", "assistant.js", "assignments.js", "api.js", "limits.js", "md.js", "search-he.js", "manifest.webmanifest", "favicon.ico", "icons/favicon-32.png", "icons/logo-mark.png", "icons/logo-mark-dark.png", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)));

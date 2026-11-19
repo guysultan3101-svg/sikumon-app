@@ -90,6 +90,7 @@ export async function signIn(email, password) {
 export async function signOut() {
   await sb.auth.signOut(); session = null; me = null;
   try { await caches.delete("clearly-ctext-v1"); } catch { /* הטקסט של קבצי הקורס לא נשאר במכשיר אחרי יציאה */ }
+  try { localStorage.removeItem("clearly-rights"); } catch { /* תשובות השאלון של "הזכויות שלי" (מידע רגיש) לא נשארות במכשיר */ }
 }
 export async function resetPassword(email) { ok(await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })); }
 export async function changePassword(password, confirm) { await checkPassword(password, confirm); ok(await sb.auth.updateUser({ password })); recovering = false; }

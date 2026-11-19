@@ -12,6 +12,7 @@ import { INSTITUTIONS } from "./institutions.js";
 import { initTools } from "./tools.js";
 import { initSocial } from "./social.js";
 import { initSettings } from "./settings.js";
+import { initRights } from "./rights.js";
 import { initAssistant } from "./assistant.js";
 import { initAssignments } from "./assignments.js";
 import * as ai from "./ai.js";
@@ -1503,6 +1504,7 @@ async function profile(tab = "posts") {
     ${head}
     <section class="list">
       <a class="item" href="#timetable"><span><span class="t">🕘 מערכת השעות</span></span></a>
+      <a class="item" href="#rights"><span><span class="t">⚖️ הזכויות שלי</span><br><span class="small muted">מילואים, הריון ולידה, מפונים ועוד – לפי המוסד שלך</span></span></a>
       <a class="item" href="#feedback"><span><span class="t">✉️ משוב על הגרסה</span></span></a>
     </section>
     ${!st.standalone ? '<p class="notice"><b>להתקנה באייפד/אייפון:</b> ב-Safari לוחצים על כפתור השיתוף ובוחרים "הוסף למסך הבית".</p>' : ""}
@@ -1553,7 +1555,7 @@ async function routeInner() {
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
   if (hash === "social-missed") hash = "missed-lesson";
-  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" ? "profile" : hash.startsWith("assign-") ? "assignments" : hash.startsWith("materials-") ? "calendar" : hash === "admin" ? "profile" : hash;
+  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" || hash === "rights" ? "profile" : hash.startsWith("assign-") ? "assignments" : hash.startsWith("materials-") ? "calendar" : hash === "admin" ? "profile" : hash;
   curTab = tab;
   renderTabs(tab);
   if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
@@ -1625,6 +1627,7 @@ async function routeInner() {
   else if (hash === "profile-liked" || hash === "profile-saved") await profile(hash.slice(8));
   else if (hash.startsWith("u-")) await social.profile(hash.slice(2));
   else if (hash === "profile") await profile();
+  else if (hash === "rights") rights.page();
   else if (hash === "feedback") feedback();
   else if (hash === "diag") await diag();
   else if (hash === "timetable") timetable();
@@ -1664,6 +1667,7 @@ const extras = initExtras({ view, $, esc, svg, toast, prefs, store, segmentsOf, 
 const tools = initTools({ view, $, esc, svg, toast, prefs, store, lessonTitle, onQuizDone: () => practice.bumpStreak() });
 const social = initSocial({ view, $, esc, toast, prefs, store, api });
 const assignments = initAssignments({ view, $, esc, toast, store, api, onChange: () => paintCounts() });
+const rights = initRights({ view, $, esc, prefs, api });
 const settings = initSettings({ view, $, esc, toast, prefs, store, ai, social, api, onboardingQuestions, version: () => APP_VERSION });
 const seenTabs = new Set();
 // מספרים: בקשות חברות על לשונית "חברים", הודעות שלא נקראו על "הודעות"
@@ -2094,7 +2098,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "91";
+const APP_VERSION = "92";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
