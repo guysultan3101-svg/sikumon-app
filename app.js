@@ -313,7 +313,11 @@ async function attachAI(id) {
       history.push({ role: "user", content: question }, { role: "assistant", content: full });
       bot.innerHTML = ai.miniMd(full);
     } catch (e) {
-      if (e.code !== "abort") bot.innerHTML = `<span class="err">${esc(e.message)}</span>`;
+      if (e.code === "net") {
+        // החיבור נקטע: כפתור "לשלוח שוב" – מוחק את השאלה שנכשלה ושולח אותה מחדש
+        bot.innerHTML = `<span class="err">${esc(e.message)}</span> <button type="button" class="link resend">↻ לשלוח שוב</button>`;
+        bot.querySelector(".resend").onclick = () => { if (ctrl) return; bot.previousElementSibling?.remove(); bot.remove(); send(question); };
+      } else if (e.code !== "abort") bot.innerHTML = `<span class="err">${esc(e.message)}</span>`;
       else if (text) history.push({ role: "user", content: question }, { role: "assistant", content: text });
     } finally { ctrl = null; $("#chatSend") && ($("#chatSend").textContent = "שליחה"); }
   };
@@ -1795,6 +1799,7 @@ async function extUpdateCheck() {
       ${desktop ? "" : '<p class="notice" style="margin:0">💻 את העדכון עושים <b>במחשב</b> שבו מותקן התוסף (בכרום). אפשר לסגור כאן ולעשות את זה כשתגיעו למחשב.</p>'}
       <section class="soft" style="display:grid;gap:6px"><b>איך מעדכנים (במחשב, פעם אחת, כ-2 דקות)</b>
         <ol style="margin:0;padding-inline-start:20px;display:grid;gap:6px">${(latest.steps || []).map((x) => `<li>${typeof x === "string" ? fmtStep(x) : `<b>${esc(x.t)}:</b> ${fmtStep(x.d)}`}</li>`).join("")}</ol>
+        ${latest.fix ? `<p class="notice" style="margin:0">${fmtStep(latest.fix)}</p>` : ""}
         ${latest.after ? `<p class="small" style="margin:0"><b>${fmtStep(latest.after)}</b></p>` : ""}
       </section>
       <div class="row">${desktop ? `<a class="btn" href="${esc(latest.setup)}" download>⬇️ הורדת חבילת ההתקנה</a>` : ""}<a class="btn ghost" href="${esc(latest.guide)}" target="_blank" rel="noopener">▶ סרטון: טעינת התוסף והתחברות</a><button class="btn ghost" type="button" id="extLater">אחר כך</button></div>
@@ -1959,7 +1964,8 @@ async function adminPage() {
     <p class="muted">${list.length} ממתינים. <b>"אישור"</b> פותח את Clearly לאדם אחד ושולח לו מייל. <b>"השקה"</b> פותח לכולם ושולח מייל לכולם.</p>
     <section class="soft" style="display:grid;gap:8px" id="adClass"><h2 style="font-size:20px;margin:0">🎓 הכיתה שלי: לשתף את הסיכומים שלי</h2><p class="small muted" style="margin:0">מי שמסומן רואה את כל הסיכומים שלך (גם חדשים), בלי מכסת AI. מסומן בירוק: אריאל + כלכלה. בודקים ואז לוחצים.</p><p class="small muted">טוען…</p></section>
     <section class="soft" style="display:grid;gap:8px"><h2 style="font-size:20px;margin:0">🔄 עדכון לתוסף</h2><p class="small muted" style="margin:0">שולח לכל המשתמשים המאושרים מייל עם מה חדש בגרסה האחרונה (extension/latest.json), קישור להורדה והוראות, וסרטון ההדרכה. באפליקציה עצמה קופץ להם חלון עדכון לבד.</p>
-      <div class="row"><button class="btn ghost" type="button" id="adExtTest">📧 מייל לדוגמה אליי</button><button class="btn" type="button" id="adExtAll">📧 שליחה לכל המשתמשים</button></div></section>
+      <div class="row"><button class="btn ghost" type="button" id="adExtTest">📧 מייל לדוגמה אליי</button><button class="btn" type="button" id="adExtAll">📧 שליחה לכל המשתמשים</button></div>
+      <form class="row" id="adExtOneF" style="gap:8px;align-items:end"><label class="field" style="flex:1;min-width:200px;margin:0">או רק לאדם אחד (שם משתמש או מייל)<input id="adExtOne" name="ext-one" dir="ltr" autocomplete="off" placeholder="@username או name@mail.com"></label><button class="btn ghost" type="submit" id="adExtOneB">📧 שליחה רק אליו/ה</button></form></section>
     <div class="row"><button class="btn" type="button" id="adLaunch" ${list.length ? "" : "disabled"}>🚀 השקה: לפתוח לכולם (${list.length}) ולשלוח מייל</button></div>
     ${good.length ? `<section class="soft" style="display:grid;gap:10px;border:2px solid #16a34a"><h2 style="font-size:20px;margin:0">✅ אישור נרשמים (${good.length})</h2><p class="small muted" style="margin:0">המייל המוסדי שלהם תואם למוסד שבחרו, והם חיברו את המודל ויש להם קורסים. זה הסימן החזק ביותר שהם סטודנטים אמיתיים.</p><div class="list">${good.map(item).join("")}</div><div class="row"><button class="btn" type="button" id="adApproveGood">✅ אשרו את כולם (${good.length}) ושלחו להם מייל</button></div></section>` : ""}
     <h2 style="font-size:18px;margin:14px 0 6px">${good.length ? "שאר הממתינים" : "ממתינים"} (${rest.length})</h2>
@@ -1995,6 +2001,17 @@ async function adminPage() {
   paintClass();
   $("#adExtTest").onclick = async () => {
     try { const x = await api.notifyEmail({ action: "ext_update", test: true }); toast(`✓ נשלח מייל לדוגמה (גרסה ${x.version}) ל-${x.to}`); } catch (e) { toast(e.message); }
+  };
+  // מייל העדכון רק לאדם אחד (למשל מי שנתקע בהתקנה)
+  $("#adExtOneF").onsubmit = async (ev) => {
+    ev.preventDefault();
+    const who = $("#adExtOne").value.trim();
+    if (!who) { toast("כתבו שם משתמש או מייל"); $("#adExtOne").focus(); return; }
+    if (!confirm(`לשלוח את מייל עדכון התוסף רק ל-${who}?`)) return;
+    const b = $("#adExtOneB"); b.disabled = true; b.textContent = "שולח…";
+    try { const x = await api.notifyEmail({ action: "ext_update", to_user: who }); toast(`✓ נשלח ל-${x.name || who} (${x.to}), גרסה ${x.version}`); $("#adExtOne").value = ""; }
+    catch (e) { toast(e.message === "no_user" ? `לא מצאתי משתמש "${who}"` : e.message === "no_email" ? "למשתמש הזה אין מייל" : e.message); }
+    b.disabled = false; b.textContent = "📧 שליחה רק אליו/ה";
   };
   $("#adExtAll").onclick = async (ev) => {
     if (!confirm("לשלוח לכל המשתמשים המאושרים מייל על עדכון התוסף?")) return;
@@ -2102,7 +2119,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "93";
+const APP_VERSION = "94";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

@@ -24,7 +24,7 @@ export const PROVIDERS = {
   openai: { name: "ChatGPT (OpenAI)", key: "sikumon-openai-key" },
   claude: { name: "Claude (Anthropic)", key: KEY },
 };
-export const keyOf = (p) => (p === "sikumon" ? (SERVER.url ? "built-in" : "") : ls.get(PROVIDERS[p].key));
+export const keyOf = (p) => (p === "sikumon" ? (api.user() ? "built-in" : "") : ls.get(PROVIDERS[p].key));   // העוזר המובנה: זמין לכל מי שמחובר (היה כאן SERVER שלא קיים – קרס למי שבחר אותו)
 export const setKeyOf = (p, k) => ls.set(PROVIDERS[p].key, k);
 export const modelOf = (p) => ls.get("sikumon-ai-model-" + p);
 export const setModelOf = (p, m) => ls.set("sikumon-ai-model-" + p, m);
@@ -33,6 +33,16 @@ export const setModelOf = (p, m) => ls.set("sikumon-ai-model-" + p, m);
 // מפתח ה-AI נמצא רק בשרת; המשתמש מזוהה לפי ההתחברות שלו לאפליקציה.
 export const builtIn = () => !!api.user();
 const callServer = (payload, signal) => api.askStream(payload, signal);
+// בקשה שלא יצאה/נקטעה (למשל: הטלפון עבר בין Wi-Fi לסלולר באמצע, כמו ב-22.11.26).
+// "אין אינטרנט" רק כשהמכשיר באמת מנותק. code="net" – המסך מציג כפתור "לשלוח שוב".
+// (בלי ניסיון חוזר אוטומטי: אם השאלה כן הגיעה לשרת, ניסיון נוסף היה נספר פעמיים במכסה.)
+const netError = () => Object.assign(new Error(navigator.onLine === false ? "אין חיבור לאינטרנט." : "החיבור לשרת נקטע (זה קורה למשל במעבר בין Wi-Fi לסלולר)."), { code: "net" });
+// קריאת חלק מהתשובה: אם החיבור נקטע באמצע (באייפון: "Load failed") – אותה הודעה ברורה + "לשלוח שוב".
+// רק שגיאה של הקריאה מהרשת עצמה – באג במסך (onText) לא יוצג בטעות כ"נקטע".
+async function readChunk(reader) {
+  try { return await reader.read(); }
+  catch (e) { if (e?.name === "AbortError") throw e; throw netError(); }
+}
 // בפתיחה: כמה שאלות כבר נוצלו היום (מהשרת)
 export async function loadQuota() {
   if (!api.user()) return;
@@ -107,7 +117,7 @@ async function askOpenAICompat({ p, system, history, question, onText, signal })
   } catch (e) {
     if (e?.code) throw e;
     if (e?.name === "AbortError") throw Object.assign(new Error("בוטל"), { code: "abort" });
-    throw new Error("אין חיבור לאינטרנט.");
+    throw netError();
   }
   if (!res.ok && p === "sikumon") {
     const ej = await res.json().catch(() => ({})); const err = ej?.error;
@@ -127,7 +137,7 @@ async function askOpenAICompat({ p, system, history, question, onText, signal })
   let buf = "", full = "";
   try {
     for (;;) {
-      const { done, value } = await reader.read(); if (done) break;
+      const { done, value } = await readChunk(reader); if (done) break;
       buf += dec.decode(value, { stream: true });
       let i;
       while ((i = buf.indexOf("\n")) >= 0) {
@@ -158,7 +168,7 @@ async function askGemini({ system, history, question, onText, signal, web }) {
     });
   } catch (e) {
     if (e?.name === "AbortError") throw Object.assign(new Error("בוטל"), { code: "abort" });
-    throw new Error("אין חיבור לאינטרנט.");
+    throw netError();
   }
   if (!res.ok) {
     const msg = (await res.json().catch(() => ({})))?.error?.message || "";
@@ -172,7 +182,7 @@ async function askGemini({ system, history, question, onText, signal, web }) {
   let buf = "", full = ""; const sources = new Map();
   try {
     for (;;) {
-      const { done, value } = await reader.read(); if (done) break;
+      const { done, value } = await readChunk(reader); if (done) break;
       buf += dec.decode(value, { stream: true });
       let i;
       while ((i = buf.indexOf("\n")) >= 0) {
@@ -261,7 +271,7 @@ ${lessonText}
     if (e instanceof A.PermissionDeniedError) throw new Error("למפתח הזה אין הרשאה. בדקו את החשבון ב-Anthropic Console.");
     if (e instanceof A.RateLimitError) throw new Error("יותר מדי בקשות כרגע. נסו שוב בעוד דקה.");
     if (e instanceof A.BadRequestError) throw new Error("הבקשה נדחתה: " + (e.message || "").slice(0, 160));
-    if (e instanceof A.APIConnectionError) throw new Error("אין חיבור לאינטרנט.");
+    if (e instanceof A.APIConnectionError) throw netError();
     if (e instanceof A.APIError) throw new Error(`תקלה בשרת (${e.status}). נסו שוב.`);
     throw e;
   }

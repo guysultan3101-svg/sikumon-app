@@ -72,7 +72,15 @@ export function initAssistant(ctx) {
         history.push({ role: "user", content: q }, { role: "assistant", content: full });
         bot.innerHTML = ai.miniMd(full);
       } catch (err) {
-        if (err.code !== "abort") bot.innerHTML = `<span class="err">${esc(err.message)}</span>`;
+        if (err.code === "net") {
+          // החיבור נקטע: כפתור "לשלוח שוב" – מוחק את השאלה שנכשלה ושולח אותה מחדש
+          bot.innerHTML = `<span class="err">${esc(err.message)}</span> <button type="button" class="link resend">↻ לשלוח שוב</button>`;
+          bot.querySelector(".resend").onclick = () => {
+            if (ctrl) return;
+            const draft = input.value;   // מה שהמשתמש התחיל לכתוב בינתיים – לא נמחק
+            bot.previousElementSibling?.remove(); bot.remove(); input.value = q; form.requestSubmit(); input.value = draft;
+          };
+        } else if (err.code !== "abort") bot.innerHTML = `<span class="err">${esc(err.message)}</span>`;
       } finally {
         ctrl = null; document.getElementById("aiSend") && (document.getElementById("aiSend").textContent = "שליחה");
         document.getElementById("aiQuota") && (document.getElementById("aiQuota").textContent = quotaText());
