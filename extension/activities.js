@@ -34,10 +34,32 @@ export function activityEvents(events) {
   return [...found.values()];
 }
 
-// האם דף המטלה אומר שהמטלה הוגשה
+// האם המטלה הוגשה? (תוקן 23.11.2026)
+// מטלה: רק לפי דף המטלה עצמו (טבלת "מצב ההגשה"). "actionable=false" בלוח השנה של המודל קורה גם כשהמטלה
+// עוד לא נפתחה להגשה – זה לא סימן שהוגשה (כך "מטלה 1" במתמטיקה סומנה בטעות "הוגש" לפני שנפתחה).
+// אם דף המטלה לא נקרא בריצה הזו (page === null) – נשארים עם מה שהיה קודם.
+// בוחן: לא מסמנים "נעשה" (actionable=false אומר רק שהבוחן עוד לא נפתח).
+export function decideSubmitted({ kind, before, page }) {
+  if (kind === "assign") return page === null || page === undefined ? !!before : !!page;
+  // בוחן: actionable=false בלוח השנה = הבוחן עוד לא נפתח (בוחן שנעשה פשוט נעלם מהפעולות) – אז אין לנו סימן אמין ל"נעשה"
+  return false;
+}
+
+// האם דף המטלה אומר שהמטלה הוגשה? בודקים רק את תא "מצב ההגשה" – לא את כל הדף (בהוראות של המרצה יכול להופיע "הוגש לבדיקה").
+// true = הוגש, false = לא הוגש (טיוטה / חדש / "אין עדיין הגשות"), null = זה לא דף מטלה תקין (התחברות, תקלה) → לא יודעים.
 export function isSubmitted(html) {
-  const t = String(html || "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
-  return /הוגש(?:ה)? (?:להערכה|לבדיקה|לציון)|Submitted for grading|Submitted for marking/i.test(t);
+  const s = String(html || "");
+  // 1. המודל שם על התא מחלקה לפי המצב: submissionstatussubmitted / draft / new / reopened / marked
+  const c = s.match(/<td[^>]*class="[^"]*\bsubmissionstatus(submitted|draft|new|reopened|marked)\b/i);
+  if (c) return /^(submitted|marked)$/i.test(c[1]);
+  // 2. אחרת: הטקסט בשורה "מצב ההגשה" / "Submission status" בלבד
+  const row = s.match(/(?:מצב ההגשה|Submission status)\s*<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/i);
+  if (row) {
+    const t = row[1].replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+    if (/טיוטה|draft|לא הוגש|טרם הוגש|not submitted|no submission|אין עדיין/i.test(t)) return false;
+    return /^(הוגש|הוגשה|נבדק|Submitted|Graded|Marked)/i.test(t);
+  }
+  return null;
 }
 
 // מועד כמחרוזת ISO (או ריק אם אין מועד)

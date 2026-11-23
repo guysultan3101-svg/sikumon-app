@@ -2,7 +2,7 @@
 // בכרום), איתור קבצים חדשים, ושליחתם לסיכום אישי בשרת. לא רואים ולא שומרים את הסיסמה למודל.
 import { syncPortal, PORTALS } from "./portal.js";
 import { planCourse } from "./classify.js";
-import { flattenMonthly, activityEvents, isSubmitted, dueIso, cleanName } from "./activities.js";
+import { flattenMonthly, activityEvents, isSubmitted, decideSubmitted, dueIso, cleanName } from "./activities.js";
 export const SB = "https://islplhnlvaukixaglxof.supabase.co";
 export const ANON = "sb_publishable_1fDG1GIaFERhcFPiRyx46g_38BIv8HZ";
 export { MOODLES } from "./institutions.js";
@@ -553,7 +553,9 @@ async function uploadAssignFile(a, path, blob) {
 }
 // ההוראות של המרצה (intro) והקבצים המצורפים, מתוך דף המטלה
 async function assignDetail(base, cmid) {
-  const html = await (await fetch(`${base}/mod/assign/view.php?id=${cmid}`, { credentials: "include" })).text();
+  const res = await fetch(`${base}/mod/assign/view.php?id=${cmid}`, { credentials: "include" });
+  if (!res.ok) throw new Error("assign page " + res.status);   // דף שלא נטען → לא יודעים (לא "לא הוגש")
+  const html = await res.text();
   // אזור התיאור (id="intro") -> טקסט עם שורות
   let intro = "";
   const m = html.match(/id="intro"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/);
@@ -598,17 +600,21 @@ async function syncAssignments(a, base, sesskey, courses = []) {
     if (!course || NOT_COURSE.test(course)) continue;
     try { for (const it of await courseItems(base, sesskey, c.id, ["assign", "quiz"])) if (!found.has(`${it.type}:${it.id}`)) put({ cmid: String(it.id), kind: it.type, name: it.name, ts: 0, course, url: it.url }); } catch (e) { loginErr(e); }
   }
-  let n = 0, details = 0;
+  let n = 0;
+  // אילו מטלות לבדוק בדף שלהן (עד 60): קודם הקרובות ביותר להיום – כדי שהמטלות הדחופות תמיד ייבדקו
+  const detailKeys = new Set([...found.values()].filter((x) => x.kind === "assign" && !(x.ts && x.ts < now - 30 * 86400))
+    .sort((p, q) => (p.ts ? Math.abs(p.ts - now) : Infinity) - (q.ts ? Math.abs(q.ts - now) : Infinity))
+    .slice(0, 60).map((x) => x.cmid));
   for (const x of [...found.values()].sort((p, q) => (q.ts || 0) - (p.ts || 0)).slice(0, 150)) {
     if (x.ts && x.ts < now - 30 * 86400) continue;   // ישן מחודש: לא מעניין
     const course = nameById.get(String(x.courseId)) || x.course || "";
     if (NOT_COURSE.test(course)) continue;
     if (x.kind === "quiz" && !x.ts) continue;   // בוחן בלי מועד לא מוצג בשום מקום (למשל בחני תרגול), לא שומרים
-    let intro = "", files = [], submitted = x.actionable === false || doneBefore.has(`${x.kind}:${x.cmid}`);
-    if (x.kind === "assign" && details++ < 40) {
+    let intro = "", files = [], page = null;
+    if (x.kind === "assign" && detailKeys.has(x.cmid)) {
       try {
         const d = await assignDetail(base, x.cmid);
-        intro = d.intro; submitted = submitted || d.submitted;
+        intro = d.intro; page = d.submitted;
         for (const url of d.urls.slice(0, 5)) {
           const fname = decodeURIComponent(url.split("?")[0].split("/").pop() || "קובץ");
           const path = `${a.user}/${x.cmid}/${fname}`;
@@ -621,6 +627,7 @@ async function syncAssignments(a, base, sesskey, courses = []) {
         }
       } catch { /* אם דף המטלה לא נפתח – לפחות השם והמועד */ }
     }
+    const submitted = decideSubmitted({ kind: x.kind, before: doneBefore.has(`${x.kind}:${x.cmid}`), page });
     try {
       await markItem(a, { item_key: `${x.kind}:${x.cmid}`, course: course.slice(0, 200), name: String(x.name || "").slice(0, 300), kind: x.kind, url: String(x.url || "").slice(0, 2000),
         status: submitted ? "done" : "new", note: dueIso(x.ts), ...(x.kind === "assign" ? { intro: intro || null, files } : {}) });
