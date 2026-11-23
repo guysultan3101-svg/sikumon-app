@@ -1530,7 +1530,7 @@ function termsNotice() {
   let seen = ""; try { seen = localStorage.getItem("clearly-terms-seen") || ""; } catch { /* */ }
   if (seen >= api.TERMS_VERSION || view.querySelector("#termsNotice")) return;
   view.insertAdjacentHTML("afterbegin", `<div class="notice" id="termsNotice" role="status" style="margin:12px auto;max-width:900px">
-    <b>עדכנו את תנאי השימוש ואת מדיניות הפרטיות.</b> הוספנו סעיף על החיבור לחשבון שלכם במוסד, הבהרנו מה מותר לשתף עם חברים לקורס, ופירטנו מה קורה לדף שנשלח דרך "הדף שלי לא נתמך". השינויים נכנסים לתוקף ב-26.11.2026.
+    <b>עדכנו את תנאי השימוש ואת מדיניות הפרטיות.</b> הוספנו סעיף על החיבור לחשבון שלכם במוסד, הבהרנו מה מותר לשתף עם חברים לקורס, ופירטנו מה קורה לדף שנשלח דרך "הדף שלי לא נתמך" (בתוקף מ-26.11.2026). בנוסף, נתוני שימוש (אילו מסכים נפתחו ועל אילו כפתורים לחצו – בלי התוכן עצמו) נשמרים מעכשיו כל עוד החשבון קיים, ומשמשים רק ללמידה ולשיפור האפליקציה.
     <div class="row" style="margin-top:8px"><a class="btn ghost" href="#legal-terms">לתנאי השימוש</a><a class="btn ghost" href="#legal-privacy">למדיניות הפרטיות</a><button class="btn" id="termsOk">הבנתי</button></div></div>`);
   $("#termsOk").onclick = () => { try { localStorage.setItem("clearly-terms-seen", api.TERMS_VERSION); } catch { /* */ } $("#termsNotice")?.remove(); };
 }
@@ -2119,7 +2119,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "94";
+const APP_VERSION = "95";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

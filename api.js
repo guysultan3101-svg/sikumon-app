@@ -65,7 +65,7 @@ export async function checkPassword(password, confirm) {
   if (await passwordLeaked(password)) throw new Error("הסיסמה הזו כבר דלפה ברשת ומופיעה ברשימות של האקרים. בחרו סיסמה אחרת");
 }
 // הגרסה של תנאי השימוש ומדיניות הפרטיות שהמשתמש/ת מאשר/ת בהרשמה (לעדכן יחד עם התאריך בדפים המשפטיים)
-export const TERMS_VERSION = "2026-11-19";
+export const TERMS_VERSION = "2026-11-23";
 // שנת הלימודים (בשביל "אנשים שאולי תכירו": קודם מי שבאותו קורס, מוסד ושנה). נשמרת בפרופיל כמספר 1-6
 export const STUDY_YEARS = ["שנה א'", "שנה ב'", "שנה ג'", "שנה ד'", "שנה ה' ומעלה", "תואר שני ומעלה"];
 export async function signUp({ email, password, username, full_name, uni, degree, birthday, uni_email }) {

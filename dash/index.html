@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Clearly · דאשבורד</title>
+<link rel="icon" href="../icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&family=Rubik:wght@700;900&display=swap">
+<style>
+/* דאשבורד המוצר – רק למנהלים. סינון אחד למעלה משפיע על כל המספרים והגרפים */
+:root { --bg:#F4F6FC; --card:#fff; --ink:#0F172A; --soft:#55617A; --line:#DCE3F3; --blue:#0017A0; --blue2:#7085FF; --good:#16A34A; --warn:#D97706; --bad:#DC2626; --fd:"Rubik",system-ui,sans-serif; --fb:"Heebo",system-ui,sans-serif; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0B1120; --card:#121B30; --ink:#E7ECF7; --soft:#9AA6BF; --line:#26324D; --blue:#7085FF; --blue2:#3D4FC4; color-scheme:dark; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:14.5px/1.5 var(--fb); }
+.wrap { max-width:1260px; margin:0 auto; padding:20px max(16px, env(safe-area-inset-right)) 60px max(16px, env(safe-area-inset-left)); display:grid; gap:16px; }
+h1, h2 { font-family:var(--fd); margin:0; } h1 { font-size:26px; } h2 { font-size:16.5px; }
+.muted { color:var(--soft); } .small { font-size:12.5px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; min-width:0; }
+.head { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; }
+.filters { position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 14px; box-shadow:0 4px 14px rgba(15,23,42,.06); }
+.filters label { display:flex; gap:6px; align-items:center; font-size:13.5px; }
+select, input, button { font:inherit; color:inherit; }
+select, input[type=search] { background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:5px 8px; }
+.seg { display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+.seg button { border:0; background:none; padding:5px 10px; cursor:pointer; }
+.seg button[aria-pressed=true] { background:var(--blue); color:var(--card); font-weight:700; }
+.switch { display:inline-flex; gap:6px; align-items:center; cursor:pointer; font-weight:700; }
+.switch input { width:18px; height:18px; accent-color:var(--blue); }
+.multi { position:relative; } .multi summary { cursor:pointer; list-style:none; background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:5px 10px; font-size:13.5px; } .multi summary::after { content:" ▾"; color:var(--soft); }
+.multi .menu { position:absolute; top:calc(100% + 4px); inset-inline-start:0; z-index:10; min-width:240px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px; box-shadow:0 10px 30px rgba(15,23,42,.15); display:grid; gap:2px; }
+.multi .menu label { display:flex; gap:8px; align-items:center; padding:6px 8px; border-radius:8px; cursor:pointer; } .multi .menu label:hover { background:var(--bg); }
+.multi .menu input { width:17px; height:17px; accent-color:var(--blue); } .multi .row2 { display:flex; justify-content:space-between; padding:6px 8px 2px; border-top:1px solid var(--line); margin-top:4px; }
+.btn { border:1px solid var(--line); background:var(--card); border-radius:9px; padding:5px 10px; cursor:pointer; }
+.btn.pri { background:var(--blue); color:var(--card); border-color:var(--blue); font-weight:700; }
+.link { border:0; background:none; color:var(--blue); cursor:pointer; padding:0; text-decoration:underline; }
+.kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; }
+.kpi b { display:block; font:900 30px/1.1 var(--fd); font-variant-numeric:tabular-nums; }
+.kpi span { color:var(--soft); font-size:12.5px; }
+.kpi .d { font-size:12px; font-weight:700; } .up { color:var(--good); } .down { color:var(--bad); }
+.g2 { display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:16px; }
+.g3 { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px; }
+@media (max-width:480px) { .g2, .g3 { grid-template-columns:1fr; } }
+.ret { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:8px; }
+.ret div { border:1px solid var(--line); border-radius:10px; padding:8px; text-align:center; }
+.ret b { display:block; font:900 24px var(--fd); }
+.bars { display:grid; gap:5px; margin-top:8px; }
+.bar { display:grid; grid-template-columns:minmax(80px, 38%) 1fr auto; gap:8px; align-items:center; font-size:13px; }
+.bar i { display:block; height:12px; border-radius:6px; background:var(--blue); min-width:3px; }
+.bar em { font-style:normal; color:var(--soft); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.bar .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
+th, td { text-align:right; padding:6px 7px; border-bottom:1px solid var(--line); white-space:nowrap; }
+th { color:var(--soft); font-weight:500; } th[data-k] { cursor:pointer; user-select:none; } th[data-k]:hover { color:var(--ink); }
+tr.off td { opacity:.4; }
+.scroll { overflow-x:auto; }
+.cell { display:inline-block; min-width:42px; padding:2px 6px; border-radius:6px; text-align:center; }
+.pill { display:inline-block; padding:0 7px; border-radius:999px; font-size:11.5px; border:1px solid var(--line); }
+.pill.on { background:color-mix(in srgb, var(--good) 16%, var(--card)); color:var(--good); border-color:color-mix(in srgb, var(--good) 45%, var(--card)); } .pill.no { background:var(--bg); color:var(--soft); }
+.note { font-size:12px; color:var(--soft); margin:6px 0 0; }
+svg text { fill:var(--soft); font-size:10px; font-family:var(--fb); }
+.funnel { display:grid; gap:6px; margin-top:8px; }
+.fstep { display:grid; grid-template-columns:150px 1fr 90px; gap:8px; align-items:center; font-size:13px; }
+.fstep i { display:block; height:22px; border-radius:6px; background:var(--blue); }
+.fstep em { font-style:normal; color:var(--soft); }
+.login { max-width:380px; margin:12vh auto; display:grid; gap:12px; }
+.login input { padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); }
+.err { color:var(--bad); }
+.tip { position:fixed; pointer-events:none; background:var(--ink); color:var(--bg); padding:6px 9px; border-radius:8px; font-size:12px; z-index:20; white-space:nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><p class="muted">טוען…</p></div>
+<div class="tip" id="tip" hidden></div>
+<script type="module">
+const SDK = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
+const URL_ = "https://islplhnlvaukixaglxof.supabase.co", ANON = "sb_publishable_1fDG1GIaFERhcFPiRyx46g_38BIv8HZ";
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const app = $("#app");
+const ls = { get(k, d) { try { return JSON.parse(localStorage.getItem("dash-" + k)) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem("dash-" + k, JSON.stringify(v)); } catch { /* */ } } };
+
+// ---------- שמות בעברית ----------
+const SCREEN = { home: "בית", summaries: "סיכומים", calendar: "יומן", notebooks: "מחברות", social: "חברים / פיד", assignments: "הגשת עבודות", quizzes: "מבחנים", messages: "הודעות", record: "הקלטה", extras: "תוספים לשיעורים", profile: "פרופיל", settings: "הגדרות", rights: "הזכויות שלי", scholarships: "מלגות", deadlines: "לוח מבחנים", podcasts: "פודקאסטים", "exam-focus": "מה יהיה במבחן", groups: "קבוצות", search: "חיפוש", inbox: "התראות", upload: "העלאת קובץ", connect: "חיבור מודל", timetable: "מערכת שעות", cards: "כרטיסיות", sim: "סימולציה", progress: "התקדמות", "missed-lesson": "פספסתי שיעור", "sum-*": "סיכום", "lesson-*": "שיעור במחברת", "quiz-*": "מבחן", "dm-*": "שיחה", "u-*": "פרופיל של מישהו", "course-*": "תיקיית קורס", "assign-*": "מטלה", "mf-*": "קובץ מהמודל", "calendar-*": "יומן (חודש אחר)", "materials-*": "חומרי קורס" };
+const ACTION = { share: "שיתוף סיכום", onboarding_done: "סיימו שאלון פתיחה", signup: "נרשמו", login: "התחברו", ext_update_prompt: "ראו חלון עדכון תוסף", message: "שלחו הודעה", friend_request: "בקשת חברות", invite_joined: "הצטרפו מהזמנה", invite_share: "שיתפו הזמנה", upload: "העלו קובץ לסיכום", transcribe: "תמלול הקלטה", missed: "ביקשו 'פספסתי שיעור'", post: "פרסמו פוסט" };
+const AI = { summary: "סיכומים שנוצרו", ask: "שאלות לעוזר", transcribe: "תמלולים" };
+const scr = (n) => SCREEN[n] || SCREEN[String(n).replace(/-.*/, "-*")] || SCREEN[String(n).replace(/-.*/, "")] || n;
+const clickName = (n) => { const [s, b = ""] = String(n).split("|"); const t = b.startsWith("→") ? "מעבר ל" + scr(b.slice(1)) : b.replace(/^#/, "כפתור "); return `${scr(s)} · ${t}`; };
+
+// ---------- תאריכים (שעון ישראל) ----------
+const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" });
+const addD = (d, n) => { const x = new Date(d + "T12:00:00Z"); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+const diffD = (a, b) => Math.round((new Date(a + "T12:00:00Z") - new Date(b + "T12:00:00Z")) / 864e5);
+const fmtD = (d) => (d ? new Date(d + "T12:00:00Z").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" }) : "–");
+const weekOf = (d) => addD(d, -new Date(d + "T12:00:00Z").getUTCDay());   // שבוע ישראלי: מתחיל ביום ראשון
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+
+// ---------- מצב הסינון (נשמר בדפדפן) ----------
+const st = { days: ls.get("days", 30), unis: new Set(ls.get("unis", [])), onlyMoodle: ls.get("onlyMoodle", false), excluded: new Set(ls.get("excluded", [])), sort: ls.get("sort", ["last", -1]), q: "" };
+const save = () => { ls.set("days", st.days); ls.set("unis", [...st.unis]); ls.set("onlyMoodle", st.onlyMoodle); ls.set("excluded", [...st.excluded]); ls.set("sort", st.sort); };
+let RAW = null;
+
+// ---------- חישובים: הכול מתוך אותה קבוצת משתמשים מסוננת ----------
+function compute() {
+  const T = today(), from = st.days ? addD(T, -(st.days - 1)) : RAW.since;
+  const uniOf = (p) => p.uni || "לא ידוע";
+  const all = RAW.people.map((p) => ({ ...p, key: p.username || "#" + p.i }));
+  const people = all.filter((p) => !st.excluded.has(p.key) && (!st.onlyMoodle || p.moodle) && (!st.unis.size || st.unis.has(uniOf(p))));
+  const ids = new Set(people.map((p) => p.i));
+  const ev = RAW.ev.filter((e) => ids.has(e[0]));
+  const ai = RAW.ai.filter((a) => ids.has(a[0]));
+  // ימים פעילים = ימים שבהם המשתמש פתח את האפליקציה (לא סיכומים שהתוסף עושה לבד ברקע)
+  const act = new Map(); const mark = (i, d) => { if (!act.has(i)) act.set(i, new Set()); act.get(i).add(d); };
+  for (const [i, d] of RAW.days || []) mark(i, d);
+  for (const [i, d] of RAW.ev) mark(i, d);
+  const activeOn = (i, a, b) => { const s = act.get(i); if (!s) return false; for (const d of s) if (d >= a && d <= b) return true; return false; };
+  const activeIn = (a, b, list = people) => list.filter((p) => activeOn(p.i, a, b)).length;
+  const inPeriod = (d) => d >= from && d <= T;
+  // "קבוצת הנרשמים בתקופה": עליה מחושבים Retention, משפך וקוהורטות – כך שגם התקופה משנה את כל הדף
+  const cohort = st.days ? people.filter((p) => inPeriod(p.joined)) : people;
+  // יומי
+  const daily = []; for (let d = from; d <= T; d = addD(d, 1)) daily.push({ d, active: people.filter((p) => act.get(p.i)?.has(d)).length, new: people.filter((p) => p.joined === d).length });
+  daily.forEach((x, k) => { const w = daily.slice(Math.max(0, k - 6), k + 1); x.avg = w.reduce((s, y) => s + y.active, 0) / w.length; });
+  // Retention: D1 = יום 1, D7 = ימים 7–13, D30 = ימים 30–59. נספרים רק מי שהחלון שלהם כבר נגמר
+  const ret = (a, b, list = cohort) => { const el = list.filter((p) => diffD(T, p.joined) > b); return { eligible: el.length, returned: el.filter((p) => activeOn(p.i, addD(p.joined, a), addD(p.joined, b))).length }; };
+  // עקומת חזרה: % ממי שעבר כבר N ימים, שהיו פעילים בדיוק ביום N
+  const curve = []; for (let n = 0; n <= 28; n++) { const el = cohort.filter((p) => diffD(T, p.joined) > n); curve.push({ n, v: el.length ? pct(el.filter((p) => act.get(p.i)?.has(addD(p.joined, n))).length, el.length) : null, el: el.length }); }
+  // קוהורטות לפי שבוע הרשמה (שבוע k נספר רק כשהוא נגמר)
+  const cw = new Map(); for (const p of cohort) { const w = weekOf(p.joined); if (!cw.has(w)) cw.set(w, []); cw.get(w).push(p); }
+  const cohorts = [...cw.entries()].sort().map(([w, ps]) => ({ w, size: ps.length, cells: [1, 2, 3, 4, 5, 6].map((k) => { const a = (k - 1) * 7 + 1, b = k * 7; const el = ps.filter((p) => diffD(T, p.joined) > b); return el.length ? { p: pct(el.filter((p) => activeOn(p.i, addD(p.joined, a), addD(p.joined, b))).length, el.length), n: el.length } : null; }) }));
+  // משפך (על הנרשמים בתקופה)
+  const has = (i, name) => RAW.ev.some((e) => e[0] === i && e[2] === name);
+  const r2 = cohort.filter((p) => diffD(T, p.joined) > 13);
+  const funnel = [
+    ["נרשמו", cohort.length],
+    ["סיימו שאלון פתיחה", cohort.filter((p) => has(p.i, "onboarding_done")).length],
+    ["חיברו את המודל", cohort.filter((p) => p.moodle).length],
+    ["יש להם סיכום", cohort.filter((p) => p.sums > 0).length],
+    ["חזרו בשבוע השני", r2.filter((p) => activeOn(p.i, addD(p.joined, 7), addD(p.joined, 13))).length, r2.length],
+  ];
+  // לפי שם אירוע בתקופה
+  const agg = (pred, key = (e) => e[2]) => { const m = new Map(); for (const e of ev) { if (!inPeriod(e[1]) || !pred(e[2])) continue; const k = key(e); const x = m.get(k) || { name: k, n: 0, us: new Set() }; x.n += e[3]; x.us.add(e[0]); m.set(k, x); } return [...m.values()].map((x) => ({ name: x.name, n: x.n, u: x.us.size })).sort((a, b) => b.n - a.n); };
+  const screens = agg((n) => n.startsWith("open:"), (e) => e[2].slice(5));
+  const clicks = agg((n) => n.startsWith("click:"), (e) => e[2].slice(6));
+  const actions = agg((n) => !n.startsWith("open:") && !n.startsWith("click:"));
+  const aiM = new Map(); for (const [i, d, k, n] of ai) { if (!inPeriod(d)) continue; const x = aiM.get(k) || { name: k, n: 0, us: new Set() }; x.n += n; x.us.add(i); aiM.set(k, x); }
+  const aiList = [...aiM.values()].map((x) => ({ name: x.name, n: x.n, u: x.us.size })).sort((a, b) => b.n - a.n);
+  // אימוץ: איזה אחוז מהמשתמשים (הפעילים בתקופה) השתמשו בכל מסך בתקופה
+  const actP = Math.max(1, activeIn(from, T));
+  const adopt = screens.map((x) => ({ ...x, p: Math.min(100, pct(x.u, actP)) })).sort((a, b) => b.p - a.p);
+  // לפי מוסד
+  const unis = new Map(); for (const p of people) { const k = uniOf(p); if (!unis.has(k)) unis.set(k, []); unis.get(k).push(p); }
+  const byUni = [...unis.entries()].map(([u, ps]) => { const coh = st.days ? ps.filter((p) => inPeriod(p.joined)) : ps; const d7 = ret(7, 13, coh); return { u, n: ps.length, a7: activeIn(addD(T, -6), T, ps), aP: activeIn(from, T, ps), moodle: ps.filter((p) => p.moodle).length, d7: d7.eligible ? pct(d7.returned, d7.eligible) : null }; }).sort((a, b) => b.n - a.n);
+  // טבלת משתמשים
+  const rows = all.map((p) => { const days = [...(act.get(p.i) || [])]; const last = [p.last_seen, ...days].filter(Boolean).sort().pop(); return { ...p, uni: uniOf(p), last, days: days.length, events: RAW.ev.filter((e) => e[0] === p.i).reduce((t, e) => t + e[3], 0), a7: days.filter((d) => d > addD(T, -7)).length, in: ids.has(p.i) }; });
+  // השוואה לתקופה הקודמת
+  const len = diffD(T, from) + 1, prevFrom = addD(from, -len), prevTo = addD(from, -1);
+  return {
+    T, from, people, cohort, all, rows, daily, curve, cohorts, funnel, screens, clicks, actions, aiList, adopt, byUni,
+    kpi: { users: people.length, newP: cohort.length, newPrev: people.filter((p) => p.joined >= prevFrom && p.joined <= prevTo).length,
+      dau: activeIn(T, T), wau: activeIn(addD(T, -6), T), wauPrev: activeIn(addD(T, -13), addD(T, -7)),
+      aP: activeIn(from, T), aPrev: activeIn(prevFrom, prevTo),
+      moodle: people.filter((p) => p.moodle).length, sums: people.reduce((s, p) => s + p.sums, 0) },
+    ret: { d1: ret(1, 1), d7: ret(7, 13), d30: ret(30, 59) },
+  };
+}
+
+// ---------- גרפים ----------
+const tipEl = $("#tip");
+function bindTips(root) { root.querySelectorAll("[data-tip]").forEach((el) => { el.onmousemove = (e) => { tipEl.hidden = false; tipEl.textContent = el.dataset.tip; tipEl.style.left = Math.min(innerWidth - tipEl.offsetWidth - 8, e.clientX + 12) + "px"; tipEl.style.top = e.clientY + 14 + "px"; }; el.onmouseleave = () => (tipEl.hidden = true); }); }
+function dailyChart(list) {
+  const W = 760, H = 190, L = 28, R = 10, Tp = 12, B = 24, m = Math.max(2, ...list.map((x) => x.active)), bw = (W - L - R) / list.length;
+  const y = (v) => Tp + (H - Tp - B) * (1 - v / m), x = (k) => L + k * bw + bw / 2;
+  const line = list.map((p, k) => `${k ? "L" : "M"}${x(k).toFixed(1)},${y(p.avg).toFixed(1)}`).join("");
+  const step = Math.ceil(list.length / 8);
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="משתמשים פעילים בכל יום" style="direction:ltr">
+    ${[0, Math.round(m / 2), m].map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${v}</text>`).join("")}
+    ${list.map((p, k) => `<rect x="${L + k * bw + 1.5}" y="${y(p.active)}" width="${Math.max(1.5, bw - 3)}" height="${H - B - y(p.active)}" rx="2.5" fill="var(--blue2)" data-tip="${fmtD(p.d)} · ${p.active} פעילים · ${p.new} חדשים"/>`).join("")}
+    <path d="${line}" fill="none" stroke="var(--blue)" stroke-width="2.2"/>
+    ${list.map((p, k) => (p.new ? `<circle cx="${x(k)}" cy="${y(p.active) - 6}" r="3.5" fill="var(--warn)" data-tip="${fmtD(p.d)} · ${p.new} נרשמו"/>` : "")).join("")}
+    ${list.map((p, k) => ((k % step === 0 && list.length - 1 - k >= step / 2) || k === list.length - 1 ? `<text x="${x(k)}" y="${H - 7}" text-anchor="middle">${fmtD(p.d)}</text>` : "")).join("")}
+  </svg><p class="note">עמודה = אנשים שונים שנכנסו באותו יום · קו = ממוצע 7 ימים · נקודה כתומה = נרשמים חדשים</p>`;
+}
+function curveChart(c) {
+  const W = 420, H = 170, L = 30, R = 22, Tp = 10, B = 22, pts = c.filter((p) => p.v !== null && p.el >= 1);
+  if (pts.length < 2) return '<p class="muted small">עוד אין מספיק נתונים.</p>';
+  const x = (n) => L + (W - L - R) * (n / 28), y = (v) => Tp + (H - Tp - B) * (1 - v / 100);
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="עקומת חזרה" style="direction:ltr">
+    ${[0, 50, 100].map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 5}" y="${y(v) + 3}" text-anchor="end">${v}%</text>`).join("")}
+    <path d="${pts.map((p, k) => `${k ? "L" : "M"}${x(p.n).toFixed(1)},${y(p.v).toFixed(1)}`).join("")}" fill="none" stroke="var(--blue)" stroke-width="2.2"/>
+    ${pts.map((p) => `<circle cx="${x(p.n)}" cy="${y(p.v)}" r="3" fill="var(--blue)" data-tip="יום ${p.n}: ${p.v}% (מתוך ${p.el})"/>`).join("")}
+    ${[0, 7, 14, 21, 28].map((n) => `<text x="${x(n)}" y="${H - 6}" text-anchor="middle">יום ${n}</text>`).join("")}
+  </svg><p class="note">אחוז מהמשתמשים שהיו פעילים בדיוק ביום N אחרי ההרשמה.</p>`;
+}
+function bars(list, nameOf, id, max = 10) {
+  const open = st["more-" + id], top = open ? list : list.slice(0, max), m = Math.max(1, ...top.map((x) => x.n));
+  return `<div class="bars">${top.map((x) => `<div class="bar" data-tip="${esc(nameOf(x.name))}: ${x.n} פעמים · ${x.u} אנשים"><span class="nm">${esc(nameOf(x.name))}</span><i style="width:${Math.max(2, (x.n / m) * 100)}%"></i><em>${x.n} · ${x.u} אנ׳</em></div>`).join("") || '<p class="muted small">אין נתונים בתקופה ובסינון שנבחרו.</p>'}</div>${list.length > max ? `<button class="link small" data-more="${id}" type="button">${open ? "פחות" : `הכול (${list.length})`}</button>` : ""}`;
+}
+const heat = (p) => `background:color-mix(in srgb, var(--blue) ${Math.round(p * 0.85)}%, transparent);color:${p > 45 ? "#fff" : "inherit"}`;
+const delta = (a, b) => (b ? `<span class="d ${a >= b ? "up" : "down"}">${a >= b ? "▲" : "▼"} ${Math.abs(a - b)} מול לפני</span>` : "");
+
+// ---------- ציור ----------
+function render() {
+  const unis = [...new Set(RAW.people.map((p) => p.uni || "לא ידוע"))].sort();
+  if ([...st.unis].some((u) => !unis.includes(u))) { for (const u of [...st.unis]) if (!unis.includes(u)) st.unis.delete(u); save(); }
+  const c = compute(), K = c.kpi, R = c.ret;
+  const r = (x, t, desc) => `<div data-tip="${desc}"><span class="small"><b style="display:inline;font:700 13px var(--fd)">${t}</b></span><b class="rv">${x.eligible ? pct(x.returned, x.eligible) + "%" : "–"}</b><span class="small muted">${x.eligible ? `${x.returned} מתוך ${x.eligible}` : "עוד אין ותק"}</span></div>`;
+  const sortRows = [...c.rows].filter((p) => !st.q || (p.name + " " + p.username + " " + p.uni).toLowerCase().includes(st.q.toLowerCase())).sort((a, b) => { const [k, dir] = st.sort; const va = a[k] ?? "", vb = b[k] ?? ""; return (va > vb ? 1 : va < vb ? -1 : 0) * dir; });
+  const th = (k, t) => `<th data-k="${k}">${t}${st.sort[0] === k ? (st.sort[1] > 0 ? " ▲" : " ▼") : ""}</th>`;
+  const exN = st.excluded.size, filtered = st.onlyMoodle || st.unis.size || exN;
+  app.innerHTML = `
+    <div class="head"><div><h1>Clearly · דאשבורד</h1><p class="muted small" style="margin:2px 0 0">עודכן ${new Date(RAW.generated_at).toLocaleString("he-IL")} · בלי מנהלים ובלי חשבון הבדיקה</p></div>
+      <div style="display:flex;gap:8px"><button class="btn" id="csv" type="button">⬇ ייצוא משתמשים (CSV)</button><button class="btn pri" id="refresh" type="button">רענון</button></div></div>
+    <div class="filters" role="group" aria-label="סינון – משפיע על כל הדף">
+      <span class="seg" role="group" aria-label="תקופה">${[[7, "7 ימים"], [30, "30 ימים"], [90, "90 ימים"], [0, "הכול"]].map(([n, t]) => `<button type="button" data-days="${n}" aria-pressed="${st.days === n}">${t}</button>`).join("")}</span>
+      <details class="multi" id="uniBox"><summary>מוסדות: <b>${st.unis.size ? (st.unis.size === 1 ? esc([...st.unis][0]) : st.unis.size + " נבחרו") : "כולם"}</b></summary>
+        <div class="menu">${unis.map((u) => `<label><input type="checkbox" data-uni="${esc(u)}" ${st.unis.has(u) ? "checked" : ""}> ${esc(u)} <span class="muted small">(${RAW.people.filter((p) => (p.uni || "לא ידוע") === u).length})</span></label>`).join("")}
+        <div class="row2"><button class="link" type="button" id="uniAll">כולם</button><button class="link" type="button" id="uniDone">סגירה</button></div></div></details>
+      <label class="switch"><input type="checkbox" id="onlyMoodle" ${st.onlyMoodle ? "checked" : ""}> רק מי שחיבר את המודל</label>
+      <span class="small muted">${c.people.length} מתוך ${c.all.length} משתמשים${exN ? ` · ${exN} הוצאו ידנית <button class="link" id="clearEx" type="button">החזרה</button>` : ""}${filtered ? ` · <button class="link" id="reset" type="button">ניקוי סינון</button>` : ""}</span>
+    </div>
+    <div class="kpis">
+      <div class="card kpi"><b>${K.users}</b><span>משתמשים בסינון</span></div>
+      <div class="card kpi"><b>${K.dau}</b><span>פעילים היום</span></div>
+      <div class="card kpi"><b>${K.wau}</b><span>פעילים ב-7 ימים (${pct(K.wau, K.users)}%)</span><br>${delta(K.wau, K.wauPrev)}</div>
+      <div class="card kpi"><b>${K.aP}</b><span>פעילים בתקופה (${pct(K.aP, K.users)}%)</span><br>${st.days ? delta(K.aP, K.aPrev) : ""}</div>
+      <div class="card kpi"><b>${K.newP}</b><span>נרשמו בתקופה</span><br>${delta(K.newP, K.newPrev)}</div>
+      <div class="card kpi"><b>${K.moodle}</b><span>חיברו מודל (${pct(K.moodle, K.users)}%)</span></div>
+      <div class="card kpi"><b>${K.sums}</b><span>סיכומים במערכת</span></div>
+    </div>
+    <section class="card"><h2>פעילים בכל יום</h2>${dailyChart(c.daily)}</section>
+    <div class="g2">
+      <section class="card"><h2>חזרה למוצר (Retention)</h2><p class="note" style="margin-top:2px">${st.days ? `על ${c.cohort.length} שנרשמו בתקופה` : "על כל הנרשמים"} · נספרים רק מי שהחלון שלהם כבר נגמר</p>
+        <div class="ret">${r(R.d1, "D1", "חזרו יום אחרי ההרשמה")}${r(R.d7, "D7", "חזרו בימים 7–13")}${r(R.d30, "D30", "חזרו בימים 30–59")}</div>
+        ${curveChart(c.curve)}</section>
+      <section class="card"><h2>לפי שבוע הרשמה (קוהורטות)</h2><div class="scroll"><table><thead><tr><th>שבוע</th><th>נרשמו</th>${[1, 2, 3, 4, 5, 6].map((k) => `<th>שבוע ${k}</th>`).join("")}</tr></thead><tbody>
+        ${c.cohorts.map((h) => `<tr><td>${fmtD(h.w)}</td><td>${h.size}</td>${h.cells.map((x) => (x ? `<td><span class="cell" style="${heat(x.p)}" data-tip="${x.p}% (מתוך ${x.n})">${x.p}%</span></td>` : '<td><span class="cell muted">–</span></td>')).join("")}</tr>`).join("") || '<tr><td colspan="8" class="muted">אין נתונים</td></tr>'}
+      </tbody></table></div><p class="note">אחוז מכל קבוצת נרשמים שנכנסו שוב באותו שבוע אחרי ההרשמה. "–" = השבוע עוד לא הגיע.</p></section>
+    </div>
+    <div class="g2">
+      <section class="card"><h2>משפך: מהרשמה לשימוש</h2><p class="note" style="margin-top:2px">${st.days ? "על מי שנרשם בתקופה" : "על כל הנרשמים"} · "חזרו בשבוע השני" – רק מי שעברו לו 13 ימים</p><div class="funnel">${c.funnel.map(([t, n, base], k) => { const of = base ?? c.funnel[0][1]; return `<div class="fstep" data-tip="${t}: ${n} מתוך ${of}${base !== undefined ? " שכבר עברו להם 13 ימים" : k ? ` · ${pct(n, c.funnel[k - 1][1])}% מהשלב הקודם` : ""}"><span>${t}</span><i style="width:${Math.max(2, pct(n, of))}%"></i><em>${n} · ${pct(n, of)}%${base !== undefined ? ` (מתוך ${of})` : ""}</em></div>`; }).join("")}</div></section>
+      <section class="card" id="unis"><h2>לפי מוסד</h2><div class="scroll"><table><thead><tr><th>מוסד</th><th>משתמשים</th><th>פעילים ב-7 ימים</th><th>פעילים בתקופה</th><th>חיברו מודל</th><th>D7</th></tr></thead><tbody>
+        ${c.byUni.map((u) => `<tr><td>${esc(u.u)}</td><td>${u.n}</td><td>${u.a7}</td><td>${u.aP}</td><td>${u.moodle} (${pct(u.moodle, u.n)}%)</td><td>${u.d7 === null ? "–" : u.d7 + "%"}</td></tr>`).join("")}
+      </tbody></table></div></section>
+    </div>
+    <div class="g3">
+      <section class="card"><h2>המסכים הכי בשימוש</h2>${bars(c.screens, scr, "screens")}<p class="note">כניסות למסך · כמה אנשים שונים.</p></section>
+      <section class="card"><h2>אימוץ: כמה מהפעילים השתמשו בכל מסך</h2><div class="bars">${c.adopt.slice(0, st["more-adopt"] ? 99 : 10).map((x) => `<div class="bar" data-tip="${esc(scr(x.name))}: ${x.u} מתוך ${c.people.length}"><span class="nm">${esc(scr(x.name))}</span><i style="width:${Math.max(2, x.p)}%"></i><em>${x.p}%</em></div>`).join("") || '<p class="muted small">אין נתונים.</p>'}</div>${c.adopt.length > 10 ? `<button class="link small" data-more="adopt" type="button">${st["more-adopt"] ? "פחות" : `הכול (${c.adopt.length})`}</button>` : ""}</section>
+      <section class="card"><h2>הלחיצות הכי נפוצות</h2>${bars(c.clicks, clickName, "clicks", 12)}${c.clicks.length ? "" : '<p class="note">איסוף הלחיצות התחיל עם הגרסה החדשה – הנתונים יתמלאו מעכשיו.</p>'}</section>
+      <section class="card"><h2>פעולות</h2>${bars(c.actions, (n) => ACTION[n] || n, "actions")}</section>
+      <section class="card"><h2>AI</h2>${bars(c.aiList, (n) => AI[n] || n, "ai")}<p class="note">מ-23.11.2026 כל נתוני השימוש נשמרים כל עוד החשבון קיים. לפני כן נשמרו מסכים ופעולות 90 יום ו-AI 30 יום, ולכן חסרים נתונים ישנים יותר.</p></section>
+    </div>
+    <section class="card" id="people"><div class="head"><h2>המשתמשים</h2><input type="search" id="q" placeholder="חיפוש שם / מוסד" value="${esc(st.q)}" aria-label="חיפוש משתמשים"></div>
+      <p class="note">הסרת ✓ מוציאה את המשתמש מכל הדאשבורד (נשמר בדפדפן הזה). לחיצה על כותרת – מיון.</p>
+      <div class="scroll"><table><thead><tr><th>בחשבון</th>${th("name", "שם")}${th("uni", "מוסד")}${th("joined", "נרשם/ה")}${th("last", "נראה/תה לאחרונה")}${th("days", "ימים פעילים")}${th("a7", "ב-7 ימים")}${th("events", "פעולות")}${th("sums", "סיכומים")}${th("moodle", "מודל")}</tr></thead><tbody>
+        ${sortRows.map((p) => `<tr class="${p.in ? "" : "off"}"><td><input type="checkbox" data-ex="${esc(p.key)}" ${st.excluded.has(p.key) ? "" : "checked"} aria-label="לכלול את ${esc(p.name)}"></td><td>${esc(p.name)} <span class="muted small" dir="ltr">@${esc(p.username)}</span></td><td>${esc(p.uni)}</td><td>${fmtD(p.joined)}</td><td>${fmtD(p.last)}</td><td>${p.days}</td><td>${p.a7}</td><td>${p.events}</td><td>${p.sums}</td><td><span class="pill ${p.moodle ? "on" : "no"}">${p.moodle ? "מחובר" : "לא"}</span></td></tr>`).join("")}
+      </tbody></table></div></section>`;
+  // ---------- אירועים ----------
+  const re = () => { save(); render(); };
+  app.querySelectorAll("[data-days]").forEach((b) => (b.onclick = () => { st.days = +b.dataset.days; re(); }));
+  // בחירת כמה מוסדות: כל סימון מעדכן מיד את כל הדף (והתפריט נשאר פתוח)
+  app.querySelectorAll("[data-uni]").forEach((b) => (b.onchange = () => { b.checked ? st.unis.add(b.dataset.uni) : st.unis.delete(b.dataset.uni); save(); render(); $("#uniBox").open = true; $(`[data-uni="${CSS.escape(b.dataset.uni)}"]`)?.focus(); }));
+  $("#uniAll").onclick = () => { st.unis.clear(); save(); render(); $("#uniBox").open = true; };
+  $("#uniDone").onclick = () => ($("#uniBox").open = false);
+  $("#onlyMoodle").onchange = (e) => { st.onlyMoodle = e.target.checked; re(); };
+  $("#clearEx") && ($("#clearEx").onclick = () => { st.excluded.clear(); re(); });
+  $("#reset") && ($("#reset").onclick = () => { st.excluded.clear(); st.onlyMoodle = false; st.unis.clear(); re(); });
+  app.querySelectorAll("[data-ex]").forEach((b) => (b.onchange = () => { b.checked ? st.excluded.delete(b.dataset.ex) : st.excluded.add(b.dataset.ex); re(); }));
+  app.querySelectorAll("th[data-k]").forEach((h) => (h.onclick = () => { st.sort = [h.dataset.k, st.sort[0] === h.dataset.k ? -st.sort[1] : -1]; re(); }));
+  app.querySelectorAll("[data-more]").forEach((b) => (b.onclick = () => { st["more-" + b.dataset.more] = !st["more-" + b.dataset.more]; render(); }));
+  const q = $("#q"); q.oninput = () => { st.q = q.value; render(); const n = $("#q"); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
+  $("#refresh").onclick = () => load();
+  $("#csv").onclick = () => {
+    const head = ["שם", "שם משתמש", "מוסד", "נרשם", "נראה לאחרונה", "ימים פעילים", "פעילים ב-7 ימים", "פעולות", "סיכומים", "מודל", "בחשבון"];
+    const lines = [head, ...sortRows.map((p) => [p.name, p.username, p.uni, p.joined, p.last, p.days, p.a7, p.events, p.sums, p.moodle ? "כן" : "לא", p.in ? "כן" : "לא"])].map((r) => r.map((v) => { let t = String(v ?? ""); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return `"${t.replace(/"/g, '""')}"`; }).join(","));
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + lines.join("\n")], { type: "text/csv" })); a.download = `clearly-users-${today()}.csv`; a.click();
+  };
+  bindTips(app);
+}
+
+// ---------- טעינה וכניסה ----------
+let sb;
+async function load() {
+  if (window.DASH_DEMO) { RAW = window.DASH_DEMO; return render(); }   // תצוגה מקומית בלבד
+  app.querySelector(".kpis") || (app.innerHTML = '<p class="muted">טוען…</p>');
+  const { data, error } = await sb.rpc("admin_dashboard", { p_days: 365 });
+  if (error) { app.innerHTML = `<div class="login card"><h1>אין גישה</h1><p class="err">${/forbidden/.test(error.message) ? "הדף הזה פתוח רק למנהלים של Clearly." : esc(error.message)}</p><button class="btn" id="out" type="button">יציאה</button></div>`; $("#out").onclick = async () => { await sb.auth.signOut(); start(); }; return; }
+  RAW = data; render();
+}
+function loginForm() {
+  app.innerHTML = `<form class="login card" id="lf"><h1>Clearly · דאשבורד</h1><p class="muted small">כניסה למנהלים בלבד.</p>
+    <input id="em" type="email" autocomplete="username" placeholder="מייל" required dir="ltr"><input id="pw" type="password" autocomplete="current-password" placeholder="סיסמה" required dir="ltr">
+    <button class="btn pri" type="submit">כניסה</button><p class="err small" id="le"></p></form>`;
+  $("#lf").onsubmit = async (e) => { e.preventDefault(); const { error } = await sb.auth.signInWithPassword({ email: $("#em").value.trim(), password: $("#pw").value }); if (error) $("#le").textContent = "המייל או הסיסמה לא נכונים"; else start(); };
+}
+async function start() {
+  if (window.DASH_DEMO) return load();
+  // התחברות נפרדת מהאפליקציה (מפתח שמירה אחר) – כניסה לדאשבורד לא מחברת את האפליקציה, ולהפך
+  if (!sb) { const { createClient } = await import(SDK); sb = createClient(URL_, ANON, { auth: { persistSession: true, autoRefreshToken: true, storageKey: "clearly-dash-auth" } }); }
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return loginForm();
+  load();
+}
+start();
+</script>
+</body>
+</html>
