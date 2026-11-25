@@ -5,12 +5,17 @@ const SDK = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 export const URL_ = "https://islplhnlvaukixaglxof.supabase.co";
 export const ANON = "sb_publishable_1fDG1GIaFERhcFPiRyx46g_38BIv8HZ";
 
-let sb = null, me = null, session = null, recovering = false;
+let sb = null, me = null, session = null, recovering = false, authErr = null;
+// הקישור מהמייל לא עבד (פג תוקף / כבר נוצל / נשלח קישור חדש יותר) – השרת מחזיר לכאן עם error_code בכתובת
+export const authError = () => authErr;
+export const clearAuthError = () => { authErr = null; };
 // הגיעו מהקישור "שכחתי סיסמה" במייל – צריך לבחור סיסמה חדשה
 export const isRecovery = () => recovering;
 export async function init() {
   if (sb) return sb;
   if (/type=recovery/.test(location.hash + location.search)) recovering = true;
+  { const q = new URLSearchParams((location.hash || "").replace(/^#/, "") + "&" + location.search.replace(/^\?/, ""));
+    if (q.get("error_code") || q.get("error_description") || q.get("error")) { authErr = { code: q.get("error_code") || q.get("error") || "", desc: q.get("error_description") || "" }; try { history.replaceState(null, "", location.pathname + "?app=1"); } catch { /* */ } } }
   const { createClient } = await import(SDK);
   sb = createClient(URL_, ANON, { auth: { persistSession: true, autoRefreshToken: true, storageKey: "sikumon-auth" } });
   session = (await sb.auth.getSession()).data.session;
@@ -28,6 +33,7 @@ async function loadMe() { const { data } = await sb.rpc("my_profile"); me = data
 function heb(e) {
   const m = e?.message || String(e);
   if (/Invalid login credentials/i.test(m)) return "המייל או הסיסמה לא נכונים";
+  if (/only request this after|rate limit|too many/i.test(m)) return "כבר שלחנו מייל. אפשר לבקש שוב בעוד דקה";
   if (/already registered|already exists/i.test(m)) return "כבר יש חשבון עם המייל הזה. נסו להתחבר";
   if (/profiles_username_key|duplicate key.*username/i.test(m)) return "שם המשתמש תפוס. בחרו שם אחר";
   if (/profiles_uni_email_key/i.test(m)) return "המייל של המוסד כבר רשום בחשבון אחר";

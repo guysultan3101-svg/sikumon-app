@@ -48,10 +48,11 @@ export function initSocial(ctx) {
   }
 
   // ---------- הרשמה / כניסה ----------
-  function signup(mode = "signup") {
+  function signup(mode = "signup", notice = "") {
     const isUp = mode === "signup";
     view.innerHTML = `<div class="page" style="max-width:560px">
       <a class="back-btn" href="welcome/">→ חזרה לדף הפתיחה</a>
+      ${notice ? `<p class="notice alert" role="alert">${esc(notice)}</p>` : ""}
       <p class="eyebrow">ברוכים הבאים ל-Clearly</p>
       <h1 style="font-size:30px">${isUp ? "יצירת חשבון" : "כניסה לחשבון"}</h1>
       ${isUp ? '<p class="muted"><b>Early Access:</b> Clearly נפתח בהדרגה. נרשמים עכשיו, וכשמגיע התור שלך מקבלים מייל ונכנסים.</p>' : ""}
@@ -81,7 +82,17 @@ export function initSocial(ctx) {
         t = setTimeout(async () => { try { $("#sgUserHint").textContent = (await api.usernameFree(v)) ? "✅ פנוי" : "❌ השם הזה תפוס או שמור – בחרו שם אחר"; } catch (e) { $("#sgUserHint").textContent = e.message; } }, 400);
       };
     } else {
-      $("#sgReset").onclick = async () => { const m = $("#sgMail").value.trim(); if (!m) return toast("כתבו קודם את המייל"); try { await api.resetPassword(m); toast("שלחנו קישור לאיפוס למייל"); } catch (e) { toast(e.message); } };
+      // שכחתי סיסמה: לחיצה אחת שולחת מייל אחד. הכפתור ננעל לדקה – כי כל מייל חדש מבטל את הקישור של הקודם
+      $("#sgReset").onclick = async () => {
+        const bt = $("#sgReset"), m = $("#sgMail").value.trim(); if (!m) return toast("כתבו קודם את המייל");
+        if (bt.disabled) return; bt.disabled = true;
+        try {
+          await api.resetPassword(m);
+          toast("שלחנו קישור לאיפוס למייל. פתחו את המייל האחרון – כל קישור עובד פעם אחת");
+          let left = 60; bt.textContent = `נשלח ✓ (שוב בעוד ${left})`;
+          const t = setInterval(() => { left--; if (!document.body.contains(bt)) return clearInterval(t); if (left <= 0) { clearInterval(t); bt.disabled = false; bt.textContent = "שכחתי סיסמה"; } else bt.textContent = `נשלח ✓ (שוב בעוד ${left})`; }, 1000);
+        } catch (e) { bt.disabled = false; toast(e.message); }
+      };
     }
     $("#sgForm").onsubmit = async (e) => {
       e.preventDefault();
@@ -445,6 +456,7 @@ export function initSocial(ctx) {
         m.remove(); toast(want.length ? "השיתוף נשמר ✓" : "השיתוף בוטל"); api.track("share");
         syncSummaries().catch(() => {});
         if ($("#profFriends")) friends($("#profFriends"));
+        else if ($("#friendsOnly")) friendsListPage(true);   // "רק החברים" נשאר רק חברים
       } catch (e) { toast(e.message); }
     };
   }
@@ -924,7 +936,7 @@ export function initSocial(ctx) {
     const hero = heroHtml(me, {
       mine: true,
       top: `<a class="phero-circ" href="#settings" aria-label="הגדרות">${ICO.gear}</a><button class="phero-circ" type="button" id="heroCam" aria-label="${me.avatar_url ? "תמונת הפרופיל – החלפה, התאמה או הסרה" : "הוספת תמונת פרופיל"}">${ICO.cam}</button><input type="file" id="meAvatar" accept="image/*" hidden>`,
-      actions: `<button class="phero-btn" type="button" id="meEdit">${ICO.pen}עריכת פרופיל</button><a class="phero-btn" href="#social-friends">👥 ${n === 1 ? "חבר אחד" : n + " חברים"}</a>`,
+      actions: `<button class="phero-btn" type="button" id="meEdit">${ICO.pen}עריכת פרופיל</button><a class="phero-btn" href="#friends-list">👥 ${n === 1 ? "חבר אחד" : n + " חברים"}</a>`,
     });
     const bio = `<p class="prof-bio ${me.bio ? "" : "muted"}">${me.bio ? esc(me.bio) : "עוד לא כתבת משהו על עצמך"}${me.is_private ? ' <span class="chip">🔒 חשבון סגור</span>' : ""}</p>`;
     return { hero, bio };
@@ -958,6 +970,20 @@ export function initSocial(ctx) {
       $("#avFit", m).onclick = () => { m.remove(); save(url); };
       $("#avDel", m).onclick = async () => { m.remove(); if (!confirm("להסיר את תמונת הפרופיל?")) return; try { await api.removeAvatar(); people.set(meId(), api.profile()); dispatchEvent(new HashChangeEvent("hashchange")); } catch (err) { toast(err.message); } };
     };
+  }
+  // ---------- רק החברים (מהכפתור "N חברים" בפרופיל) – בלי בקשות, הוספה או "חדש אצלך" ----------
+  async function friendsListPage(refresh = false) {
+    if (!refresh) busy();
+    try {
+      const g = await graph();
+      const ids = g.friends.map((f) => g.other(f)); await remember(ids);
+      const shareSub = (id) => { const a = g.iShare(id).length, b = g.theyShare(id).length; return a && b ? " · 🎓 אותה כיתה" : ""; };
+      const list = `<div id="friendsOnly" style="display:grid;gap:8px">${ids.map((id) => `<div class="item">${avatar(id)}<a href="#u-${esc(unameOf(id))}" style="flex:1;min-width:0;color:inherit;text-decoration:none"><span class="t">${esc(nameOf(id))}</span><br><span class="small muted"><span dir="ltr">@${esc(unameOf(id))}</span>${shareSub(id)}</span></a><button class="btn ghost" data-share="${id}" type="button" aria-label="אותה כיתה – שיתוף סיכומים">🎓</button><a class="btn ghost" href="#dm-${esc(unameOf(id))}" aria-label="הודעה ל${esc(nameOf(id))}">💬</a></div>`).join("") || '<p class="muted">עוד אין חברים. <a href="#social-friends">להוספת חברים</a></p>'}</div>`;
+      // רענון אחרי שיתוף: מחליפים רק את הרשימה (כפתור החזרה והכותרת נשארים)
+      if (refresh && $("#friendsOnly")) $("#friendsOnly").outerHTML = list;
+      else view.innerHTML = `<div class="page" style="max-width:760px"><h1 style="font-size:30px">👥 החברים שלי (${ids.length})</h1>${list}</div>`;
+      view.querySelectorAll("[data-share]").forEach((b) => (b.onclick = () => shareModal(b.dataset.share, g)));
+    } catch (e) { fail(e); }
   }
   // ---------- דף החברים (משלו): חדש אצלך, בקשות, הוספה, אנשים שאולי תכירו, ממתינים, החברים שלי ----------
   async function friendsPage() {
@@ -1010,5 +1036,5 @@ export function initSocial(ctx) {
   // העלאת קובץ -> סיכום אישי, ומיד מכניסים אותו לספרייה במכשיר
   async function upload(file, course) { const r = await api.summarizeFile(file, course); await syncSummaries(); return r; }
 
-  return { summaryHtmlToMd, newPasswordModal, upload, latestPosts, groups, group, feed, friends, friendsPage, paintProfNotes, missed, signup, messages, dm, myProfile, bindMyProfile, bindMyContent, editMe, counts, syncSummaries, syncNotifications, pushPrefs, restorePrefs, shareFrom, profile: profileView };
+  return { summaryHtmlToMd, newPasswordModal, upload, latestPosts, groups, group, feed, friends, friendsPage, friendsListPage, paintProfNotes, missed, signup, messages, dm, myProfile, bindMyProfile, bindMyContent, editMe, counts, syncSummaries, syncNotifications, pushPrefs, restorePrefs, shareFrom, profile: profileView };
 }

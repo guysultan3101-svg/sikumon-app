@@ -600,7 +600,7 @@ img { display: block; }
         <div class="dev dev--ipad" id="shotDev"><div class="dev__body"><div class="dev__screen shots-stage" id="shotStage"><img src="assets/screen/ipad-home.png" alt="מסך הבית של Clearly" class="on" width="1054" height="733"></div></div></div>
         <div class="shots-bar">
           <button class="shots-nav" type="button" id="shotPrev" aria-label="התמונה הקודמת"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
-          <p class="shots-cap" id="shotCap" aria-live="polite">מסך הבית: השיעור של עכשיו והמבחנים הבאים</p>
+          <p class="shots-cap" id="shotCap" aria-live="polite">מסך הבית: סיכומים חדשים, מחברות, היום ביומן והגשות</p>
           <button class="shots-nav" type="button" id="shotNext" aria-label="התמונה הבאה"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
         </div>
         <div class="shots-dots" id="shotDots"></div>
@@ -699,16 +699,16 @@ img { display: block; }
 
   // ---- קרוסלת המסכים, כמו באתר המקורי: מתחלפת כל 5 שניות, חיצים, נקודות, החלקה ועצירה ----
   const SHOTS = [ // לפי סדר הלשוניות באפליקציה
-    ["home", "מסך הבית: השיעור של עכשיו והמבחנים הבאים"],
-    ["notebook", "מחברת: כותבים בעט ישר על המצגת של השיעור"],
+    ["home", "מסך הבית: סיכומים חדשים, מחברות, היום ביומן והגשות"],
+    ["notebook", "מחברת: כותבים בעט, באצבע או בהקלדה – לכל שיעור דף משלו"],
     ["record", "הקלטת שיעור בלחיצה, והקורס מזוהה לבד לפי המערכת"],
-    ["calendar", "יומן עם מערכת השעות, החדר והזום"],
+    ["calendar", "יומן: מערכת השעות, ההגשות והמבחנים במקום אחד"],
     ["materials", "חומרים לשיעור: זום, מצגות וחוברות במקום אחד"],
     ["summaries", "כל הסיכומים, מסודרים לפי קורס"],
     ["summary", "סיכום אישי לכל שיעור, עם מה שחשוב למבחן"],
-    ["quizzes", "מבחנים, כרטיסיות וסימולציה לכל קורס"],
+    ["quizzes", "תרגול: מבחנים, כרטיסיות וסימולציה לכל קורס"],
     ["quiz", "מבחן קצר אחרי כל סיכום"],
-    ["assignments", "כל המטלות מהמודל, עם כמה זמן נשאר"],
+    ["assignments", "כל ההגשות מהמודל, עם כמה זמן נשאר"],
     ["assign", "פותחים מטלה ומגישים אותה מתוך Clearly"],
   ];
   const shotDev = document.getElementById("shotDev"), stage = document.getElementById("shotStage"), cap = document.getElementById("shotCap"), dots = document.getElementById("shotDots"), pauseBtn = document.getElementById("shotPause");

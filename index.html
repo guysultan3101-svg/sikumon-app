@@ -33,7 +33,7 @@
     try {
       var loggedIn = !!localStorage.getItem("sikumon-auth");
       var fromLanding = /[?&]app=1/.test(location.search);
-      var fromMail = /access_token|error_description|type=recovery/.test(location.hash) || /[?&](code|token_hash|type)=/.test(location.search);
+      var fromMail = /access_token|error_description|error_code|type=recovery/.test(location.hash) || /[?&](code|token_hash|type|error|error_code|error_description)=/.test(location.search);
       var deepLink = location.hash && location.hash !== "#home";
       if (!loggedIn && !fromLanding && !fromMail && !deepLink) location.replace("welcome/");
     } catch (e) { /* בלי גישה לאחסון – נשארים באפליקציה */ }

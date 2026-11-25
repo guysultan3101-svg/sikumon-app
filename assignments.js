@@ -13,7 +13,10 @@ export function initAssignments(ctx) {
     const ms = new Date(iso) - Date.now();
     if (ms < 0) return "המועד עבר";
     const h = Math.floor(ms / 3600e3);
-    return h < 24 ? `נשארו ${h} שעות` : `נשארו ${Math.ceil(ms / DAY)} ימים`;
+    // ימים לפי לוח השנה – כמו בבית ובתרגול ("בעוד 2 ימים"), כדי שלא יופיעו מספרים שונים לאותה מטלה
+    if (h < 24) return `נשארו ${h} שעות`;
+    const d = daysTo(iso);
+    return d <= 1 ? "עד מחר" : `נשארו ${d} ימים`;
   };
   const urgency = (iso) => { const d = daysTo(iso); return d <= 2 ? "hot" : d <= 7 ? "warm" : ""; };
   const fmtWhen = (iso) => new Date(iso).toLocaleString("he-IL", { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });

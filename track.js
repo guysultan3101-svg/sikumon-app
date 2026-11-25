@@ -5,7 +5,7 @@
 import { URL_, ANON, token, user } from "./api.js";
 
 // מסכים קבועים שיש בשם שלהם "-" (כל השאר עם "-" = מסך עם מזהה/שם → נשמר רק הסוג, למשל "sum-*")
-const STATIC = new Set(["social-friends", "messages-req", "quiz-new", "profile-liked", "profile-saved", "exam-focus", "missed-lesson", "settings-ai", "settings-study", "settings-account", "settings-privacy", "settings-access", "legal-terms", "legal-privacy", "legal-access"]);
+const STATIC = new Set(["social-friends", "friends-list", "messages-req", "quiz-new", "profile-liked", "profile-saved", "exam-focus", "missed-lesson", "settings-ai", "settings-study", "settings-account", "settings-privacy", "settings-access", "legal-terms", "legal-privacy", "legal-access"]);
 export function route(h) {
   let r = String(h || "").replace(/^#/, "").split("?")[0] || "home";
   try { r = decodeURIComponent(r); } catch { /* */ }

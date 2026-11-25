@@ -812,7 +812,7 @@ body:has(.pod-bar) .dm-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 #profFriends .item { flex-wrap: wrap; }
 #profFriends .item > a:not(.btn) { min-width: 140px !important; }  /* גובר על min-width:0 שבתוך הקוד */
 /* שורת חבר (🎓 + 💬) – תמיד שורה אחת */
-#profFriends .item:has([data-share]) { flex-wrap: nowrap; }
+#profFriends .item:has([data-share]), #friendsOnly .item { flex-wrap: nowrap; }
 #profFriends .item:has([data-share]) > a:not(.btn) { min-width: 0 !important; }
 
 /* ---------- 25.11.2026 (סבב 3): פרופיל וחברים, הודעות ---------- */
@@ -919,3 +919,6 @@ body:has(.pod-bar) .dm-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
   .phero-blur { display: block; filter: blur(22px) brightness(.7); transform: scale(1.15); }
   .phero-main { object-fit: contain; }
 }
+/* "רק החברים": שורה אחת, כפתורים קומפקטיים בטלפון צר */
+#friendsOnly .item > a:not(.btn) { min-width: 0 !important; overflow-wrap: anywhere; }
+@media (max-width: 480px) { #friendsOnly .item > .btn { min-width: 0; min-height: 40px; padding: 4px 8px; } }

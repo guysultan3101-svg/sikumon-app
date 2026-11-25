@@ -1577,13 +1577,19 @@ async function routeInner() {
   // בלי חשבון (או לפני שנוצר פרופיל): הרשמה / כניסה
   // מסמכים משפטיים ותמיכה: פתוחים גם לפני ההרשמה (צריך לקרוא את התנאים לפני שמסכימים להם)
   if (hash.startsWith("legal-") && !api.profile()) { renderTabs(null); settings.legal(hash.slice(6)); view.querySelector(".page")?.insertAdjacentHTML("afterbegin", '<a class="back-btn" href="#home">→ חזרה</a>'); return; }
-  if (!api.user() || !api.profile()) { renderTabs(null); assistant.mount(null); return social.signup(api.user() ? "signup" : undefined); }
+  if (!api.user() || !api.profile()) {
+    renderTabs(null); assistant.mount(null);
+    // הגיעו מקישור במייל שלא עבד: מסך כניסה (לא יצירת חשבון) עם הסבר
+    const ae = !api.user() && api.authError();
+    if (ae) { api.clearAuthError(); return social.signup("login", /expired|otp|invalid|not found/i.test(ae.code + ae.desc) ? "הקישור מהמייל כבר לא בתוקף. כל קישור עובד פעם אחת, ורק הקישור האחרון ששלחנו. אם ביקשת איפוס סיסמה – כתבו את המייל ולחצו שוב \"שכחתי סיסמה\", ופתחו את המייל החדש ביותר. אם אימתת מייל – פשוט נכנסים כאן." : "לא הצלחנו להשלים את הפעולה מהקישור במייל. נסו שוב."); }
+    return social.signup(api.user() ? "signup" : undefined);
+  }
   if (api.profile().access === "waitlist") { renderTabs(null); assistant.mount(null); return waitlistPage(); }
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
   if (hash === "social-missed") hash = "missed-lesson";
   if (hash !== prevHashCur) { prevHash = prevHashCur; prevHashCur = hash; }
-  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") || hash === "groups" || hash.startsWith("g-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") || hash === "social-friends" ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "timetable" ? "calendar" : hash === "feedback" || hash === "diag" || hash === "rights" || hash === "scholarships" ? "profile" : hash.startsWith("assign-") ? "assignments" : hash.startsWith("materials-") ? "calendar" : hash === "admin" ? "profile" : hash;
+  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") || hash === "groups" || hash.startsWith("g-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") || hash === "social-friends" || hash === "friends-list" ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "timetable" ? "calendar" : hash === "feedback" || hash === "diag" || hash === "rights" || hash === "scholarships" ? "profile" : hash.startsWith("assign-") ? "assignments" : hash.startsWith("materials-") ? "calendar" : hash === "admin" ? "profile" : hash;
   curTab = tab;
   renderTabs(tab === "profile" ? "" : MERGED[tab] || tab);
   if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
@@ -1643,6 +1649,7 @@ async function routeInner() {
   else if (hash.startsWith("quiz-")) await study.quizById(hash.slice(5));
   else if (hash === "social") await social.feed();
   else if (hash === "social-friends") await social.friendsPage();
+  else if (hash === "friends-list") await social.friendsListPage();
   else if (hash === "missed-lesson") await social.missed();
   else if (hash === "upload") uploadPage();
   else if (hash === "connect") connectPage();
@@ -2170,7 +2177,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "97";
+const APP_VERSION = "98";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
