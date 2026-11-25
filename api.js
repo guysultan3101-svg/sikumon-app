@@ -337,6 +337,13 @@ export async function markNotifications(ids) { if (ids.length) ok(await sb.from(
 export async function missed(course, lesson_date, audience = "friends", recipients = []) { ok(await sb.from("missed_requests").insert({ owner: user().id, course, lesson_date, audience, recipients })); }
 
 // ---------- פיד ----------
+// ---------- קבוצות (טיוטה – הטבלאות בקובץ migrations/20261123100000_groups.sql, עוד לא הוחלו) ----------
+export async function groupDirectory() { return ok(await sb.rpc("group_directory")) || []; }
+export async function groupView(id) { return (ok(await sb.rpc("group_view", { p_id: id })) || [])[0] || null; }
+export async function groupCreate({ name, kind, course, members }) { return ok(await sb.rpc("group_create", { p_name: name, p_kind: kind, p_course: course, p_members: members })); }
+export async function groupRequest(id) { ok(await sb.rpc("group_request", { p_id: id })); }
+export async function groupDecide(id, userId, accept) { ok(await sb.rpc("group_decide", { p_id: id, p_user: userId, p_accept: accept })); }
+export async function groupSend(id, body) { ok(await sb.rpc("group_send", { p_id: id, p_body: body })); }
 export async function posts() { return ok(await sb.from("posts").select("*").order("created_at", { ascending: false }).limit(100)); }
 export async function addPost(p) { ok(await sb.from("posts").insert({ ...p, author: user().id })); }
 export async function deletePost(id, media = []) {

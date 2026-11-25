@@ -70,24 +70,29 @@ const icon = {
 };
 const svg = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon[name]}</svg>`;
 
+// 5 לשוניות (25.11.2026): בית · יומן · הקלטה (באמצע) · סיכומים · תרגול
 const TABS = [
   { hash: "home", label: "בית", icon: "home" },
-  { hash: "social", label: "חברים", icon: "users" },
-  { hash: "notebooks", label: "מחברות", icon: "folder" },
-  { hash: "record", label: "הקלטה", icon: "mic", cls: "rec-tab" },
   { hash: "calendar", label: "יומן", icon: "cal" },
+  { hash: "record", label: "הקלטה", icon: "mic", cls: "rec-tab" },
   { hash: "summaries", label: "סיכומים", icon: "book" },
-  { hash: "extras", label: "תוספים לשיעורים", icon: "list", cls: "hide-phone" },
-  { hash: "quizzes", label: "מבחנים", icon: "check" },
-  { hash: "assignments", label: "הגשת עבודות", icon: "upload" },
-  { hash: "messages", label: "הודעות", icon: "chat", cls: "hide-phone" },
-  { hash: "profile", label: "פרופיל", icon: "user", cls: "hide-phone" },
+  { hash: "quizzes", label: "תרגול", icon: "check" },
 ];
+// אזורים שאין להם לשונית: איזו לשונית נדלקת בהם
+const MERGED = { social: "home", messages: "home", profile: "home", notebooks: "home", assignments: "quizzes", extras: "summaries" };
+// סדר הקורסים – כמו בדף הסיכומים (לפי רשימת הקורסים שלי), כדי שבכל מקום יסודות החשבונאות ראשון, מיקרו שני וכו'
+const courseRank = (c) => { const o = prefs.get()?.courses || []; const i = o.indexOf(c); return i < 0 ? 99 : i; };
+const byCourseOrder = (a, b) => courseRank(a) - courseRank(b) || String(a).localeCompare(String(b), "he");
 function renderTabs(active) {
   // בשאלון הפתיחה אין תפריט
   $(".app").classList.toggle("bare", active === null);
   $("#tabs").innerHTML = TABS.map((t) =>
-    `<a href="#${t.hash}" class="${t.cls || ""}" ${active === t.hash ? 'aria-current="page"' : ""}>${svg(t.icon)}<span>${t.label}</span></a>`).join("");
+    `<a href="#${t.hash}" class="${t.cls || ""}" ${active === t.hash ? 'aria-current="page"' : ""}>${t.cls === "rec-tab" ? `<span class="rec-dot">${svg(t.icon)}</span>` : svg(t.icon)}<span>${t.label}</span></a>`).join("");
+  // 💬 הודעות – כפתור קטן קבוע בכל מסך
+  let fab = document.getElementById("dmFab");
+  if (active === null) { fab?.remove(); return; }
+  if (!fab) { document.body.insertAdjacentHTML("beforeend", `<a class="dm-fab" id="dmFab" href="#messages" aria-label="הודעות מחברים">${svg("chat")}<span class="dm-n" hidden aria-label="הודעות שלא נקראו"></span></a>`); fab = document.getElementById("dmFab"); }
+  fab.hidden = /^#(messages|dm-|groups|g-)/.test(location.hash);
 }
 
 function toast(msg) {
@@ -173,18 +178,29 @@ async function home() {
   const quizCount = items.filter((x) => x.type === "quiz").length;
   const recent = (await store.listLessons()).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")).slice(0, 3);
   const connected = isAdmin || await api.moodleConnected().catch(() => true);   // לא ידוע = לא מציגים אזהרה
-  view.innerHTML = `<div class="page">
+  const todayEv = await planner.eventsBetween(new Date(), new Date()).catch(() => []);
+  const weekAgo = new Date(Date.now() - 7 * 864e5).toLocaleDateString("en-CA");
+  const newSums = items.filter((x) => x.type === "summary" && x.kind !== "formulas" && (x.date || "") >= weekAgo).sort((a, b) => b.date.localeCompare(a.date));
+  const evLine = (e) => `<bdi>${esc(e.time || "")}</bdi> ${e.kind === "exam" ? "📝" : e.kind === "deadline" ? "📌" : "🎓"} ${esc(e.kind === "lesson" ? e.course : e.title)}`;
+  view.innerHTML = `<div class="page home-page">
     <div>
       <p class="eyebrow">${new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}</p>
-      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}${(p.streak || 0) > 1 && p.streakDay >= new Date(Date.now() - 864e5).toLocaleDateString("en-CA") ? ` <span class="streak">🔥 ${p.streak}</span>` : ""}</h1><span class="row" style="gap:4px"><a href="#messages" class="tool show-phone bell" aria-label="הודעות מחברים">${svg("chat")}<span class="dm-n" hidden></span></a><a href="#search" class="tool" aria-label="חיפוש בכל החומר">${svg("search")}</a><a href="#inbox" class="tool bell" aria-label="הודעות">${svg("bell")}<span class="bell-n" hidden></span></a><a href="#profile" class="tool show-phone" aria-label="פרופיל">${svg("user")}</a></span></div>
+      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}${(p.streak || 0) > 1 && p.streakDay >= new Date(Date.now() - 864e5).toLocaleDateString("en-CA") ? ` <span class="streak">🔥 ${p.streak}</span>` : ""}</h1><span class="row" style="gap:4px"><a href="#search" class="tool" aria-label="חיפוש בכל החומר">${svg("search")}</a><a href="#inbox" class="tool bell" aria-label="הודעות">${svg("bell")}<span class="bell-n" hidden></span></a><a href="#profile" class="tool" aria-label="הפרופיל והחברים">${svg("user")}</a></span></div>
+    </div>
+    <div class="quad">
+      <a class="card" href="#summaries"><b class="card-t">📄 סיכומים חדשים</b><p class="small muted">${newSums.length ? `${newSums.length} מהשבוע האחרון · ${esc(newSums[0].course)}` : "עוד אין סיכומים חדשים השבוע"}</p><span class="small go">לסיכומים ←</span></a>
+      <a class="card" href="#notebooks"><b class="card-t">📓 מחברות</b><p class="small muted">${recent[0] ? `להמשיך: ${esc(recent[0].course)}` : "כל השיעורים, לפי קורס"}</p><span class="small go">למחברות ←</span></a>
+      <a class="card" href="#calendar"><b class="card-t">📅 היום ביומן</b><p class="small muted">${todayEv.length ? todayEv.slice(0, 3).map(evLine).join("<br>") : "אין היום שיעורים, הגשות או מבחנים"}</p><span class="small go">ליומן ←</span></a>
+      <a class="card" href="#missed-lesson"><b class="card-t">🙋 פספסתי שיעור</b><p class="small muted">מבקשים מהחברים בקורס סיכום, תמונה של הלוח או הקלטה</p><span class="small go">לבקש ←</span></a>
     </div>
     ${connected ? "" : '<a class="notice" href="#connect" style="display:block;text-decoration:none;color:inherit"><b>🔒 סיכומים, מבחנים ושאלות ל-AI נפתחים אחרי חיבור המודל.</b><br><span class="small">מתקינים את התוסף במחשב (כ-3 דקות), והוא מביא את הקורסים. לחצו לפרטים ←</span></a>'}
-    <a class="card" href="#record" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;gap:16px">
+    <a class="card" href="#record" hidden style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;gap:16px">
       <div><h2 style="font-size:24px">${nowSlot ? "עכשיו: " + esc(nowSlot.course) : "מתחיל שיעור?"}</h2><p class="muted">${nowSlot ? `<bdi>${nowSlot.start}–${nowSlot.end}</bdi> · לחיצה אחת, וההקלטה נכנסת ישר למחברת של הקורס.` : "לחיצה אחת ומתחילים להקליט. ההקלטה נכנסת למחברת של השיעור."}</p></div>
       <span class="rec-btn" style="width:84px;height:84px;box-shadow:3px 3px 0 var(--ink);flex:none">${svg("mic")}</span>
     </a>
-    ${news && news.length ? `<section class="soft"><div class="row" style="justify-content:space-between"><h3>חדש במודל <span class="chip new">${news.length}</span></h3><a class="small" href="#notebooks">לפי קורסים</a></div><div class="list" style="margin-top:10px">${news.slice(0, 5).map((it) => study.moodleItem(it, true)).join("")}</div></section>` : ""}
+    ${false && news && news.length ? `<section class="soft"><div class="row" style="justify-content:space-between"><h3>חדש במודל <span class="chip new">${news.length}</span></h3><a class="small" href="#notebooks">לפי קורסים</a></div><div class="list" style="margin-top:10px">${news.slice(0, 5).map((it) => study.moodleItem(it, true)).join("")}</div></section>` : ""}
     ${next.length ? `<section class="soft"><div class="row" style="justify-content:space-between"><h3>⏳ הבא בתור</h3><a class="small" href="#deadlines">לוח מבחנים</a></div><div class="list" style="margin-top:10px">${next.map((x) => `<a class="item" href="#deadlines"><span style="min-width:0"><span class="t">${x.kind === "exam" ? "📝" : "📌"} ${esc(x.title)}</span><br><span class="small muted">${esc(x.course)}</span></span>${extras.chip(x)}</a>`).join("")}</div></section>` : ""}
+    <section class="soft"><div class="row" style="justify-content:space-between"><h3>📰 מהחברים</h3><a class="small" href="#social">לכל הפיד</a></div><div class="feed" id="homeFeed" style="margin-top:10px"><p class="small muted">טוען…</p></div></section>
     ${tq.length ? `<a class="item" href="#questions"><span style="min-width:0"><span class="t">🙋 ${tq.length} שאלות למתרגל</span><br><span class="small muted">${esc(tq[0].course)}: ${esc(tq[0].text)}</span></span></a>` : ""}
     ${gaps.length ? `<a class="item" href="#missing"><span style="min-width:0"><span class="t">📋 להשלים: ${gaps.length} דברים</span><br><span class="small muted">${esc(gaps[0].text)}</span></span></a>` : ""}
     ${hasMarks ? `<a class="item" href="#reels"><span><span class="t">🎬 הרגעים החשובים מהשיעורים</span><br><span class="small muted">קטע של דקה סביב כל ⭐ שסימנת</span></span></a>` : ""}
@@ -405,7 +421,7 @@ async function podcastsPage() {
   view.innerHTML = `<div class="page">
     <h1 style="font-size:30px">🎧 פודקאסטים על השיעורים</h1>
     <p class="muted">פרק קצר על כל שיעור (5–7 דקות): נועה ואיתי מסבירים אחד לשני את החומר, עם דוגמאות. מושלם לאוטובוס לאוניברסיטה.</p>
-    ${Object.entries(by).map(([c, l]) => `<section class="soft"><h2 style="font-size:20px">${esc(c)}</h2><div class="list" style="margin-top:8px">${l.map((p) => podCard(p, false)).join("")}</div></section>`).join("") || '<p class="muted">עוד אין פודקאסטים. פרק חדש נוצר לבד לכל סיכום חדש.</p>'}
+    ${Object.entries(by).sort((a, b) => byCourseOrder(a[0], b[0])).map(([c, l]) => `<section class="soft"><h2 style="font-size:20px">${esc(c)}</h2><div class="list" style="margin-top:8px">${l.map((p) => podCard(p, false)).join("")}</div></section>`).join("") || '<p class="muted">עוד אין פודקאסטים. פרק חדש נוצר לבד לכל סיכום חדש.</p>'}
     ${list.length ? `<details class="soft"><summary><b>התסריט של הפרק האחרון</b></summary><div class="pod-script">${list[list.length - 1].lines.map((ln) => `<p><b>${esc((list[list.length - 1].hosts || {})[ln.s] || ln.s)}:</b> ${esc(ln.t)}</p>`).join("")}</div></details>` : ""}
   </div>`;
   bindPods(list);
@@ -488,6 +504,9 @@ function record() {
     </div>
     <p class="small muted">ההקלטה נכנסת אוטומטית למחברת של הקורס, לשיעור של היום. מקליטים רק כשזה מותר לפי מדיניות המרצה והמוסד. ההקלטה נשמרת רק במכשיר שלך.</p>
   </div>`;
+  // הכפתור הכי חשוב – למעלה, עם מה שהיה בדף הבית ("מתחיל שיעור?")
+  { const st = view.querySelector(".rec-stage"), h1 = view.querySelector(".page > h1");
+    if (st && h1) { h1.after(st); st.insertAdjacentHTML("afterbegin", `<div style="text-align:center"><h2 style="font-size:24px">${slot ? "עכשיו: " + esc(slot.course) : "מתחיל שיעור?"}</h2><p class="muted">${slot ? `<bdi>${slot.start}–${slot.end}</bdi> · לחיצה אחת, וההקלטה נכנסת ישר למחברת של הקורס.` : "לחיצה אחת ומתחילים להקליט. ההקלטה נכנסת למחברת של השיעור."}</p></div>`); } }
   $("#recBtn").onclick = onRecClick;
   // כפתור ההקלטה כבוי עד שבוחרים קורס (כדי שההקלטה תיכנס למחברת הנכונה)
   $("#course").onchange = () => $("#course").classList.remove("need");
@@ -1084,7 +1103,7 @@ async function lessonPage(id) {
   const recs = (await Promise.all((l.recIds || []).map((r) => store.getRecording(r)))).filter(Boolean);
 
   view.innerHTML = `<div class="page lesson">
-    <a href="${ci >= 0 ? "#course-" + ci : "#notebooks"}" class="small">→ ${esc(l.course)}</a>
+    <a href="${ci >= 0 ? "#course-" + ci : "#notebooks"}" class="back-btn round" aria-label="חזרה ל${esc(l.course)}" title="חזרה ל${esc(l.course)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></a>
     <div class="lesson-head">
       <input class="title-input" id="ltitle" name="title" autocomplete="off" value="${esc(l.title)}" placeholder="${esc(lessonTitle(l))}" aria-label="שם השיעור">
       <span class="small muted">${fmtDay(l.date)}</span>
@@ -1508,6 +1527,8 @@ async function profile(tab = "posts") {
   view.innerHTML = `<div class="page" style="max-width:760px">
     ${head}
     <section class="list">
+      <a class="item" href="#social-friends"><span><span class="t">👥 החברים שלי</span><br><span class="small muted">בקשות חברות, אנשים שאולי תכירו</span></span><span class="soc-n chip new" hidden></span></a>
+      <a class="item" href="#social"><span><span class="t">📰 הפיד של החברים</span><br><span class="small muted">פוסטים, סיכומים ששיתפו, ימי הולדת</span></span></a>
       <a class="item" href="#timetable"><span><span class="t">🕘 מערכת השעות</span></span></a>
       <a class="item" href="#rights"><span><span class="t">⚖️ הזכויות שלי</span><br><span class="small muted">מילואים, הריון ולידה, מפונים ועוד – לפי המוסד שלך</span></span></a>
       <a class="item" href="#scholarships"><span><span class="t">🎓 מלגות</span><br><span class="small muted">מלגות שמתאימות לך, עם ציון התאמה ומתי מגישים</span></span></a>
@@ -1561,9 +1582,9 @@ async function routeInner() {
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
   if (hash === "social-missed") hash = "missed-lesson";
-  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" || hash === "rights" || hash === "scholarships" ? "profile" : hash.startsWith("assign-") ? "assignments" : hash.startsWith("materials-") ? "calendar" : hash === "admin" ? "profile" : hash;
+  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") || hash === "groups" || hash.startsWith("g-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" || hash === "rights" || hash === "scholarships" ? "profile" : hash.startsWith("assign-") ? "assignments" : hash.startsWith("materials-") ? "calendar" : hash === "admin" ? "profile" : hash;
   curTab = tab;
-  renderTabs(tab);
+  renderTabs(MERGED[tab] || tab);
   if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
   else if (hash === "record") record();
   else if (hash === "recordings") await recordings();
@@ -1578,14 +1599,14 @@ async function routeInner() {
     await study.summaries();
     const pods = await podcastsList();
     const nx = (await extras.upcoming())[0];
-    view.querySelector(".page h1")?.insertAdjacentHTML("afterend", `<div class="grid2">
+    view.querySelector(".page h1")?.insertAdjacentHTML("afterend", `<div class="quad">
       <a class="card" href="#upload"><b class="card-t">📄 סיכום ממצגת / PDF</b><p class="small muted">מעלים קובץ של שיעור, ומקבלים סיכום לפי איך שאת/ה לומד/ת</p></a>
       <a class="card star-card" href="#exam-focus"><b class="card-t">⭐ מה יהיה במבחן</b><p class="small muted">כל מה שהמרצים אמרו שחשוב, מכל הסיכומים</p></a>
-      ${pods.length ? `<a class="card" href="#podcasts"><h3>🎧 פודקאסטים</h3><p class="small muted">${pods.length} פרקים קצרים על השיעורים – נועה ואיתי מסבירים</p></a>` : ""}
-      <a class="card" href="#missed-lesson"><b class="card-t">🙋 פספסתי שיעור</b><p class="small muted">מבקשים מהחברים בקורס סיכום, תמונה של הלוח או הקלטה</p></a>
-      <a class="card" href="#deadlines"><b class="card-t">⏳ לוח מבחנים והגשות</b><p class="small muted">${nx ? esc(nx.title) + " · " + extras.inDays(extras.daysTo(nx.when)) : "הוסיפו את תאריכי המבחנים"}</p></a></div>`);
+      <a class="card" href="#podcasts"><b class="card-t">🎧 פודקאסטים</b><p class="small muted">${pods.length ? `${pods.length} פרקים קצרים על השיעורים` : "פרק קצר נוצר לבד לכל סיכום"}</p></a>
+      <a class="card" href="#extras"><b class="card-t">🧩 תוספים לשיעורים</b><p class="small muted">דפי עבודה, תרגילים, פתרונות, סילבוס ודפי נוסחאות מהמודל</p></a></div>`);
+    view.querySelector('.page > a.notice[href="#extras"]')?.remove();
     if (pods.length) {
-      view.querySelector(".page .grid2")?.insertAdjacentHTML("afterend", `<section class="pod-strip"><h2 style="font-size:20px">🎧 האחרונים</h2><div class="list">${pods.slice(-3).reverse().map((p) => podCard(p)).join("")}</div><a class="small" href="#podcasts">כל הפודקאסטים (${pods.length})</a></section>`);
+      if (false) view.querySelector(".page .grid2")?.insertAdjacentHTML("afterend", `<section class="pod-strip"><h2 style="font-size:20px">🎧 האחרונים</h2><div class="list">${pods.slice(-3).reverse().map((p) => podCard(p)).join("")}</div><a class="small" href="#podcasts">כל הפודקאסטים (${pods.length})</a></section>`);
       // ▶ קטן ליד כל סיכום שיש לו פודקאסט
       view.querySelectorAll('.item[href^="#sum-"]').forEach((a) => { const id = decodeURIComponent(a.getAttribute("href").slice(5)); const p = pods.find((x) => x.summaryId === id); if (p) a.insertAdjacentHTML("beforeend", `<span class="chip pod-chip" data-podsum="${esc(p.id)}">🎧 ${podMin(p.seconds)}</span>`); });
       view.querySelectorAll("[data-podsum]").forEach((c) => (c.onclick = (e) => { e.preventDefault(); e.stopPropagation(); playPodcast(pods.find((x) => x.id === c.dataset.podsum)); }));
@@ -1611,7 +1632,9 @@ async function routeInner() {
   else if (hash.startsWith("msg-")) await planner.message(hash.slice(4), ai.miniMd);
   else if (hash === "quizzes") {
     await study.quizzes();
-    view.querySelector(".page > .row")?.insertAdjacentHTML("afterend", `<div class="grid2"><a class="card" href="#cards"><b class="card-t">🃏 כרטיסיות זיכרון</b><p class="small muted">חזרה מרווחת מכל המבחנים ודפי הנוסחאות</p></a><a class="card" href="#progress"><b class="card-t">📈 ההתקדמות שלי</b><p class="small muted">ציונים לאורך זמן, ובמה כדאי לחזור</p></a><a class="card" href="#sim"><b class="card-t">⏱️ סימולציית מבחן</b><p class="small muted">טיימר, שאלות מכל הקורס, ציון בסוף</p></a></div><p class="small muted">היום נשארו לך <b>${quizzesLeft()}</b> מבחנים. רוצים עוד? משתפים את Clearly עם חבר/ה.</p>`);
+    const nx = (await extras.upcoming())[0];
+    view.querySelector(".page > .row")?.insertAdjacentHTML("afterend", `<div class="quad quad-top"><a class="card" href="#assignments"><b class="card-t">📤 הגשת עבודות <span class="asg-n chip new" hidden></span></b><p class="small muted">כל המטלות מהמודל, ומה נשאר להגיש</p><span class="small go">להגשות ←</span></a><a class="card" href="#deadlines"><b class="card-t">⏳ לוח מבחנים והגשות</b><p class="small muted">${nx ? esc(nx.title) + " · " + extras.inDays(extras.daysTo(nx.when)) : "הוסיפו את תאריכי המבחנים"}</p><span class="small go">ללוח ←</span></a></div>
+    <div class="quad quad-3"><a class="card" href="#cards"><b class="card-t">🃏 כרטיסיות</b><p class="small muted">חזרה מרווחת</p></a><a class="card" href="#progress"><b class="card-t">📈 ההתקדמות</b><p class="small muted">ציונים ובמה לחזור</p></a><a class="card" href="#sim"><b class="card-t">⏱️ סימולציה</b><p class="small muted">מבחן עם טיימר</p></a></div><p class="small muted">היום נשארו לך <b>${quizzesLeft()}</b> מבחנים. רוצים עוד? משתפים את Clearly עם חבר/ה.</p>`);
   }
   else if (hash === "quiz-new") study.quizEditor();
   else if (hash.startsWith("quiz-mix-")) await study.mixQuiz(+hash.slice(9));
@@ -1625,6 +1648,8 @@ async function routeInner() {
   else if (hash.startsWith("share-")) await social.shareFrom(hash.slice(6));
   else if (hash === "messages") await social.messages();
   else if (hash === "messages-req") await social.messages("req");
+  else if (hash === "groups") await social.groups();
+  else if (hash.startsWith("g-")) await social.group(hash.slice(2));
   else if (hash.startsWith("dm-")) await social.dm(hash.slice(3));
   else if (hash === "admin") { if (await adminCheck()) await adminPage(); else location.hash = "#home"; }
   else if (hash === "settings") await settings.page();
@@ -1655,10 +1680,20 @@ async function routeInner() {
   if (!seenTabs.has(tab)) { seenTabs.add(tab); api.track("open:" + tab); }
   paintCounts();
   if (hash !== "home" && !hash.startsWith("lesson-")) {
-    const pg = view.querySelector(".page");
-    const own = pg && [...pg.children].slice(0, 2).some((el) => el.matches("a.small") && /^\s*→/.test(el.textContent));
-    if (pg && !own) { pg.insertAdjacentHTML("afterbegin", '<button class="back-btn" type="button" aria-label="חזרה לדף הקודם">→ חזרה</button>'); pg.querySelector(".back-btn").onclick = goBack; }
+    const pg = view.querySelector(".page") || view.querySelector(".nb-main") || view.querySelector(".nb");
+    // קישור חזרה ישן ("→ ...") בתחילת הדף – מוחלף בעיגול, והחזרה הולכת לאותו מקום שהקישור הוביל אליו
+    const own = pg && [...pg.children].slice(0, 2).find((el) => el.matches("a.small, a.back-btn") && /^\s*→/.test(el.textContent));
+    if (pg) {
+      pg.insertAdjacentHTML("afterbegin", '<button class="back-btn round" type="button" aria-label="חזרה לדף הקודם" title="חזרה"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>');
+      const bb = pg.querySelector(".back-btn.round");
+      if (own) { const to = own.getAttribute("href"); own.remove(); bb.onclick = () => { if (to) location.hash = to; else goBack(); }; } else bb.onclick = goBack;
+    }
   }
+  if (hash.startsWith("calendar")) {
+    const bb = view.querySelector(".page > .back-btn");
+    if (bb) { bb.insertAdjacentHTML("beforebegin", '<div class="row page-top"></div>'); const row = bb.previousElementSibling; row.append(bb); row.insertAdjacentHTML("beforeend", '<a class="pill-link" href="#notebooks">📓 מחברת</a>'); }
+  }
+  if (hash === "home" && $("#homeFeed")) social.latestPosts($("#homeFeed"), 3).catch(() => { $("#homeFeed").innerHTML = '<p class="small muted">אין חיבור לפיד כרגע.</p>'; });
   view.focus({ preventScroll: true });
   window.scrollTo(0, 0);
 }
@@ -1681,12 +1716,12 @@ const seenTabs = new Set();
 // מספרים: בקשות חברות על לשונית "חברים", הודעות שלא נקראו על "הודעות"
 async function paintCounts() {
   const put = (sel, n) => document.querySelectorAll(sel).forEach((el) => { el.textContent = n || ""; el.hidden = !n; });
-  document.querySelectorAll('#tabs a[href="#social"], #tabs a[href="#messages"], #tabs a[href="#assignments"]').forEach((a) => { if (!a.querySelector(".tab-n")) a.insertAdjacentHTML("beforeend", '<span class="tab-n" hidden></span>'); });
+  // מונים רק במקום אחד לכל דבר (25.11.2026): הודעות על 💬, בקשות חברות בתוך הפרופיל, עבודות פתוחות בתוך "תרגול" – בלי מספרים על הלשוניות
   // עבודות פתוחות – מהמכשיר, עובד גם בלי אינטרנט
-  try { put('#tabs a[href="#assignments"] .tab-n', await assignments.openCount()); } catch { /* */ }
+  try { put(".asg-n", await assignments.openCount()); } catch { /* */ }
   try {
     const c = await social.counts();
-    put('#tabs a[href="#social"] .tab-n', c.requests); put('#tabs a[href="#messages"] .tab-n', c.unread); put(".dm-n", c.unread);
+    put(".soc-n", c.requests); put(".dm-n", c.unread);
   } catch { /* בלי אינטרנט */ }
 }
 // סנכרון מהשרת: התראות (🔔) וסיכומים (שלי + של חברים מאותה כיתה)
@@ -2067,7 +2102,7 @@ window.addEventListener("hashchange", () => { if (goingBack) { navDepth = Math.m
 // "חזרה": מתוך דף פנימי – לדף הראשי של אותה לשונית (למשל מסיכום -> לכל הסיכומים). מדף ראשי של לשונית – לבית.
 function goBack() {
   const h = (location.hash.slice(1) || "home").split("?")[0];
-  location.hash = h === curTab || curTab === "home" || !curTab ? "#home" : "#" + curTab;
+  location.hash = h === curTab ? "#" + (MERGED[curTab] || "home") : curTab === "home" || !curTab ? "#home" : "#" + curTab;
 }
 const planner = initPlanner({ view, $, esc, toast, prefs, store, extras, study, lessonForToday });
 // הודעות: בודקים בפתיחה, אחרי סנכרון, וכל 10 דקות
@@ -2119,7 +2154,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "95";
+const APP_VERSION = "96";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();

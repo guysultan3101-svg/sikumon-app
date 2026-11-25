@@ -53,7 +53,10 @@ button { font: inherit; color: inherit; }
 .tabs a svg { width: 24px; height: 24px; flex: none; }
 .tabs a[aria-current="page"] { background: var(--blue); color: var(--on-blue); }
 .tabs a.rec-tab { color: var(--red); }
-.tabs a.rec-tab[aria-current="page"] { background: #DC2626; color: #fff; }
+.tabs a.rec-tab[aria-current="page"] { background: none; color: var(--red); }
+.tabs .rec-dot { display: grid; place-items: center; width: 40px; height: 40px; margin-inline-start: -8px; border-radius: 50%; background: #DC2626; color: #fff; box-shadow: 2px 2px 0 var(--ink); flex: none; }
+.tabs a.rec-tab .rec-dot svg { width: 22px; height: 22px; }
+.tabs a.rec-tab[aria-current="page"] .rec-dot { box-shadow: 0 0 0 3px var(--paper), 0 0 0 5px #DC2626; }
 .beta { margin-top: auto; font: 500 12px/1 var(--font-mono); color: var(--ink-soft); }
 main {
   min-width: 0; outline: none;
@@ -71,6 +74,9 @@ main {
   .brand, .beta { display: none; }
   .tabs { grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; gap: 2px; }
   .tabs a { flex-direction: column; justify-content: center; gap: 2px; min-height: 54px; padding: 4px; font-size: 12px; }
+  .tabs a.rec-tab { justify-content: flex-end; }
+  .tabs .rec-dot { width: 60px; height: 60px; margin: -30px 0 0; border: 3px solid var(--paper); box-shadow: 0 0 0 2px var(--ink), 2px 4px 0 2px var(--ink); }
+  .tabs a.rec-tab .rec-dot svg { width: 30px; height: 30px; }
   main { padding-bottom: calc(var(--tabbar-h) + 32px + env(safe-area-inset-bottom, 0px)); }
 }
 
@@ -718,3 +724,74 @@ body.focus .toolbar, body.focus .toolbar * { -webkit-user-select: none; user-sel
 /* כותרת ארוכה בלי רווחים (שם קובץ) לא מרחיבה את הדף בטלפון */
 .item .t, .item span { overflow-wrap: anywhere; }
 .sh-folder > summary { overflow-wrap: anywhere; }
+
+/* ---------- טיוטת הסרגל החדש (23.11.2026) ---------- */
+/* 💬 הודעות: כפתור קבוע בכל מסך */
+.dm-fab { position: fixed; z-index: 59; inset-inline-end: 16px; bottom: calc(var(--tabbar-h) + 40px + env(safe-area-inset-bottom, 0px)); width: 50px; height: 50px; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--ink); background: var(--blue); color: var(--on-blue); box-shadow: 3px 3px 0 var(--ink); }
+.dm-fab svg { width: 24px; height: 24px; }
+.dm-fab .dm-n { top: -4px; inset-inline-end: -4px; }
+@media (min-width: 821px) { .dm-fab { bottom: 92px; inset-inline-end: 28px; } }
+body.focus .dm-fab { display: none; }
+/* ראשי: 4 ריבועים (גם בטלפון – 2 על 2) */
+.quad { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.quad > a.card { text-decoration: none; color: inherit; display: grid; gap: 6px; align-content: start; padding: 16px; }
+.quad .go { color: var(--blue); font-weight: 700; margin-top: auto; }
+@media (min-width: 900px) { .quad { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.tool .tool-n { position: absolute; top: 2px; inset-inline-end: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--red); color: #fff; font: 700 11px/18px var(--font-body); text-align: center; }
+.page-top { gap: 8px; }
+a.back-btn { text-decoration: none; }
+
+/* סיכומים/תרגול: ריבועים קטנים כמו בראשי */
+.quad.quad-top > a.card { border-width: 2.5px; }
+.quad.quad-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (min-width: 900px) { .quad.quad-top { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* ---------- גם במחשב: הסרגל למטה, כמו בטלפון ---------- */
+.app { grid-template-columns: 1fr; }
+.side { position: fixed; inset: auto 0 0 0; height: auto; z-index: 20; border-left: 0; border-top: 2px solid var(--ink);
+  padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); flex-direction: row; gap: 0; }
+.brand, .beta { display: none; }
+.tabs { grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; max-width: 720px; margin-inline: auto; gap: 2px; }
+.tabs a { flex-direction: column; justify-content: center; gap: 2px; min-height: 54px; padding: 4px; font-size: 13px; }
+.tabs a.rec-tab { justify-content: flex-end; }
+.tabs .rec-dot { width: 60px; height: 60px; margin: -30px 0 0; border: 3px solid var(--paper); box-shadow: 0 0 0 2px var(--ink), 2px 4px 0 2px var(--ink); }
+.tabs a.rec-tab .rec-dot svg { width: 30px; height: 30px; }
+main { padding-bottom: calc(var(--tabbar-h) + 40px + env(safe-area-inset-bottom, 0px)); }
+.side .hide-phone { display: none; }
+.dm-fab { bottom: calc(var(--tabbar-h) + 40px + env(safe-area-inset-bottom, 0px)); }
+.ai-fab { bottom: calc(var(--tabbar-h) + 40px + env(safe-area-inset-bottom, 0px)); }
+.toast { bottom: calc(var(--tabbar-h) + 40px + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 1025px) and (hover: hover) and (pointer: fine) { .side { height: auto; } }
+.dm-fab { inset-inline-end: 16px; }
+.ai-fab { inset-inline-start: 16px; inset-inline-end: auto; }
+
+/* ---------- 25.11.2026: 4 השינויים הקטנים ---------- */
+/* כפתור חזרה עגול: עיגול בהיר וחץ כהה שפונה ימינה (כמו באינסטגרם, 25.11.2026) */
+:root { --back-bg: #F4F5F7; --back-fg: #1F2937; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --back-bg: #374151; --back-fg: #F3F4F6; } }
+:root[data-theme="dark"] { --back-bg: #374151; --back-fg: #F3F4F6; }
+.back-btn.round { width: 40px; height: 40px; min-height: 40px; padding: 0; justify-content: center; border: 0; border-radius: 50%; background: var(--back-bg); color: var(--back-fg); box-shadow: 0 1px 4px rgba(15,23,42,.18); }
+.back-btn.round svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.back-btn.round:hover { background: var(--blue); color: #fff; }
+.pill-link { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 4px 12px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--paper); color: var(--ink); font-size: 14px; font-weight: 600; text-decoration: none; }
+.pill-link:hover { border-color: var(--blue); }
+/* בבית עד 4 צבעים: כחול, שחור/לבן, אדום (הקלטה/התראה) – התאריך כחול במקום ורוד */
+.eyebrow { color: var(--blue); }
+
+/* ---------- 25.11.2026: תיקונים אחרי הבודק ---------- */
+/* בבית עד 4 צבעים: כחול, שחור/לבן, אפור, ואדום רק לדחוף */
+.home-page .cd, .home-page .cd.warm { background: color-mix(in srgb, var(--blue) 12%, transparent); color: var(--blue); }
+.home-page .chip.new { background: var(--blue); color: #fff; }
+.home-page .notice { border-right-color: var(--blue); }
+.home-page .av:not(.av-img) { background: var(--blue) !important; color: #fff; }
+:root[data-theme="dark"] .home-page .cd, :root[data-theme="dark"] .home-page .cd.warm { color: #93B4FF; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .home-page .cd, :root:not([data-theme="light"]) .home-page .cd.warm { color: #93B4FF; } }
+/* נגן הפודקאסט ובר הסימון מעל הסרגל התחתון גם במחשב (אין יותר סרגל צד) */
+@media (min-width: 821px) {
+  .pod-bar { bottom: calc(var(--tabbar-h) + 14px + env(safe-area-inset-bottom, 0px)); inset-inline-start: 12px; }
+  .sel-bar { bottom: calc(var(--tabbar-h) + 18px + env(safe-area-inset-bottom, 0px)); }
+}
+/* העיגול הבהיר בולט מהרקע: מסגרת עדינה + צל (25.11.2026) */
+.back-btn.round { border: 1px solid var(--line); box-shadow: 0 2px 6px rgba(15,23,42,.16); }
+/* כשנגן הפודקאסט פתוח – 💬 עולה מעליו, כמו כפתור ה-AI */
+body:has(.pod-bar) .dm-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 821px) { body:has(.pod-bar) .dm-fab { bottom: calc(var(--tabbar-h) + 90px); } }

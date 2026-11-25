@@ -313,6 +313,12 @@ export function initSocial(ctx) {
       a.querySelectorAll("[data-crep]").forEach((b) => (b.onclick = () => reportModal({ target: b.dataset.who, post: id, what: "תגובה", after: again })));
     });
   }
+  // 3 הפוסטים האחרונים – לדף הראשי (עם לייק/תגובה, כמו בפיד)
+  async function latestPosts(el, n = 3) {
+    const d = await feedData(); d.ps = d.ps.slice(0, n);
+    renderPosts(el, d, () => latestPosts(el, n));
+    if (!d.ps.length) el.innerHTML = '<p class="small muted">עוד אין פוסטים מהחברים. <a href="#social">לפיד</a></p>';
+  }
   async function feed() {
     busy();
     try {
@@ -513,10 +519,80 @@ export function initSocial(ctx) {
       const reqs = all.filter(([o]) => t.isReq(o)), main = all.filter(([o]) => !t.isReq(o));
       const list = box === "req" ? reqs : main;
       view.innerHTML = `<div class="page" style="max-width:720px"><h1 class="vh">ההודעות שלי</h1>${subnav("messages")}
-        <div class="row"><a class="btn ${box === "req" ? "ghost" : ""}" href="#messages">ראשי</a><a class="btn ${box === "req" ? "" : "ghost"}" href="#messages-req">בקשות${reqs.length ? ` (${reqs.length})` : ""}</a></div>
+        <div class="row"><a class="btn ${box === "req" ? "ghost" : ""}" href="#messages">שיחות</a><a class="btn ghost" href="#groups" id="groupsBtn" hidden>👥 קבוצות</a><a class="btn ${box === "req" ? "" : "ghost"}" href="#messages-req">בקשות${reqs.length ? ` (${reqs.length})` : ""}</a></div>
         ${box === "req" ? '<p class="small muted">הודעות ממי שאינו חבר שלך. הוא לא יודע שקראת עד שתאשר/י.</p>' : ""}
         <div class="list">${list.map(([o, ms]) => { const m = ms.at(-1), un = ms.some((x) => x.recipient === me && !x.read_at); return `<a class="item" href="#dm-${esc(unameOf(o))}">${avatar(o)}<span style="flex:1;min-width:0"><span class="t">${esc(nameOf(o))}</span>${un ? ' <span class="chip new">חדש</span>' : ""}<br><span class="small muted" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.sender === me ? "את/ה: " : ""}${esc(m.body)}</span></span><span class="small muted">${when(m.created_at)}</span></a>`; }).join("") || '<p class="muted">אין כאן הודעות</p>'}</div>
         ${box === "req" ? "" : `<section class="soft"><h2 style="font-size:18px;margin:0">הודעה חדשה לחבר/ה</h2><div class="stories" style="margin-top:8px">${[...t.friendIds].map((id) => `<a class="story" href="#dm-${esc(unameOf(id))}">${avatar(id)}<span class="small">${esc(nameOf(id).split(" ")[0])}</span></a>`).join("") || '<p class="small muted">עוד אין חברים</p>'}</div><p class="small muted">אפשר גם לשלוח הודעה למי שאינו חבר – מהפרופיל שלו.</p></section>`}</div>`;
+      // כפתור הקבוצות מופיע רק כשהקבוצות באמת קיימות בשרת
+      groupsReady().then((ok) => { const b = $("#groupsBtn"); if (b) b.hidden = !ok; });
+    } catch (e) { fail(e); }
+  }
+  // ---------- 👥 קבוצות (כמו וואטסאפ) + קבוצת כיתה לכל קורס ----------
+  // מי שלא בקבוצה רואה רק: שם, מנהל/ת וכמה חברים – לא את רשימת החברים. נכנסים בבקשה שהמנהל/ת מאשר/ת.
+  // עד שהטבלאות של הקבוצות נוצרות בשרת – הודעה ידידותית במקום שגיאה טכנית
+  const notReady = (e) => /PGRST202|Could not find the function|schema cache/i.test(String(e?.message || e) + (e?.code || ""));
+  let groupsOk = null;
+  async function groupsReady() { if (groupsOk !== null) return groupsOk; try { await api.groupDirectory(); groupsOk = true; } catch (e) { groupsOk = !notReady(e); } return groupsOk; }
+  const soon = () => { view.innerHTML = `<div class="page" style="max-width:720px"><h1 class="vh">קבוצות</h1>${subnav("messages")}<section class="card" style="text-align:center"><span style="font-size:42px">👥</span><h2>קבוצות – בקרוב</h2><p class="muted">עוד רגע אפשר יהיה לפתוח קבוצות עם חברים ולהצטרף לקבוצת הכיתה.</p><a class="btn ghost" href="#messages">חזרה להודעות</a></section></div>`; };
+  async function groups() {
+    busy();
+    try {
+      let all;
+      try { all = await api.groupDirectory(); groupsOk = true; } catch (e) { if (notReady(e)) { groupsOk = false; return soon(); } throw e; }
+      const mine = all.filter((g) => g.am_member);
+      const myCourses = prefs.get()?.courses || [];
+      const classFor = (c) => all.filter((g) => g.kind === "class" && g.course === c);
+      const row = (g) => `<a class="item" href="#g-${esc(g.id)}"><span class="av" style="background:${color(g.id)}" aria-hidden="true">${g.kind === "class" ? "🎓" : "👥"}</span><span style="flex:1;min-width:0"><span class="t">${esc(g.name)}</span><br><span class="small muted">${g.last_body ? esc(g.last_body.slice(0, 60)) : `${g.member_count} חברים`}</span></span>${g.unread ? `<span class="chip new">${g.unread}</span>` : ""}</a>`;
+      const joinBtn = (g) => g.am_member ? `<a class="btn ghost small-btn" href="#g-${esc(g.id)}">לקבוצה</a>` : g.requested ? '<span class="chip">⏳ ממתין לאישור</span>' : `<button class="btn small-btn" type="button" data-join="${esc(g.id)}">בקשה להצטרף</button>`;
+      view.innerHTML = `<div class="page" style="max-width:720px"><h1 class="vh">קבוצות</h1>${subnav("messages")}
+        <div class="row"><a class="btn ghost" href="#messages">שיחות</a><a class="btn" href="#groups">👥 קבוצות</a></div>
+        <button class="btn" type="button" id="newGroup">➕ קבוצה חדשה</button>
+        <section><h2 style="font-size:20px">הקבוצות שלי</h2><div class="list" style="margin-top:8px">${mine.map(row).join("") || '<p class="muted">עוד אין לך קבוצות. פותחים קבוצה עם חברים, או מצטרפים לקבוצת הכיתה למטה.</p>'}</div></section>
+        <section><h2 style="font-size:20px">🎓 קבוצות הכיתה בקורסים שלי</h2><p class="small muted">רואים רק את שם הקבוצה, מי מנהל/ת אותה וכמה חברים בה. כדי להיכנס – שולחים בקשה למנהל/ת.</p>
+          <div class="list" style="margin-top:8px">${myCourses.map((c) => { const gs = classFor(c); return gs.length ? gs.map((g) => `<div class="item"><span class="av" style="background:${color(g.id)}" aria-hidden="true">🎓</span><span style="flex:1;min-width:0"><span class="t">${esc(g.name)}</span><br><span class="small muted">מנהל/ת: ${esc(g.admin_name)} · 👥 ${g.member_count} בקבוצה</span></span>${joinBtn(g)}</div>`).join("") : `<div class="item"><span class="av" style="background:var(--grid)" aria-hidden="true">🎓</span><span style="flex:1;min-width:0"><span class="t">${esc(c)}</span><br><span class="small muted">עוד אין קבוצת כיתה לקורס הזה</span></span><button class="btn ghost small-btn" type="button" data-newclass="${esc(c)}">➕ לפתוח</button></div>`; }).join("")}</div></section></div>`;
+      view.querySelectorAll("[data-join]").forEach((b) => (b.onclick = async () => { try { await api.groupRequest(b.dataset.join); toast("הבקשה נשלחה למנהל/ת הקבוצה"); groups(); } catch (e) { toast(e.message); } }));
+      const create = (course = "") => {
+        const t = graphCache;
+        const m = modal(`<h2>${course ? "🎓 קבוצת כיתה חדשה" : "👥 קבוצה חדשה"}</h2>
+          <label>שם הקבוצה<input id="gName" maxlength="60" value="${esc(course)}"></label>
+          ${course ? `<p class="small muted">קבוצת כיתה לקורס <b>${esc(course)}</b>. כל מי שלומד את הקורס יראה אותה ויוכל לבקש להצטרף. את/ה המנהל/ת.</p>` : `<fieldset class="vis"><legend>מי בקבוצה?</legend>${(t?.friendIds || []).map((id) => `<label class="row small" style="gap:8px"><input type="checkbox" value="${esc(id)}" style="width:auto"> ${esc(nameOf(id))}</label>`).join("") || '<p class="small muted">עוד אין לך חברים. אפשר לפתוח קבוצה ולהוסיף אחר כך.</p>'}</fieldset>`}
+          <div class="row"><button class="btn" type="button" id="gGo">יצירה</button><button class="btn ghost" data-x type="button">ביטול</button></div>`);
+        $("#gGo", m).onclick = async () => {
+          const name = $("#gName", m).value.trim(); if (!name) return toast("כתבו שם לקבוצה");
+          try { const id = await api.groupCreate({ name, kind: course ? "class" : "group", course: course || null, members: [...m.querySelectorAll("input[type=checkbox]:checked")].map((x) => x.value) }); m.remove(); location.hash = "g-" + id; } catch (e) { toast(e.message); }
+        };
+      };
+      let graphCache = null;
+      graph().then(async (g) => { const me = meId(); const ids = g.friends.map((f) => (f.requester === me ? f.addressee : f.requester)); await remember(ids).catch(() => {}); graphCache = { ...g, friendIds: ids }; }).catch(() => {});
+      $("#newGroup").onclick = () => create();
+      view.querySelectorAll("[data-newclass]").forEach((b) => (b.onclick = () => create(b.dataset.newclass)));
+    } catch (e) { fail(e); }
+  }
+  async function group(id) {
+    busy();
+    try {
+      let g;
+      try { g = await api.groupView(id); } catch (e) { if (notReady(e)) return soon(); throw e; }
+      if (!g) { view.innerHTML = '<div class="page"><p>הקבוצה לא נמצאה.</p><a class="btn ghost" href="#groups">לקבוצות</a></div>'; return; }
+      const me = meId();
+      if (!g.am_member) {
+        view.innerHTML = `<div class="page" style="max-width:720px"><section class="card" style="display:grid;gap:10px;text-align:center"><span style="font-size:42px">${g.kind === "class" ? "🎓" : "👥"}</span><h1 style="font-size:26px">${esc(g.name)}</h1>
+          <p class="muted">מנהל/ת: <b>${esc(g.admin_name)}</b> · 👥 ${g.member_count} בקבוצה</p><p class="small muted">את רשימת החברים וההודעות רואים רק אחרי שמצטרפים.</p>
+          ${g.requested ? '<span class="chip" style="justify-self:center">⏳ הבקשה ממתינה לאישור</span>' : '<button class="btn" type="button" id="gJoin" style="justify-self:center">בקשה להצטרף</button>'}</section></div>`;
+        $("#gJoin") && ($("#gJoin").onclick = async () => { await api.groupRequest(id); toast("הבקשה נשלחה"); group(id); });
+        return;
+      }
+      await remember([...g.members.map((x) => x.user_id), ...g.messages.map((x) => x.sender), ...g.requests.map((x) => x.user_id)]);
+      const isAdmin = g.admin === me;
+      view.innerHTML = `<div class="page dm" style="max-width:720px"><h1 class="vh">${esc(g.name)}</h1>
+        <div class="row" style="justify-content:space-between"><span class="row"><span class="av" style="background:${color(g.id)}" aria-hidden="true">${g.kind === "class" ? "🎓" : "👥"}</span><span><b>${esc(g.name)}</b><br><span class="small muted">👥 ${g.member_count} · ${g.members.slice(0, 4).map((x) => esc(nameOf(x.user_id).split(" ")[0])).join(", ")}${g.member_count > 4 ? "…" : ""}</span></span></span><button class="btn ghost small-btn" type="button" id="gInfo">חברי הקבוצה</button></div>
+        ${isAdmin && g.requests.length ? `<section class="soft"><b>🙋 בקשות להצטרף (${g.requests.length})</b><div class="list" style="margin-top:8px">${g.requests.map((r) => `<div class="item">${avatar(r.user_id)}<span style="flex:1">${esc(nameOf(r.user_id))}</span><button class="btn small-btn" type="button" data-ok="${esc(r.user_id)}">אישור</button><button class="btn ghost small-btn" type="button" data-no="${esc(r.user_id)}">דחייה</button></div>`).join("")}</div></section>` : ""}
+        <div class="dm-log" id="gLog">${g.messages.map((m) => `<div class="bubble ${m.sender === me ? "me" : "bot"}">${m.sender === me ? "" : `<b class="small">${esc(nameOf(m.sender))}</b><br>`}${esc(m.body)}</div>`).join("") || '<p class="muted small">עוד אין הודעות. כתבו משהו ראשון 🙂</p>'}</div>
+        <form class="chat-form" id="gForm"><textarea id="gIn" rows="1" placeholder="הודעה לקבוצה…" aria-label="הודעה לקבוצה" maxlength="2000"></textarea><button class="btn" type="submit">שליחה</button></form></div>`;
+      const log = $("#gLog"); log.scrollTop = log.scrollHeight;
+      $("#gForm").onsubmit = async (e) => { e.preventDefault(); const v = $("#gIn").value.trim(); if (!v) return; try { await api.groupSend(id, v); group(id); } catch (er) { toast(er.message); } };
+      $("#gInfo").onclick = () => { const m = modal(`<h2>👥 ${esc(g.name)}</h2><div class="list">${g.members.map((x) => `<a class="item" href="#u-${esc(unameOf(x.user_id))}">${avatar(x.user_id)}<span>${esc(nameOf(x.user_id))}${x.user_id === g.admin ? ' <span class="chip">מנהל/ת</span>' : ""}</span></a>`).join("")}</div><button class="btn ghost" data-x type="button">סגירה</button>`); };
+      view.querySelectorAll("[data-ok],[data-no]").forEach((b) => (b.onclick = async () => { try { await api.groupDecide(id, b.dataset.ok || b.dataset.no, !!b.dataset.ok); group(id); } catch (e) { toast(e.message); } }));
     } catch (e) { fail(e); }
   }
   let dmTimer = null;
@@ -710,5 +786,5 @@ export function initSocial(ctx) {
   // העלאת קובץ -> סיכום אישי, ומיד מכניסים אותו לספרייה במכשיר
   async function upload(file, course) { const r = await api.summarizeFile(file, course); await syncSummaries(); return r; }
 
-  return { summaryHtmlToMd, newPasswordModal, upload, feed, friends, missed, signup, messages, dm, myProfile, bindMyProfile, editMe, counts, syncSummaries, syncNotifications, pushPrefs, restorePrefs, shareFrom, profile: profileView };
+  return { summaryHtmlToMd, newPasswordModal, upload, latestPosts, groups, group, feed, friends, missed, signup, messages, dm, myProfile, bindMyProfile, editMe, counts, syncSummaries, syncNotifications, pushPrefs, restorePrefs, shareFrom, profile: profileView };
 }

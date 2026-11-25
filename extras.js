@@ -94,6 +94,7 @@ export function initExtras(ctx) {
 
   // ---------- ⭐ מה יהיה במבחן: כל מה שהמרצה אמר שחשוב, מכל הסיכומים ----------
   const KEY_RE = /מבחן|בחינה|בוחן|יופיע|חשוב מאוד|חובה לדעת|לזכור|שימו לב|הגשה|מטלה/;
+  const rank = (c) => { const o = prefs.get()?.courses || []; const i = o.indexOf(c); return i < 0 ? 99 : i; };
   async function examFocus() {
     const sums = (await store.listItems()).filter((x) => x.type === "summary" && x.kind !== "formulas");
     const byCourse = new Map();
@@ -115,8 +116,8 @@ export function initExtras(ctx) {
       <a href="#summaries" class="small">→ הסיכומים</a>
       <h1 style="font-size:30px">⭐ מה יהיה במבחן</h1>
       <p class="muted">כל מה שהמרצים אמרו שחשוב למבחן, מכל הסיכומים, במקום אחד ולפי קורס.</p>
-      ${[...byCourse.entries()].map(([c, list]) => `<section class="card focus-c"><h2 style="font-size:21px">${esc(c)}</h2>
-        ${list.map(({ s, items }) => `<div class="focus-s"><a class="small" href="#sum-${esc(s.id)}">${esc(s.title)}</a><ul>${items.map((h) => `<li>${h}</li>`).join("")}</ul></div>`).join("")}</section>`).join("") || '<p class="muted">עוד אין בסיכומים דברים שסומנו כחשובים למבחן. הם יופיעו כאן אחרי השיעורים הבאים.</p>'}
+      ${[...byCourse.entries()].sort((a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0], "he")).map(([c, list]) => `<details class="mat-group"><summary><b>${esc(c)}</b> <span class="muted">(${list.reduce((n, x) => n + x.items.length, 0)})</span></summary>
+        ${list.map(({ s, items }) => `<div class="focus-s"><a class="small" href="#sum-${esc(s.id)}">${esc(s.title)}</a><ul>${items.map((h) => `<li>${h}</li>`).join("")}</ul></div>`).join("")}</details>`).join("") || '<p class="muted">עוד אין בסיכומים דברים שסומנו כחשובים למבחן. הם יופיעו כאן אחרי השיעורים הבאים.</p>'}
     </div>`;
   }
 

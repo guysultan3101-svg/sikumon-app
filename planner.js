@@ -79,6 +79,7 @@ export function initPlanner(ctx) {
           e.lecturer ? `<span>👤 ${esc(e.lecturer)}</span>` : "",
           zoom ? `<a href="${esc(zoom)}" target="_blank" rel="noopener"${e.place ? "" : ' style="font-weight:700"'}>🎥 כניסה לזום</a>` : "",
           `<a href="#materials-${encodeURIComponent(mk)}">📚 חומרים לשיעור</a>`,
+          `<button type="button" class="chip nb-open" data-course="${esc(e.course)}" data-date="${e.date}">📓 מחברת השיעור</button>`,
         ].filter(Boolean);
         return `<div class="row small day-extra">${bits.join("")}</div>`;
       };
@@ -87,6 +88,12 @@ export function initPlanner(ctx) {
       $("#dayBox").querySelectorAll('.day-ev[data-kind="lesson"]').forEach((a) => (a.onclick = async (ev) => {
         ev.preventDefault();
         const l = await ctx.lessonForToday(a.dataset.course, a.dataset.date);
+        location.hash = "lesson-" + l.id;
+      }));
+      // כפתור "📓 מחברת השיעור": פותח את המחברת של אותו שיעור
+      $("#dayBox").querySelectorAll(".nb-open").forEach((btn) => (btn.onclick = async (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        const l = await ctx.lessonForToday(btn.dataset.course, btn.dataset.date);
         location.hash = "lesson-" + l.id;
       }));
       $("#dayBox").querySelectorAll('.day-ev[data-kind="exam"]').forEach((a) => (a.onclick = (ev) => { ev.preventDefault(); location.hash = "deadlines"; }));
@@ -162,7 +169,7 @@ export function initPlanner(ctx) {
     const formulas = (await store.listItems()).filter((x) => x.type === "summary" && x.kind === "formulas" && !x.from);
     const open = (it) => it.type === "resource" ? it.url + (it.url.includes("?") ? "&" : "?") + "redirect=1" : it.url;
     const keep = ["exercises", "solutions", "formulas", "syllabus", "exams", "other"];
-    const courses = [...new Set([...Object.keys(map), ...formulas.map((f) => f.course)])].sort((a, b) => a.localeCompare(b, "he"));
+    const courses = [...new Set([...Object.keys(map), ...formulas.map((f) => f.course)])].sort((a, b) => { const o = prefs.get()?.courses || []; return ((o.indexOf(a) + 1) || 99) - ((o.indexOf(b) + 1) || 99) || a.localeCompare(b, "he"); });
     const blocks = courses.map((course) => {
       const items = (map[course]?.items || []).filter((it) => !(map[course]?.zoom && it.url === map[course].zoom));
       const groups = CATS.filter((c) => keep.includes(c.id)).map((c) => ({ ...c, items: items.filter((it) => catOf(it) === c.id) })).filter((g) => g.items.length);
