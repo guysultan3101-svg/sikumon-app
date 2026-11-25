@@ -204,7 +204,7 @@ export function initSocial(ctx) {
 
   // ---------- סנכרון: התראות מהשרת -> תיבת ההודעות (🔔) ----------
   const NOTE = {
-    friend_request: (n) => ({ icon: "👋", title: `${nameOf(n.actor)} שלח/ה לך בקשת חברות`, body: "לאישור בלשונית החברים", link: "#social-friends" }),
+    friend_request: (n) => ({ icon: "👋", title: `${nameOf(n.actor)} שלח/ה לך בקשת חברות`, body: "לאישור בפרופיל", link: "#social-friends" }),
     friend_accepted: (n) => ({ icon: "🤝", title: `${nameOf(n.actor)} אישר/ה את בקשת החברות`, body: "אפשר לשתף סיכומים מאותה כיתה", link: "#u-" + unameOf(n.actor) }),
     message: (n) => ({ icon: "💬", title: `הודעה מ${nameOf(n.actor)}`, body: esc(n.data?.preview || ""), link: "#dm-" + unameOf(n.actor) }),
     course_share: (n) => ({ icon: "🎓", title: `${nameOf(n.actor)} משתף/ת איתך סיכומים ב${n.data?.course || ""}`, body: "שתפו גם אתם בחזרה כדי לראות אותם", link: "#share-" + unameOf(n.actor) }),
@@ -222,8 +222,8 @@ export function initSocial(ctx) {
     for (const n of list) {
       const id = "sn-" + n.id, f = NOTE[n.kind]; if (!f) continue;
       const ex = box.items.find((x) => x.id === id);
-      if (ex) { if (ex.read && !n.read_at) readBack.push(n.id); continue; }
-      const item = { id, ...f(n), at: n.created_at, read: !!n.read_at };
+      if (ex) { ex.kind ??= n.kind; if (ex.read && !n.read_at) readBack.push(n.id); continue; }
+      const item = { id, kind: n.kind, ...f(n), at: n.created_at, read: !!n.read_at };
       box.items.unshift(item); if (!item.read) fresh.push(item);
     }
     box.items.sort((a, b) => String(b.at).localeCompare(String(a.at)));
@@ -316,8 +316,8 @@ export function initSocial(ctx) {
   // 3 הפוסטים האחרונים – לדף הראשי (עם לייק/תגובה, כמו בפיד)
   async function latestPosts(el, n = 3) {
     const d = await feedData(); d.ps = d.ps.slice(0, n);
-    renderPosts(el, d, () => latestPosts(el, n));
-    if (!d.ps.length) el.innerHTML = '<p class="small muted">עוד אין פוסטים מהחברים. <a href="#social">לפיד</a></p>';
+    if (d.ps.length) renderPosts(el, d, () => latestPosts(el, n));
+    return d.ps.length;
   }
   async function feed() {
     busy();
@@ -353,9 +353,16 @@ export function initSocial(ctx) {
   // ---------- חלונות ----------
   function modal(html) {
     document.getElementById("socModal")?.remove();
-    document.body.insertAdjacentHTML("beforeend", `<div class="modal" id="socModal" role="dialog"><div class="card">${html}</div></div>`);
+    const back = document.activeElement;
+    document.body.insertAdjacentHTML("beforeend", `<div class="modal" id="socModal" role="dialog" aria-modal="true"><div class="card">${html}</div></div>`);
     const m = document.getElementById("socModal");
-    m.onclick = (e) => { if (e.target === m || e.target.closest("[data-x]")) m.remove(); };
+    const h = m.querySelector("h2"); if (h) { h.id = "socModalT"; m.setAttribute("aria-labelledby", "socModalT"); }
+    const close = () => { m.remove(); document.removeEventListener("keydown", esc_); back?.focus?.(); };
+    // Esc סוגר – אבל לא חלון שכבר כתבו בו משהו (שטיוטה של פוסט לא תימחק)
+    function esc_(e) { if (e.key === "Escape" && document.body.contains(m) && ![...m.querySelectorAll("textarea, input[type=text], input:not([type])")].some((x) => x.value.trim() && x.defaultValue !== x.value)) close(); }
+    document.addEventListener("keydown", esc_);
+    m.onclick = (e) => { if (e.target === m || e.target.closest("[data-x]")) close(); };
+    setTimeout(() => m.querySelector("button, input, select, textarea, a[href]")?.focus(), 0);
     return m;
   }
   async function mySummaries() { return (await store.listItems()).filter((x) => x.type === "summary" && x.kind !== "formulas" && !x.from).sort((a, b) => (b.date || "").localeCompare(a.date || "")); }
@@ -437,28 +444,28 @@ export function initSocial(ctx) {
         for (const c of mine.filter((c) => !want.includes(c))) await api.unshare(friendId, c);
         m.remove(); toast(want.length ? "השיתוף נשמר ✓" : "השיתוף בוטל"); api.track("share");
         syncSummaries().catch(() => {});
-        if (location.hash === "#social-friends") friends();
+        if ($("#profFriends")) friends($("#profFriends"));
       } catch (e) { toast(e.message); }
     };
   }
 
   // ---------- חברים ----------
-  async function friends() {
-    busy();
+  async function friends(host = null) {
+    if (!host) { location.hash = "#social-friends"; return; }
+    const again = () => friends(host);
     try {
       const g = await graph();
       const row = (id, btns, sub = "") => `<div class="item">${avatar(id)}<a href="#u-${esc(unameOf(id))}" style="flex:1;min-width:0;color:inherit;text-decoration:none"><span class="t">${esc(nameOf(id))}</span><br><span class="small muted"><span dir="ltr">@${esc(unameOf(id))}</span>${sub}</span></a>${btns}</div>`;
       const shareSub = (id) => { const a = g.iShare(id).length, b = g.theyShare(id).length; return a && b ? " · 🎓 אותה כיתה" : b ? " · 🎓 משתף/ת איתך – שתפו בחזרה" : a ? " · 🎓 מחכה שגם הוא/היא ישתף" : ""; };
-      view.innerHTML = `<div class="page"><h1 class="vh">החברים שלי</h1>${subnav("social-friends")}
+      host.innerHTML = `${g.incoming.length ? `<section style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">🙋 בקשות חברות חדשות (${g.incoming.length})</h2>${g.incoming.map((f) => row(f.requester, `<button class="btn" data-ok="${f.id}" data-who="${f.requester}" type="button">אישור</button><button class="btn ghost" data-no="${f.id}" type="button">לא עכשיו</button>`)).join("")}</section>` : ""}
         <section class="soft" style="display:grid;gap:10px"><h2 style="font-size:18px;margin:0">הוספת חבר/ה</h2>
           <form class="fr-form" id="frForm"><input type="text" id="frQ" dir="ltr" placeholder="שם המשתמש של החבר/ה" aria-label="שם משתמש של החבר/ה" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send"><button class="btn" type="submit">➕ שליחת בקשה</button></form>
           <p class="small muted">החבר/ה צריך/ה לאשר. השם שלך: <b dir="ltr">@${esc(api.profile()?.username || "")}</b></p>
           <div class="row" style="gap:10px;flex-wrap:wrap"><button class="btn" type="button" id="frShare">📨 הזמינו חברים ל-Clearly</button><span class="small muted">שולחים קישור אישי (בוואטסאפ או בהודעה). מי שנרשם דרכו שולח לך בקשת חברות, ואת/ה מאשר/ת.</span></div>
         </section>
         <section class="soft" id="frSuggest" style="display:grid;gap:8px"><p class="small muted" style="margin:0">טוען הצעות לחברים…</p></section>
-        ${g.incoming.length ? `<section style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">בקשות חדשות (${g.incoming.length})</h2>${g.incoming.map((f) => row(f.requester, `<button class="btn" data-ok="${f.id}" data-who="${f.requester}" type="button">אישור</button><button class="btn ghost" data-no="${f.id}" type="button">לא עכשיו</button>`)).join("")}</section>` : ""}
         ${g.outgoing.length ? `<section style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">ממתינים לאישור</h2>${g.outgoing.map((f) => row(f.addressee, `<button class="btn ghost" data-no="${f.id}" type="button">ביטול</button>`)).join("")}</section>` : ""}
-        <section style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">החברים שלי (${g.friends.length})</h2>${g.friends.map((f) => { const id = g.other(f); return row(id, `<button class="btn ghost" data-share="${id}" type="button" aria-label="אותה כיתה">🎓</button><a class="btn ghost" href="#dm-${esc(unameOf(id))}" aria-label="הודעה">💬</a>`, shareSub(id)); }).join("") || '<p class="muted small">עוד אין חברים. הוסיפו לפי שם משתמש 👆</p>'}</section></div>`;
+        <section style="display:grid;gap:8px"><h2 style="font-size:18px;margin:0">החברים שלי (${g.friends.length})</h2>${g.friends.map((f) => { const id = g.other(f); return row(id, `<button class="btn ghost" data-share="${id}" type="button" aria-label="אותה כיתה">🎓</button><a class="btn ghost" href="#dm-${esc(unameOf(id))}" aria-label="הודעה">💬</a>`, shareSub(id)); }).join("") || '<p class="muted small">עוד אין חברים. הוסיפו לפי שם משתמש 👆</p>'}</section>`;
       $("#frForm").onsubmit = async (e) => {
         e.preventDefault();
         const u = $("#frQ").value.trim().replace(/^@/, "").toLowerCase(); if (!u) return toast("כתבו קודם את שם המשתמש של החבר/ה");
@@ -468,7 +475,7 @@ export function initSocial(ctx) {
           if (p.id === meId()) return toast("זה את/ה 🙂");
           if (g.fr.some((f) => g.other(f) === p.id)) return toast("כבר חברים או שיש בקשה פתוחה");
           await api.requestFriend(p.id); people.set(p.id, p);
-          toast(`הבקשה נשלחה ל${p.full_name}`); api.track("friend_request"); friends();
+          toast(`הבקשה נשלחה ל${p.full_name}`); api.track("friend_request"); again();
         } catch (err) { toast(err.message); }
       };
       // אנשים שאולי תכירו (הסדר בשרת): קורס+מוסד+שנה, קורס+מוסד, קורס, מוסד, ואז כולם
@@ -492,12 +499,12 @@ export function initSocial(ctx) {
         else { navigator.clipboard?.writeText(`${text}\n${url}`).then(() => toast("הקישור הועתק. אפשר להדביק בוואטסאפ"), () => toast(url)); }
         api.track("invite_share");
       };
-      view.querySelectorAll("[data-ok]").forEach((b) => (b.onclick = async () => {
-        try { await api.acceptFriend(+b.dataset.ok); toast("אתם חברים עכשיו 🙌"); await friends(); shareModal(b.dataset.who); } catch (e) { toast(e.message); }
+      host.querySelectorAll("[data-ok]").forEach((b) => (b.onclick = async () => {
+        try { await api.acceptFriend(+b.dataset.ok); toast("אתם חברים עכשיו 🙌"); await again(); shareModal(b.dataset.who); } catch (e) { toast(e.message); }
       }));
-      view.querySelectorAll("[data-no]").forEach((b) => (b.onclick = async () => { try { await api.removeFriend(+b.dataset.no); friends(); } catch (e) { toast(e.message); } }));
-      view.querySelectorAll("[data-share]").forEach((b) => (b.onclick = () => shareModal(b.dataset.share, g)));
-    } catch (e) { fail(e); }
+      host.querySelectorAll("[data-no]").forEach((b) => (b.onclick = async () => { try { await api.removeFriend(+b.dataset.no); again(); } catch (e) { toast(e.message); } }));
+      host.querySelectorAll("[data-share]").forEach((b) => (b.onclick = () => shareModal(b.dataset.share, g)));
+    } catch (e) { host.innerHTML = `<p class="notice alert">${esc(e.message || e)}</p>`; }
   }
 
   // ---------- הודעות ----------
@@ -519,10 +526,26 @@ export function initSocial(ctx) {
       const reqs = all.filter(([o]) => t.isReq(o)), main = all.filter(([o]) => !t.isReq(o));
       const list = box === "req" ? reqs : main;
       view.innerHTML = `<div class="page" style="max-width:720px"><h1 class="vh">ההודעות שלי</h1>${subnav("messages")}
-        <div class="row"><a class="btn ${box === "req" ? "ghost" : ""}" href="#messages">שיחות</a><a class="btn ghost" href="#groups" id="groupsBtn" hidden>👥 קבוצות</a><a class="btn ${box === "req" ? "" : "ghost"}" href="#messages-req">בקשות${reqs.length ? ` (${reqs.length})` : ""}</a></div>
-        ${box === "req" ? '<p class="small muted">הודעות ממי שאינו חבר שלך. הוא לא יודע שקראת עד שתאשר/י.</p>' : ""}
-        <div class="list">${list.map(([o, ms]) => { const m = ms.at(-1), un = ms.some((x) => x.recipient === me && !x.read_at); return `<a class="item" href="#dm-${esc(unameOf(o))}">${avatar(o)}<span style="flex:1;min-width:0"><span class="t">${esc(nameOf(o))}</span>${un ? ' <span class="chip new">חדש</span>' : ""}<br><span class="small muted" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.sender === me ? "את/ה: " : ""}${esc(m.body)}</span></span><span class="small muted">${when(m.created_at)}</span></a>`; }).join("") || '<p class="muted">אין כאן הודעות</p>'}</div>
-        ${box === "req" ? "" : `<section class="soft"><h2 style="font-size:18px;margin:0">הודעה חדשה לחבר/ה</h2><div class="stories" style="margin-top:8px">${[...t.friendIds].map((id) => `<a class="story" href="#dm-${esc(unameOf(id))}">${avatar(id)}<span class="small">${esc(nameOf(id).split(" ")[0])}</span></a>`).join("") || '<p class="small muted">עוד אין חברים</p>'}</div><p class="small muted">אפשר גם לשלוח הודעה למי שאינו חבר – מהפרופיל שלו.</p></section>`}</div>`;
+        <div class="row"><a class="btn ${box === "req" ? "ghost" : ""}" href="#messages">שיחות</a><a class="btn ghost" href="#groups" id="groupsBtn" hidden>👥 קבוצות</a><a class="btn ${box === "req" ? "" : "ghost"}" href="#messages-req">📥 לא מחברים${reqs.length ? ` (${reqs.length})` : ""}</a></div>
+        ${box === "req" ? '<h2 style="font-size:20px;margin:0">הודעות מאנשים שאינם חברים שלך</h2><p class="small muted">הם לא יודעים שקראת עד שתענה/י. כדי לענות לוחצים "↩️ לענות", והשיחה עוברת להודעות הרגילות.</p>' : ""}
+        <div class="list">${list.map(([o, ms]) => { const m = ms.at(-1), un = ms.some((x) => x.recipient === me && !x.read_at); return box === "req" ? `<div class="item">${avatar(o)}<a href="#u-${esc(unameOf(o))}" style="flex:1;min-width:0;color:inherit;text-decoration:none"><span class="t">${esc(nameOf(o))}</span><br><span class="small muted" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(plainBody(m.body))}</span></a><button class="btn small-btn" type="button" data-reply="${esc(o)}" data-u="${esc(unameOf(o))}">↩️ לענות</button></div>` : `<a class="item" href="#dm-${esc(unameOf(o))}">${avatar(o)}<span style="flex:1;min-width:0"><span class="t">${esc(nameOf(o))}</span>${un ? ' <span class="chip new">חדש</span>' : ""}<br><span class="small muted" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.sender === me ? "את/ה: " : ""}${esc(plainBody(m.body))}</span></span><span class="small muted">${when(m.created_at)}</span></a>`; }).join("") || `<p class="muted">${box === "req" ? "אין הודעות מאנשים שהם לא חברים" : "אין כאן הודעות"}</p>`}</div>
+        ${box === "req" ? "" : `<section class="soft"><div class="row" style="justify-content:space-between"><h2 style="font-size:18px;margin:0">הודעה חדשה לחבר/ה</h2><button class="tool" type="button" id="dmFind" aria-label="חיפוש מישהו לשלוח לו הודעה" aria-expanded="false">🔍</button></div>
+          <div id="dmFindBox" hidden style="margin-top:8px"><input type="search" id="dmFindQ" placeholder="שם או @שם משתמש" aria-label="חיפוש לפי שם" autocomplete="off" autocapitalize="none" spellcheck="false"><div class="list" id="dmFindRes" style="margin-top:8px"></div></div><div class="stories" style="margin-top:8px">${[...t.friendIds].map((id) => `<a class="story" href="#dm-${esc(unameOf(id))}">${avatar(id)}<span class="small">${esc(nameOf(id).split(" ")[0])}</span></a>`).join("") || '<p class="small muted">עוד אין חברים</p>'}</div><p class="small muted">לוחצים על 🔍 ומחפשים כל אחד לפי שם, גם מי שאינו חבר.</p></section>`}</div>`;
+      // ↩️ לענות למי שאינו חבר: השיחה עוברת להודעות הרגילות
+      view.querySelectorAll("[data-reply]").forEach((b) => (b.onclick = async () => { try { await api.acceptChat(b.dataset.reply); location.hash = "#dm-" + b.dataset.u; } catch (e) { toast(e.message); } }));
+      // 🔍 חיפוש כל משתמש לפי שם – ושולחים לו הודעה (גם אם אינו חבר; אצלו זה נכנס ל"לא מחברים")
+      if ($("#dmFind")) {
+        $("#dmFind").onclick = () => { const bx = $("#dmFindBox"); bx.hidden = !bx.hidden; $("#dmFind").setAttribute("aria-expanded", String(!bx.hidden)); if (!bx.hidden) $("#dmFindQ").focus(); };
+        let tm = 0;
+        $("#dmFindQ").oninput = () => { clearTimeout(tm); tm = setTimeout(async () => {
+          const q = $("#dmFindQ").value.trim(), res = $("#dmFindRes"); if (!res) return;
+          if (q.replace(/^@/, "").length < 2) { res.innerHTML = ""; return; }
+          try {
+            const list = await api.searchPeople(q); list.forEach((p) => people.set(p.id, { ...(people.get(p.id) || {}), ...p }));
+            res.innerHTML = list.map((p) => `<a class="item" href="#dm-${esc(p.username)}">${avatar(p.id)}<span style="flex:1;min-width:0"><span class="t">${esc(p.full_name)}</span>${t.friendIds.has(p.id) ? ' <span class="chip ok">חבר/ה</span>' : ""}<br><span class="small muted"><span dir="ltr">@${esc(p.username)}</span>${p.uni ? " · " + esc(p.uni) : ""}</span></span><span class="small go">💬</span></a>`).join("") || '<p class="small muted">לא מצאנו אף אחד בשם הזה</p>';
+          } catch (e) { res.innerHTML = `<p class="small muted">${esc(e.message)}</p>`; }
+        }, 300); };
+      }
       // כפתור הקבוצות מופיע רק כשהקבוצות באמת קיימות בשרת
       groupsReady().then((ok) => { const b = $("#groupsBtn"); if (b) b.hidden = !ok; });
     } catch (e) { fail(e); }
@@ -587,13 +610,180 @@ export function initSocial(ctx) {
       view.innerHTML = `<div class="page dm" style="max-width:720px"><h1 class="vh">${esc(g.name)}</h1>
         <div class="row" style="justify-content:space-between"><span class="row"><span class="av" style="background:${color(g.id)}" aria-hidden="true">${g.kind === "class" ? "🎓" : "👥"}</span><span><b>${esc(g.name)}</b><br><span class="small muted">👥 ${g.member_count} · ${g.members.slice(0, 4).map((x) => esc(nameOf(x.user_id).split(" ")[0])).join(", ")}${g.member_count > 4 ? "…" : ""}</span></span></span><button class="btn ghost small-btn" type="button" id="gInfo">חברי הקבוצה</button></div>
         ${isAdmin && g.requests.length ? `<section class="soft"><b>🙋 בקשות להצטרף (${g.requests.length})</b><div class="list" style="margin-top:8px">${g.requests.map((r) => `<div class="item">${avatar(r.user_id)}<span style="flex:1">${esc(nameOf(r.user_id))}</span><button class="btn small-btn" type="button" data-ok="${esc(r.user_id)}">אישור</button><button class="btn ghost small-btn" type="button" data-no="${esc(r.user_id)}">דחייה</button></div>`).join("")}</div></section>` : ""}
-        <div class="dm-log" id="gLog">${g.messages.map((m) => `<div class="bubble ${m.sender === me ? "me" : "bot"}">${m.sender === me ? "" : `<b class="small">${esc(nameOf(m.sender))}</b><br>`}${esc(m.body)}</div>`).join("") || '<p class="muted small">עוד אין הודעות. כתבו משהו ראשון 🙂</p>'}</div>
+        <div class="dm-log" id="gLog">${g.messages.map((m, i) => `<div class="bubble ${m.sender === me ? "me" : "bot"}" tabindex="0" data-i="${i}">${m.sender === me ? "" : `<b class="small">${esc(nameOf(m.sender))}</b><br>`}${msgBody(m.body)}</div>`).join("") || '<p class="muted small">עוד אין הודעות. כתבו משהו ראשון 🙂</p>'}</div>
+        <div class="reply-bar" id="gReply" hidden></div>
         <form class="chat-form" id="gForm"><textarea id="gIn" rows="1" placeholder="הודעה לקבוצה…" aria-label="הודעה לקבוצה" maxlength="2000"></textarea><button class="btn" type="submit">שליחה</button></form></div>`;
       const log = $("#gLog"); log.scrollTop = log.scrollHeight;
-      $("#gForm").onsubmit = async (e) => { e.preventDefault(); const v = $("#gIn").value.trim(); if (!v) return; try { await api.groupSend(id, v); group(id); } catch (er) { toast(er.message); } };
+      const reply = replyState($("#gReply"), $("#gIn"));
+      bindMsgActions(log, (i) => g.messages[i], { reply, mine: (m) => m.sender === me,
+        privately: (m) => { const u = unameOf(m.sender); if (!u) return toast("לא מצאנו את המשתמש"); try { sessionStorage.setItem("dmQuote:" + m.sender, `${g.name}: ${plainBody(m.body)}`); } catch { /* */ } location.hash = "#dm-" + u; },
+        report: (m) => reportModal({ target: m.sender, what: "הודעה בקבוצה", after: null }) });
+      $("#gForm").onsubmit = async (e) => { e.preventDefault(); const v = $("#gIn").value.trim(); if (!v) return; try { await api.groupSend(id, reply.wrap(v)); group(id); } catch (er) { toast(er.message); } };
       $("#gInfo").onclick = () => { const m = modal(`<h2>👥 ${esc(g.name)}</h2><div class="list">${g.members.map((x) => `<a class="item" href="#u-${esc(unameOf(x.user_id))}">${avatar(x.user_id)}<span>${esc(nameOf(x.user_id))}${x.user_id === g.admin ? ' <span class="chip">מנהל/ת</span>' : ""}</span></a>`).join("")}</div><button class="btn ghost" data-x type="button">סגירה</button>`); };
       view.querySelectorAll("[data-ok],[data-no]").forEach((b) => (b.onclick = async () => { try { await api.groupDecide(id, b.dataset.ok || b.dataset.no, !!b.dataset.ok); group(id); } catch (e) { toast(e.message); } }));
     } catch (e) { fail(e); }
+  }
+  // ---------- הודעה עם ציטוט: השורה הראשונה "> ..." היא ההודעה שעליה עונים ----------
+  const QUOTE = /^> (.{1,200})\n/;
+  const plainBody = (b) => String(b || "").replace(QUOTE, "");
+  const msgBody = (b) => { const m = String(b || "").match(QUOTE); return m ? `<span class="quote">${esc(m[1])}</span>${esc(plainBody(b))}` : esc(b); };
+  // שורת "תגובה ל..." מעל תיבת הכתיבה
+  function replyState(bar, input) {
+    let q = "";
+    const paint = () => { if (!q) input.maxLength = 2000; bar.hidden = !q; bar.innerHTML = q ? `<span class="small">↩️ תגובה ל: <b>${esc(q)}</b></span><button class="link" type="button" aria-label="ביטול התגובה">✕</button>` : ""; if (q) bar.querySelector("button").onclick = () => { q = ""; paint(); }; };
+    const fit = () => { input.maxLength = q ? 2000 - q.length - 3 : 2000; };
+    return { set(t) { q = String(t).replace(/\s+/g, " ").trim().slice(0, 80); paint(); fit(); input.focus(); }, clear() { q = ""; paint(); fit(); },
+      wrap: (v) => { if (!q) return v; const room = 2000 - v.length - 3; return room >= 5 ? `> ${q.slice(0, room)}\n${v}` : v; } };
+  }
+  // תפריט להודעה: לחיצה ארוכה (טלפון/טאבלט), לחצן ימני (מחשב), מקלדת; משיכה ימינה = תגובה מהירה
+  function bindMsgActions(log, get, { reply, mine, privately, report }) {
+    const open = (el, x, y) => {
+      const m = get(+el.dataset.i); if (!m) return;
+      if (msgMenuClose) { if (Date.now() - msgMenuAt < 600) return; msgMenuClose(); }   // אנדרואיד: לחיצה ארוכה שולחת גם contextmenu
+      document.getElementById("msgMenu")?.remove();
+      const own = mine(m);
+      document.body.insertAdjacentHTML("beforeend", `<div class="msg-menu" id="msgMenu" role="menu" aria-label="פעולות על ההודעה">
+        <button role="menuitem" type="button" data-a="reply">↩️ תגובה</button><button role="menuitem" type="button" data-a="copy">📋 העתקה</button>
+        ${privately && !own ? '<button role="menuitem" type="button" data-a="priv">💬 תגובה בפרטי</button>' : ""}${report && !own ? '<button role="menuitem" type="button" data-a="rep">⚠️ דיווח</button>' : ""}</div>`);
+      const mm = document.getElementById("msgMenu"), r = el.getBoundingClientRect();
+      const px = x ?? (r.left + r.width / 2), py = y ?? r.bottom;
+      mm.style.left = Math.max(8, Math.min(innerWidth - mm.offsetWidth - 8, px - mm.offsetWidth / 2)) + "px";
+      mm.style.top = Math.max(8, Math.min(innerHeight - mm.offsetHeight - 8, py + 6)) + "px";
+      let done = false;
+      const close = (refocus = true) => { if (done) return; done = true; msgMenuClose = null; mm.remove(); document.removeEventListener("pointerdown", out, true); document.removeEventListener("keydown", key); removeEventListener("scroll", quiet, true); removeEventListener("hashchange", quiet); if (refocus && document.body.contains(el)) el.focus?.({ preventScroll: true }); };
+      const quiet = () => close(false);
+      const out = (e) => { if (!mm.contains(e.target)) close(false); };
+      const key = (e) => {
+        if (e.key === "Escape") return close();
+        const its = [...mm.querySelectorAll("button")], i = its.indexOf(document.activeElement);
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); its[(i + (e.key === "ArrowDown" ? 1 : -1) + its.length) % its.length].focus(); }
+        if (e.key === "Tab") { e.preventDefault(); close(); }
+      };
+      msgMenuClose = close; msgMenuAt = Date.now();
+      setTimeout(() => { if (done) return; document.addEventListener("pointerdown", out, true); document.addEventListener("keydown", key); addEventListener("scroll", quiet, true); addEventListener("hashchange", quiet); }, 0);
+      mm.querySelector("button").focus({ preventScroll: true });
+      mm.onclick = async (e) => {
+        const a = e.target.closest("[data-a]")?.dataset.a; if (!a) return; close();
+        if (a === "reply") reply.set(plainBody(m.body));
+        if (a === "copy") { try { await navigator.clipboard.writeText(plainBody(m.body)); toast("ההודעה הועתקה"); } catch { toast("לא הצלחתי להעתיק"); } }
+        if (a === "priv") privately(m);
+        if (a === "rep") report(m);
+      };
+    };
+    log.querySelectorAll(".bubble[data-i]").forEach((el) => {
+      el.oncontextmenu = (e) => { e.preventDefault(); open(el, e.clientX, e.clientY); };
+      el.onkeydown = (e) => { if (e.key === "Enter" || e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) { e.preventDefault(); open(el); } };
+      let t0 = null, sx = 0, sy = 0, timer = 0, moved = false;
+      el.addEventListener("touchstart", (e) => { const p = e.touches[0]; sx = p.clientX; sy = p.clientY; t0 = Date.now(); moved = false; timer = setTimeout(() => { if (!moved) { navigator.vibrate?.(15); open(el); } }, 500); }, { passive: true });
+      el.addEventListener("touchmove", (e) => {
+        const p = e.touches[0], dx = p.clientX - sx, dy = p.clientY - sy;
+        if (Math.abs(dx) > 8 || Math.abs(dy) > 8) { moved = true; clearTimeout(timer); }
+        if (dx > 0 && Math.abs(dy) < 30 && dx > Math.abs(dy) * 2) el.style.transform = `translateX(${Math.min(dx, 70)}px)`;
+      }, { passive: true });
+      el.addEventListener("touchend", (e) => {
+        clearTimeout(timer); const dx = (e.changedTouches[0]?.clientX || sx) - sx, dy = (e.changedTouches[0]?.clientY || sy) - sy;
+        el.style.transform = "";
+        if (dx > 60 && Math.abs(dy) < 30 && dx > Math.abs(dy) * 2) { const m = get(+el.dataset.i); if (m) reply.set(plainBody(m.body)); }
+      });
+    });
+  }
+  // ---------- הכותרת של הפרופיל: תמונה גדולה (או רקע כחול עם האות הראשונה), שם, תואר ושנה, מוסד ----------
+  const ICO = {
+    // גלגל שיניים (כמו ⚙️) – לא שמש
+    gear: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
+    cam: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    pen: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16 5l3 3L8 19z"/></svg>',
+    plus: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+    check: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>',
+    dots: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+    pin: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0114 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>',
+  };
+  function heroHtml(p, { mine, top, actions }) {
+    const u = p.avatar_url && AV_OK.test(p.avatar_url) ? p.avatar_url : "";
+    const year = mine && p.study_year ? api.STUDY_YEARS[p.study_year - 1] : "";
+    const sub = [p.degree, year].filter(Boolean).map(esc).join(" · ");
+    return `<section class="phero${u ? "" : " nophoto"}" aria-label="${esc(p.full_name)}">
+      ${u ? `<img class="phero-img phero-blur" src="${esc(u)}" alt="" aria-hidden="true"><img class="phero-img phero-main" src="${esc(u)}" alt="${mine ? "תמונת הפרופיל שלך" : "תמונת הפרופיל של " + esc(p.full_name)}">` : `<div class="phero-center"><span class="phero-initial" aria-hidden="true">${esc((p.full_name || "?").trim()[0] || "?")}</span>${mine ? '<button class="phero-add" type="button" id="heroAddPhoto">הוספת תמונה</button>' : ""}</div>`}
+      <span class="phero-shade" aria-hidden="true"></span>
+      <div class="phero-top">${top}</div>
+      <div class="phero-bottom"><div class="phero-info"><h1>${esc(p.full_name)}</h1>${sub ? `<p>${sub}</p>` : ""}${p.uni ? `<p class="phero-uni">${ICO.pin}${esc(p.uni)}</p>` : ""}</div>
+        <div class="phero-actions">${actions}</div></div>
+    </section>`;
+  }
+  // ---------- התאמת התמונה: הגדלה (פס או צביטה) וגרירה. מחזיר JPEG בפרופורציה של הכותרת ----------
+  function photoAdjust(src) {
+    return new Promise((resolve) => {
+      const back = document.activeElement;
+      document.body.insertAdjacentHTML("beforeend", `<div class="padj" id="padj" role="dialog" aria-modal="true" aria-labelledby="padjT">
+        <div class="padj-bar"><button class="padj-txt" type="button" data-a="cancel">ביטול</button><h2 id="padjT">התאמת התמונה</h2><button class="padj-save" type="button" data-a="save">שמירה</button></div>
+        <div class="padj-frame" id="padjF" tabindex="0" role="img" aria-label="התמונה. חיצים מזיזים, פלוס ומינוס מגדילים ומקטינים"><img id="padjI" alt="התמונה שלך" draggable="false"><span class="phero-shade" aria-hidden="true"></span><span class="padj-name">${esc(api.profile()?.full_name || "")}</span></div>
+        <p class="padj-hint">גוררים כדי למקם · צובטים או משתמשים בפס כדי להגדיל · במקלדת: חיצים ו־+/−</p>
+        <label class="padj-zoom"><span>הגדלה <b id="padjZ">100%</b></span><input type="range" id="padjR" min="100" max="300" step="1" value="100" aria-label="הגדלה"></label>
+        <button class="padj-txt" type="button" data-a="reset">איפוס</button></div>`);
+      const box = document.getElementById("padj"), F = document.getElementById("padjF"), I = document.getElementById("padjI"), R = document.getElementById("padjR");
+      const st = { z: 1, x: 0, y: 0, base: 1, iw: 1, ih: 1 };
+      const W = () => F.clientWidth, H = () => F.clientHeight;
+      const clamp = () => { const dw = st.iw * st.base * st.z, dh = st.ih * st.base * st.z, mx = Math.max(0, (dw - W()) / 2), my = Math.max(0, (dh - H()) / 2); st.x = Math.max(-mx, Math.min(mx, st.x)); st.y = Math.max(-my, Math.min(my, st.y)); };
+      const paint = () => { clamp(); const dw = st.iw * st.base * st.z, dh = st.ih * st.base * st.z; I.style.width = dw + "px"; I.style.height = dh + "px"; I.style.left = (W() - dw) / 2 + st.x + "px"; I.style.top = (H() - dh) / 2 + st.y + "px"; R.value = Math.round(st.z * 100); document.getElementById("padjZ").textContent = Math.round(st.z * 100) + "%"; };
+      const done = (v) => { box.remove(); removeEventListener("keydown", key); if (String(src).startsWith("blob:")) URL.revokeObjectURL(src); (back && back !== document.body && document.body.contains(back) ? back : document.getElementById("heroCam"))?.focus?.(); resolve(v); };
+      const key = (e) => {
+        if (e.key === "Escape") return done(null);
+        if (e.key === "Tab") { const f = [...box.querySelectorAll("button, input, [tabindex='0']")]; const i = f.indexOf(document.activeElement); e.preventDefault(); f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus(); }
+      };
+      // מקלדת על המסגרת: חיצים מזיזים 12px, + ו־− מגדילים ומקטינים
+      F.onkeydown = (e) => {
+        const mv = { ArrowLeft: [-12, 0], ArrowRight: [12, 0], ArrowUp: [0, -12], ArrowDown: [0, 12] }[e.key];
+        if (mv) { e.preventDefault(); st.x += mv[0]; st.y += mv[1]; paint(); }
+        else if (e.key === "+" || e.key === "=") { e.preventDefault(); st.z = Math.min(3, st.z + 0.1); paint(); }
+        else if (e.key === "-" || e.key === "_") { e.preventDefault(); st.z = Math.max(1, st.z - 0.1); paint(); }
+      };
+      addEventListener("keydown", key);
+      I.crossOrigin = "anonymous";
+      I.onload = () => { st.iw = I.naturalWidth; st.ih = I.naturalHeight; st.base = Math.max(W() / st.iw, H() / st.ih); paint(); };
+      I.onerror = () => { toast("לא הצלחתי לפתוח את התמונה"); done(null); };
+      I.src = src;
+      R.oninput = () => { st.z = R.value / 100; paint(); };
+      // גרירה באצבע/עכבר, וצביטה בשתי אצבעות
+      const pts = new Map(); let start = null;
+      F.onpointerdown = (e) => { F.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); start = { z: st.z, x: st.x, y: st.y, pts: new Map([...pts].map(([k, v]) => [k, { ...v }])) }; };
+      F.onpointermove = (e) => {
+        if (!pts.has(e.pointerId) || !start) return;
+        pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        const a = [...pts.values()], s0 = [...start.pts.values()];
+        if (a.length >= 2 && s0.length >= 2) { const d = (p, q) => Math.hypot(p.x - q.x, p.y - q.y); st.z = Math.max(1, Math.min(3, start.z * d(a[0], a[1]) / Math.max(1, d(s0[0], s0[1])))); }
+        else { const p0 = start.pts.get(e.pointerId), zf = (parseFloat(getComputedStyle(document.documentElement).zoom) || 1) * (parseFloat(getComputedStyle(document.body).zoom) || 1); if (p0) { st.x = start.x + (e.clientX - p0.x) / zf; st.y = start.y + (e.clientY - p0.y) / zf; } }
+        paint();
+      };
+      const up = (e) => { pts.delete(e.pointerId); start = pts.size ? { z: st.z, x: st.x, y: st.y, pts: new Map([...pts].map(([k, v]) => [k, { ...v }])) } : null; };
+      F.onpointerup = up; F.onpointercancel = up;
+      F.onwheel = (e) => { e.preventDefault(); st.z = Math.max(1, Math.min(3, st.z * (e.deltaY < 0 ? 1.06 : 0.94))); paint(); };
+      box.onclick = async (e) => {
+        const a = e.target.closest("[data-a]")?.dataset.a; if (!a) return;
+        if (a === "cancel") return done(null);
+        if (a === "reset") { st.z = 1; st.x = 0; st.y = 0; return paint(); }
+        // שמירה: חותכים בדיוק את מה שבמסגרת, 720×830, JPEG (עד ~500KB)
+        const k = st.base * st.z, dw = st.iw * k, dh = st.ih * k;
+        const sx = ((dw - W()) / 2 - st.x) / k, sy = ((dh - H()) / 2 - st.y) / k, sw = W() / k, sh = H() / k;
+        const cv = document.createElement("canvas"); cv.width = 720; cv.height = 830;
+        try {
+          cv.getContext("2d").drawImage(I, sx, sy, sw, sh, 0, 0, 720, 830);
+          let q = 0.86, blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", q));
+          while (blob && blob.size > 480000 && q > 0.5) { q -= 0.12; blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", q)); }
+          done(blob);
+        } catch { toast("לא הצלחתי לשמור את החיתוך"); done(null); }
+      };
+      setTimeout(() => box.querySelector("[data-a=save]").focus(), 0);
+    });
+  }
+  let msgMenuClose = null, msgMenuAt = 0, moreOut = null;
+  // חץ קטן ליד השם: פותח/סוגר תפריט
+  function bindMore(btn, menu) {
+    btn.onclick = (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; btn.setAttribute("aria-expanded", String(!menu.hidden)); if (!menu.hidden) menu.querySelector("button")?.focus(); };
+    if (moreOut) document.removeEventListener("click", moreOut);
+    moreOut = (e) => { if (!menu.hidden && !menu.contains(e.target) && !btn.contains(e.target)) { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); } };
+    document.addEventListener("click", moreOut);
+    menu.addEventListener("keydown", (e) => { if (e.key === "Escape") { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); btn.focus(); } });
   }
   let dmTimer = null;
   async function dm(username) {
@@ -605,10 +795,16 @@ export function initSocial(ctx) {
       people.set(p.id, p);
       const here = () => decodeURIComponent(location.hash.slice(1)) === "dm-" + username;
       view.innerHTML = `<div class="page dm" style="max-width:720px"><h1 class="vh">שיחה עם ${esc(p.full_name)}</h1>
-        <a class="row" href="#u-${esc(p.username)}" style="color:inherit;text-decoration:none">${avatar(p.id)}<span><b>${esc(p.full_name)}</b><br><span class="small muted" dir="ltr">@${esc(p.username)}</span></span></a>
+        <div class="dm-head"><a class="row" href="#u-${esc(p.username)}" style="color:inherit;text-decoration:none">${avatar(p.id)}<span><b>${esc(p.full_name)}</b><br><span class="small muted" dir="ltr">@${esc(p.username)}</span></span></a>
+          <span class="more-wrap"><button class="more-btn" type="button" id="dmMore" aria-label="עוד אפשרויות" aria-expanded="false" aria-controls="dmMenu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+          <span class="more-menu" id="dmMenu" hidden><button type="button" id="dmBlock">🚫 חסימה</button><button type="button" id="dmReport">⚠️ דיווח</button></span></span></div>
         <div id="dmReq"></div><div class="dm-log" id="dmLog"><p class="muted small">טוען…</p></div>
+        <div class="reply-bar" id="dmReply" hidden></div>
         <form class="chat-form" id="dmForm"><textarea id="dmIn" rows="1" placeholder="הודעה…" aria-label="הודעה" maxlength="2000"></textarea><button class="btn" type="submit">שליחה</button></form>
-        <div class="row"><button class="btn ghost" type="button" id="dmBlock">🚫 חסימה</button><button class="btn ghost" type="button" id="dmReport">⚠️ דיווח</button></div></div>`;
+        <p class="small muted hint-msg">לחיצה ארוכה, משיכה ימינה או לחצן ימני על הודעה (במקלדת: Enter): תגובה או העתקה</p></div>`;
+      bindMore($("#dmMore"), $("#dmMenu"));
+      const reply = replyState($("#dmReply"), $("#dmIn"));
+      { let q = null; try { q = sessionStorage.getItem("dmQuote:" + p.id); sessionStorage.removeItem("dmQuote:" + p.id); } catch { /* */ } if (q) reply.set(q); }
       let shown = -1;
       const draw = async () => {
         const t = await threads(), ms = t.by.get(p.id) || [], req = ms.length > 0 && t.isReq(p.id);
@@ -618,14 +814,14 @@ export function initSocial(ctx) {
         if ($("#dmDel")) $("#dmDel").onclick = async () => { await api.deleteChatFrom(p.id); location.hash = "#messages-req"; };
         if (ms.length === shown) return;
         shown = ms.length;
-        $("#dmLog").innerHTML = ms.map((m) => `<div class="bubble ${m.sender === p.id ? "bot" : "me"}">${esc(m.body)}${m.sender === p.id ? `<button class="link msg-rep" type="button" data-mrep="${m.id}" aria-label="דיווח על ההודעה">⚠️</button>` : ""}</div>`).join("") || '<p class="muted small">עוד אין הודעות. תגידו היי 👋</p>';
-        $("#dmLog").querySelectorAll("[data-mrep]").forEach((b) => (b.onclick = () => { const msg = ms.find((x) => String(x.id) === b.dataset.mrep); reportModal({ target: p.id, what: "הודעה", after: null }); setTimeout(() => { const t = $("#rrTxt"); if (t && msg) t.value = ("ההודעה: " + msg.body).slice(0, 300); }, 0); }));
+        $("#dmLog").innerHTML = ms.map((m, i) => `<div class="bubble ${m.sender === p.id ? "bot" : "me"}" tabindex="0" data-i="${i}">${msgBody(m.body)}</div>`).join("") || '<p class="muted small">עוד אין הודעות. תגידו היי 👋</p>';
+        bindMsgActions($("#dmLog"), (i) => ms[i], { reply, mine: (m) => m.sender !== p.id, report: (m) => { reportModal({ target: p.id, what: "הודעה", after: null }); setTimeout(() => { const t = $("#rrTxt"); if (t) t.value = ("ההודעה: " + plainBody(m.body)).slice(0, 300); }, 50); } });
         $("#dmLog").scrollTop = $("#dmLog").scrollHeight;
       };
       $("#dmIn").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#dmForm").requestSubmit(); } };
       $("#dmForm").onsubmit = async (e) => {
         e.preventDefault(); const v = $("#dmIn").value.trim(); if (!v) return toast("כתבו הודעה קודם");
-        try { await api.sendMessage(p.id, v); $("#dmIn").value = ""; api.track("message"); await draw(); } catch (err) { toast(err.message); }
+        try { await api.sendMessage(p.id, reply.wrap(v)); $("#dmIn").value = ""; reply.clear(); api.track("message"); await draw(); } catch (err) { toast(err.message); }
       };
       $("#dmBlock").onclick = async () => { if (!confirm(`לחסום את ${p.full_name}? לא תקבלו ממנו/ה הודעות.`)) return; await api.block(p.id); toast("נחסם/ה"); location.hash = "#messages"; };
       $("#dmReport").onclick = async () => { await api.report({ target: p.id, reason: "דיווח מהודעות" }); toast("תודה, הדיווח נשלח לבדיקה"); };
@@ -680,71 +876,99 @@ export function initSocial(ctx) {
       people.set(p.id, p);
       const g = await graph();
       const f = g.fr.find((x) => g.other(x) === p.id);
-      const d = await feedData((x) => x.author === p.id);
+      const priv = await api.isPrivate(p.id);
+      const locked = (!f || f.status !== "accepted") && priv;
+      const d = locked ? { ps: [] } : await feedData((x) => x.author === p.id);
       const ig = safeLink(p.ig, "instagram.com"), li = safeLink(p.li, "linkedin.com");
-      const rel = !f ? '<button class="btn" type="button" id="add">➕ בקשת חברות</button>'
-        : f.status === "accepted" ? '<span class="chip ok">✓ חברים</span><button class="btn ghost" type="button" id="shr">🎓 אותה כיתה</button>'
-        : f.requester === meId() ? '<span class="chip">⏳ מחכים לאישור</span>' : '<button class="btn" type="button" id="acc">אישור בקשת החברות</button>';
-      view.innerHTML = `<div class="page" style="max-width:720px">
-        <section class="card prof"><div class="row" style="gap:16px">${avatar(p.id, true)}<span style="min-width:0;flex:1"><h1 style="font-size:28px">${esc(p.full_name)}</h1><span class="muted" dir="ltr">@${esc(p.username)}</span><br><span class="small muted">${esc(p.uni)}${p.degree ? " · " + esc(p.degree) : ""}</span></span></div>
-          ${p.bio ? `<p>${esc(p.bio)}</p>` : ""}
-          <div class="row">${ig ? `<a class="btn ghost" href="${esc(ig)}" target="_blank" rel="noopener noreferrer">📸 Instagram</a>` : ""}${li ? `<a class="btn ghost" href="${esc(li)}" target="_blank" rel="noopener noreferrer">💼 LinkedIn</a>` : ""}
-            ${rel}<a class="btn ghost" href="#dm-${esc(p.username)}">💬 הודעה</a></div>
-          <div class="row"><button class="btn ghost" type="button" id="blk">🚫 חסימה</button><button class="btn ghost" type="button" id="rep">⚠️ דיווח</button>${f ? '<button class="btn ghost" type="button" id="unf">הסרה מהחברים</button>' : ""}</div></section>
-        <h2 style="font-size:20px">מה ${esc(p.full_name.split(" ")[0])} שיתף/ה</h2><div class="feed" id="pfFeed"></div></div>`;
-      renderPosts($("#pfFeed"), d, () => profileView(username));
+      const first = esc(p.full_name.split(" ")[0]);
+      const rel = !f ? `<button class="phero-btn blue" type="button" id="add">${ICO.plus}הוספת חבר</button>`
+        : f.status === "accepted" ? `<button class="phero-btn" type="button" id="relMenu" aria-haspopup="dialog">${ICO.check}חברים</button>`
+        : f.requester === meId() ? '<span class="phero-btn" role="status">⏳ ממתין לאישור</span>' : `<button class="phero-btn blue" type="button" id="acc">${ICO.check}אישור הבקשה</button>`;
+      const hero = heroHtml(p, { mine: false,
+        top: `<button class="phero-circ" type="button" id="pfMore" aria-label="עוד: חסימה או דיווח" aria-haspopup="dialog">${ICO.dots}</button>`,
+        actions: `${rel}<a class="phero-btn" href="#dm-${esc(p.username)}">הודעה</a>` });
+      // אותה כיתה: קורסים משותפים (רק אם השרת נתן את הקורסים שלו), אחרת אותו מוסד
+      const mine = new Set(myCourses()), common = (p.courses || []).filter((c) => mine.has(c));
+      const same = common.length ? `אתם באותה כיתה ב${common.slice(0, 2).map(esc).join(" וב")}${common.length > 2 ? ` ועוד ${common.length - 2}` : ""}` : p.uni && p.uni === api.profile()?.uni ? `גם ב${esc(p.uni)}` : "";
+      view.innerHTML = `<div class="page hero-page" style="max-width:760px">${hero}<div class="phero-sheet">
+        <section class="pstats">${same ? `<p>${same}</p>` : ""}<div class="row" style="gap:8px"><span class="chip">${priv ? "🔒 חשבון סגור" : "🌍 חשבון פתוח"}</span>${ig ? `<a class="chip" href="${esc(ig)}" target="_blank" rel="noopener noreferrer">Instagram</a>` : ""}${li ? `<a class="chip" href="${esc(li)}" target="_blank" rel="noopener noreferrer">LinkedIn</a>` : ""}</div></section>
+        ${p.bio ? `<p class="prof-bio">${esc(p.bio)}</p>` : ""}
+        ${locked ? `<section class="plock"><span class="plock-ico" aria-hidden="true">${ICO.lock}</span><h2>החשבון הזה סגור</h2><p class="muted">אחרי שתהיו חברים תוכלו לראות את הפוסטים והסיכומים ש${first} משתף/ת.</p></section>` : `<h2 style="font-size:20px">מה ${first} שיתף/ה</h2><div class="feed" id="pfFeed"></div>`}
+      </div></div>`;
+      if (!locked) renderPosts($("#pfFeed"), d, () => profileView(username));
       const act = (fn) => async () => { try { await fn(); profileView(username); } catch (e) { toast(e.message); } };
       if ($("#add")) $("#add").onclick = act(async () => { await api.requestFriend(p.id); toast("הבקשה נשלחה"); });
       if ($("#acc")) $("#acc").onclick = act(async () => { await api.acceptFriend(f.id); toast("אתם חברים 🙌"); });
-      if ($("#shr")) $("#shr").onclick = () => shareModal(p.id, g);
-      if ($("#unf")) $("#unf").onclick = () => { if (confirm("להסיר מהחברים? גם השיתוף בקורסים יפסיק.")) act(async () => { for (const c of g.iShare(p.id)) await api.unshare(p.id, c); await api.removeFriend(f.id); })(); };
-      $("#blk").onclick = () => { if (confirm(`לחסום את ${p.full_name}?`)) act(async () => { await api.block(p.id); toast("נחסם/ה"); })(); };
-      $("#rep").onclick = act(async () => { await api.report({ target: p.id, reason: "דיווח מהפרופיל" }); toast("תודה, הדיווח נשלח"); });
+      const more = () => {
+        const m = modal(`<h2>${esc(p.full_name)}</h2><div class="list">
+          ${f?.status === "accepted" ? '<button class="item" type="button" id="mShr">🎓 אותה כיתה – שיתוף סיכומים</button><button class="item" type="button" id="mUnf">➖ הסרה מהחברים</button>' : ""}
+          <button class="item" type="button" id="mBlk">🚫 חסימה</button><button class="item" type="button" id="mRep">⚠️ דיווח</button></div><button class="btn ghost" data-x type="button">ביטול</button>`);
+        if ($("#mShr", m)) $("#mShr", m).onclick = () => { m.remove(); shareModal(p.id, g); };
+        if ($("#mUnf", m)) $("#mUnf", m).onclick = () => { m.remove(); if (confirm("להסיר מהחברים? גם השיתוף בקורסים יפסיק.")) act(async () => { for (const c of g.iShare(p.id)) await api.unshare(p.id, c); await api.removeFriend(f.id); })(); };
+        $("#mBlk", m).onclick = () => { m.remove(); if (confirm(`לחסום את ${p.full_name}?`)) act(async () => { await api.block(p.id); toast("נחסם/ה"); })(); };
+        $("#mRep", m).onclick = () => { m.remove(); act(async () => { await api.report({ target: p.id, reason: "דיווח מהפרופיל" }); toast("תודה, הדיווח נשלח"); })(); };
+      };
+      $("#pfMore").onclick = more;
+      if ($("#relMenu")) $("#relMenu").onclick = more;
     } catch (e) { fail(e); }
   }
   // הגעה מהתראה "משתף/ת איתך": פותחים את חלון השיתוף
-  async function shareFrom(username) { const p = await api.findUser(username); await friends(); if (p) { people.set(p.id, p); shareModal(p.id); } }
+  async function shareFrom(username) { const p = await api.findUser(username); if (p) { people.set(p.id, p); shareModal(p.id); } }
 
   // ---------- הפרופיל שלי (באזור הפרופיל) ----------
-  async function myProfile(tab = "posts") {
-    const me = api.profile(); if (!me) return "";
+  async function myProfile() {
+    const me = api.profile(); if (!me) return { hero: "", bio: "" };
     people.set(me.id, me);
-    const ig = safeLink(me.ig, "instagram.com"), li = safeLink(me.li, "linkedin.com");
     const g = await graph();
-    const tabs = [["posts", "📝 שפרסמתי"], ["liked", "❤️ אהבתי"], ["saved", "🔖 שמורים"]];
-    return `<section class="card prof"><div class="row" style="gap:16px">${avatar(me.id, true)}<span style="min-width:0;flex:1"><h1 style="font-size:28px">${esc(me.full_name)}</h1><span class="muted" dir="ltr">@${esc(me.username)}</span><br><span class="small muted">${esc(me.uni)}${me.degree ? " · " + esc(me.degree) : ""}</span></span></div>
-      ${me.avatar_url ? "" : '<p class="notice" style="margin:0">📷 מוסיפים תמונת פרופיל, וחברים מהכיתה מזהים אתכם מיד.</p>'}
-      ${me.bio ? `<p>${esc(me.bio)}</p>` : '<p class="muted">עוד לא כתבת משהו על עצמך</p>'}
-      <div class="row">${ig ? `<a class="btn ghost" href="${esc(ig)}" target="_blank" rel="noopener noreferrer">📸 Instagram</a>` : ""}${li ? `<a class="btn ghost" href="${esc(li)}" target="_blank" rel="noopener noreferrer">💼 LinkedIn</a>` : ""}
-        <label class="btn ghost">📷 ${me.avatar_url ? "החלפת תמונה" : "הוספת תמונת פרופיל"}<input type="file" id="meAvatar" accept="image/*" hidden></label>${me.avatar_url ? '<button class="btn ghost" type="button" id="meAvatarDel">הסרת התמונה</button>' : ""}
-        <button class="btn" type="button" id="meEdit">עריכת פרופיל</button><a class="btn ghost" href="#settings">⚙️ הגדרות</a></div>
-      <p class="small muted">👥 ${g.friends.length} חברים · <a href="#social-friends">לרשימה</a></p></section>
-      <nav class="snav" aria-label="התוכן שלי">${tabs.map(([k, l]) => `<a href="#profile${k === "posts" ? "" : "-" + k}" ${tab === k ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</nav>
-      ${tab !== "posts" ? '<p class="small muted">🔒 רק את/ה רואה את הרשימה הזו</p>' : ""}
-      <div class="feed" id="meFeed"><p class="muted small">טוען…</p></div>`;
+    const n = g.friends.length;
+    const hero = heroHtml(me, {
+      mine: true,
+      top: `<a class="phero-circ" href="#settings" aria-label="הגדרות">${ICO.gear}</a><button class="phero-circ" type="button" id="heroCam" aria-label="${me.avatar_url ? "תמונת הפרופיל – החלפה, התאמה או הסרה" : "הוספת תמונת פרופיל"}">${ICO.cam}</button><input type="file" id="meAvatar" accept="image/*" hidden>`,
+      actions: `<button class="phero-btn" type="button" id="meEdit">${ICO.pen}עריכת פרופיל</button><a class="phero-btn" href="#social-friends">👥 ${n === 1 ? "חבר אחד" : n + " חברים"}</a>`,
+    });
+    const bio = `<p class="prof-bio ${me.bio ? "" : "muted"}">${me.bio ? esc(me.bio) : "עוד לא כתבת משהו על עצמך"}${me.is_private ? ' <span class="chip">🔒 חשבון סגור</span>' : ""}</p>`;
+    return { hero, bio };
   }
-  async function bindMyProfile(tab = "posts") {
+  // התראות של חברים (בקשה חדשה, אישרו אותך, לייק, תגובה, שיתוף) – למעלה בפרופיל
+  async function paintProfNotes() {
+    const el = $("#profNotes"); if (!el) return;
+    const items = (await ctx.socialItems?.()) || [];
+    const shown = items.slice(0, 6);
+    if (!shown.length) { el.hidden = true; return; }
+    el.hidden = false;
+    el.innerHTML = `<h2 style="font-size:18px;margin:0">🔔 חדש אצלך</h2><div class="list" style="margin-top:8px">${shown.map((x) => `<a class="item msg ${x.read ? "" : "unread"}" href="${esc(x.link || "#profile")}"><span class="micon">${x.icon}</span><span style="min-width:0;flex:1"><span class="t">${esc(x.title)}</span>${x.body ? `<br><span class="small muted">${x.body}</span>` : ""}</span><span class="small muted"><bdi>${new Date(x.at).toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })}</bdi></span></a>`).join("")}</div>`;
+    await ctx.markSocialRead?.();
+    document.querySelectorAll(".prof-n").forEach((n) => { n.hidden = true; n.textContent = ""; });
+  }
+  async function bindMyProfile() {
     if ($("#meEdit")) $("#meEdit").onclick = editMe;
-    // תמונת פרופיל: חיתוך ריבועי מהמרכז, 320 פיקסלים, JPEG (קטן ומהיר)
-    if ($("#meAvatar")) $("#meAvatar").onchange = async (e) => {
-      const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
-      try {
-        toast("מעלה את התמונה…");
-        const url = URL.createObjectURL(f);
-        const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
-        const side = Math.min(im.width, im.height), cv = document.createElement("canvas"); cv.width = cv.height = 320;
-        cv.getContext("2d").drawImage(im, (im.width - side) / 2, (im.height - side) / 2, side, side, 0, 0, 320, 320);
-        URL.revokeObjectURL(url);
-        const blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", 0.85));
-        await api.setAvatar(blob);
-        people.set(meId(), api.profile());
-        toast("✓ תמונת הפרופיל עודכנה"); dispatchEvent(new HashChangeEvent("hashchange"));
-      } catch (err) { toast("לא הצלחתי להעלות את התמונה: " + (err.message || "")); }
+    const pick = () => $("#meAvatar")?.click();
+    const save = async (src) => {
+      const blob = await photoAdjust(src); if (!blob) return;
+      try { toast("שומר את התמונה…"); await api.setAvatar(blob); people.set(meId(), api.profile()); toast("✓ התמונה עודכנה"); dispatchEvent(new HashChangeEvent("hashchange")); }
+      catch (err) { toast("לא הצלחתי לשמור את התמונה: " + (err.message || "")); }
     };
-    if ($("#meAvatarDel")) $("#meAvatarDel").onclick = async () => {
-      if (!confirm("להסיר את תמונת הפרופיל?")) return;
-      try { await api.removeAvatar(); people.set(meId(), api.profile()); dispatchEvent(new HashChangeEvent("hashchange")); } catch (err) { toast(err.message); }
+    if ($("#meAvatar")) $("#meAvatar").onchange = (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) save(URL.createObjectURL(f)); };
+    if ($("#heroAddPhoto")) $("#heroAddPhoto").onclick = pick;
+    if ($("#heroCam")) $("#heroCam").onclick = () => {
+      const url = api.profile()?.avatar_url;
+      if (!url) return pick();
+      const m = modal(`<h2>תמונת הפרופיל</h2><div class="list"><button class="item" type="button" id="avNew">📷 תמונה חדשה</button><button class="item" type="button" id="avFit">🔍 התאמת התמונה (הגדלה ומיקום)</button><button class="item" type="button" id="avDel">🗑️ הסרת התמונה</button></div><button class="btn ghost" data-x type="button">ביטול</button>`);
+      $("#avNew", m).onclick = () => { m.remove(); pick(); };
+      $("#avFit", m).onclick = () => { m.remove(); save(url); };
+      $("#avDel", m).onclick = async () => { m.remove(); if (!confirm("להסיר את תמונת הפרופיל?")) return; try { await api.removeAvatar(); people.set(meId(), api.profile()); dispatchEvent(new HashChangeEvent("hashchange")); } catch (err) { toast(err.message); } };
     };
+  }
+  // ---------- דף החברים (משלו): חדש אצלך, בקשות, הוספה, אנשים שאולי תכירו, ממתינים, החברים שלי ----------
+  async function friendsPage() {
+    view.innerHTML = `<div class="page" style="max-width:760px"><h1 style="font-size:30px">👥 החברים שלי</h1>
+      <section class="soft" id="profNotes" hidden></section>
+      <div id="profFriends" style="display:grid;gap:16px"><p class="muted small">טוען…</p></div></div>`;
+    paintProfNotes().catch(() => {});
+    await friends($("#profFriends"));
+  }
+  // מה שפרסמתי / אהבתי / שמורים (דף נפרד, מההגדרות)
+  async function bindMyContent(tab = "posts") {
     const el = $("#meFeed"); if (!el) return;
     try {
       const me = meId();
@@ -752,7 +976,7 @@ export function initSocial(ctx) {
       let liked = new Set();
       if (tab === "liked") { const all = await api.posts(); liked = new Set((await api.likes(all.map((p) => p.id))).filter((l) => l.user_id === me).map((l) => l.post)); }
       const d = await feedData((p) => (tab === "posts" ? p.author === me : tab === "saved" ? sv.has(p.id) : liked.has(p.id)));
-      renderPosts(el, d, () => bindMyProfile(tab));
+      renderPosts(el, d, () => bindMyContent(tab));
     } catch (e) { el.innerHTML = `<p class="notice alert">${esc(e.message)}</p>`; }
   }
   function editMe() {
@@ -786,5 +1010,5 @@ export function initSocial(ctx) {
   // העלאת קובץ -> סיכום אישי, ומיד מכניסים אותו לספרייה במכשיר
   async function upload(file, course) { const r = await api.summarizeFile(file, course); await syncSummaries(); return r; }
 
-  return { summaryHtmlToMd, newPasswordModal, upload, latestPosts, groups, group, feed, friends, missed, signup, messages, dm, myProfile, bindMyProfile, editMe, counts, syncSummaries, syncNotifications, pushPrefs, restorePrefs, shareFrom, profile: profileView };
+  return { summaryHtmlToMd, newPasswordModal, upload, latestPosts, groups, group, feed, friends, friendsPage, paintProfNotes, missed, signup, messages, dm, myProfile, bindMyProfile, bindMyContent, editMe, counts, syncSummaries, syncNotifications, pushPrefs, restorePrefs, shareFrom, profile: profileView };
 }

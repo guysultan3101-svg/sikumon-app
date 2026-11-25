@@ -795,3 +795,127 @@ main { padding-bottom: calc(var(--tabbar-h) + 40px + env(safe-area-inset-bottom,
 /* כשנגן הפודקאסט פתוח – 💬 עולה מעליו, כמו כפתור ה-AI */
 body:has(.pod-bar) .dm-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area-inset-bottom, 0px)); }
 @media (min-width: 821px) { body:has(.pod-bar) .dm-fab { bottom: calc(var(--tabbar-h) + 90px); } }
+
+/* ---------- 25.11.2026 (סבב 2): פרופיל, התראות, חיפוש, התקנה באייפון ---------- */
+/* מונה על אייקון הפרופיל – התראות של חברים */
+.bell-x { position: absolute; top: 2px; left: 2px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: var(--red); color: #fff; font: 700 11px/18px var(--font-body); text-align: center; }
+/* התמונה בפרופיל היא כפתור */
+.ava-btn { position: relative; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; flex: none; }
+.ava-btn:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+.ava-cam { position: absolute; bottom: -2px; inset-inline-start: -2px; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--paper); border: 1.5px solid var(--line); font-size: 14px; box-shadow: 0 1px 3px rgba(15,23,42,.2); }
+/* התקנה באייפון/אייפד – גדול ובולט בדף החיבור */
+.ios-install { display: grid; gap: 10px; border: 2.5px solid var(--blue); }
+.ios-install h2 { font-size: clamp(22px, 4vw, 28px); margin: 0; }
+.ios-install .big-steps li { font-size: 18px; }
+/* חברים בפרופיל: כשצר – הכפתורים יורדים שורה, והשם נשאר קריא */
+/* שורת חבר – שורה אחת (כמו שגיא ביקש); רק בשורה עם "אישור / לא עכשיו" הכפתורים יורדים שורה כשצר */
+#profFriends .item { flex-wrap: wrap; }
+#profFriends .item > a:not(.btn) { min-width: 140px !important; }  /* גובר על min-width:0 שבתוך הקוד */
+/* שורת חבר (🎓 + 💬) – תמיד שורה אחת */
+#profFriends .item:has([data-share]) { flex-wrap: nowrap; }
+#profFriends .item:has([data-share]) > a:not(.btn) { min-width: 0 !important; }
+
+/* ---------- 25.11.2026 (סבב 3): פרופיל וחברים, הודעות ---------- */
+.card-t .prof-n { font-size: 12px; vertical-align: middle; }
+/* שורת הכותרת בשיחה: השם + חץ קטן לחסימה/דיווח */
+.dm-head { display: flex; align-items: center; gap: 6px; }
+.more-wrap { position: relative; }
+.more-btn { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--paper); color: var(--ink); cursor: pointer; }
+.more-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.more-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+.more-menu { position: absolute; z-index: 30; top: calc(100% + 6px); inset-inline-end: 0; display: grid; min-width: 150px; padding: 6px; background: var(--paper); border: 1.5px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(15,23,42,.18); }
+.more-menu button, .msg-menu button { text-align: start; padding: 10px 12px; border: 0; border-radius: 8px; background: none; color: var(--ink); font: inherit; font-size: 15px; cursor: pointer; }
+.more-menu button:hover, .more-menu button:focus-visible, .msg-menu button:hover, .msg-menu button:focus-visible { background: var(--grid); outline: none; }
+/* תפריט להודעה */
+.msg-menu { position: fixed; z-index: 90; display: grid; min-width: 170px; padding: 6px; background: var(--paper); border: 1.5px solid var(--line); border-radius: 14px; box-shadow: 0 10px 30px rgba(15,23,42,.22); }
+.bubble { transition: transform .15s; -webkit-touch-callout: none; }
+.bubble:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.bubble .quote { display: block; margin-bottom: 4px; padding: 4px 8px; border-inline-start: 3px solid currentColor; border-radius: 6px; background: color-mix(in srgb, currentColor 12%, transparent); font-size: 13px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.reply-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-inline-start: 3px solid var(--blue); border-radius: 8px; background: var(--grid); }
+.reply-bar b { display: inline-block; max-width: 60vw; vertical-align: bottom; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hint-msg { margin: 0; }
+/* בטלפון/טאבלט: לחיצה ארוכה על הודעה לא בוחרת טקסט (יש "העתקה" בתפריט) */
+@media (hover: none) { .bubble[data-i] { -webkit-user-select: none; user-select: none; } }
+/* שורת חבר בטלפון צר: כפתורי 🎓/💬 קומפקטיים, כדי שיישאר מקום לשם (לא נשבר באמצע מילה) */
+@media (max-width: 480px) { #profFriends .item:has([data-share]) > .btn { min-width: 0; min-height: 40px; padding: 4px 8px; } }
+#profFriends .item a:not(.btn), #profNotes .item { overflow-wrap: anywhere; }  /* מילה ארוכה מאוד נשברת; מילים רגילות נכנסות ברוחב שנשאר */
+/* מרווח בין העיגול האדום של ההקלטה למילה "הקלטה" */
+.tabs a.rec-tab .rec-dot + span { margin-top: 6px; }
+
+/* ---------- 25.11.2026: כרטיס הפרופיל לפי העיצוב של גיא ---------- */
+.prof2 { display: grid; gap: 14px; padding: 20px; }
+.prof2-top { display: flex; align-items: center; gap: 14px; }
+.prof2-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.prof2-id h1 { font-size: 18px; }
+.prof2-id span { font-size: 14px; color: var(--ink-soft); }
+.prof2-bio { margin: 0; }
+.prof2-actions { display: flex; align-items: center; gap: 10px; }
+.prof2-spacer { flex: 1; }
+.sq-btn { width: 44px; height: 44px; flex: none; display: grid; place-items: center; padding: 0; border: 2px solid var(--ink); border-radius: 12px; background: var(--paper); color: var(--ink); box-shadow: 3px 3px 0 var(--ink); font-size: 22px; text-decoration: none; cursor: pointer; }
+.sq-btn.blue { background: var(--blue); }
+.sq-btn svg { width: 24px; height: 24px; fill: #fff; }
+.sq-btn:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+
+/* ---------- 25.11.2026: פרופיל בסגנון תמונה גדולה ---------- */
+.hero-page { position: relative; gap: 0; }
+.phero { position: relative; min-height: 450px; overflow: hidden; background: #0B1120; color: #fff; border-radius: 24px; display: flex; flex-direction: column; justify-content: flex-end; }
+.phero.nophoto { background: linear-gradient(160deg, #2A3FD0 0%, #0017A0 55%, #0B1140 100%); }
+.phero-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.phero-center { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 72px 16px 8px; }
+.phero-initial { width: 160px; height: 160px; border-radius: 50%; background: rgba(255,255,255,.14); display: grid; place-items: center; font: 900 76px var(--font-display); }
+.phero-add { min-height: 36px; padding: 0 18px; border-radius: 999px; border: 1.5px solid rgba(255,255,255,.6); background: rgba(255,255,255,.12); color: #fff; font: 700 14px var(--font-body); cursor: pointer; }
+.phero-shade { position: absolute; inset: auto 0 0 0; height: 230px; background: linear-gradient(to bottom, rgba(11,17,32,0) 0%, rgba(11,17,32,.55) 55%, rgba(11,17,32,.85) 100%); pointer-events: none; }
+.phero-top { position: absolute; z-index: 2; top: 16px; inset-inline-end: 16px; display: flex; gap: 8px; }
+.phero-circ { width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: rgba(100,116,139,.55); color: #fff; cursor: pointer; text-decoration: none; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.phero-circ svg { width: 21px; height: 21px; }
+.phero-bottom { position: relative; z-index: 1; padding: 0 16px 40px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.phero-info { min-width: 0; flex: 1; }
+.phero-info p { overflow-wrap: anywhere; }
+.phero-info h1 { color: #fff; font: 900 clamp(26px, 7vw, 34px)/1.1 var(--font-display); margin: 0 0 6px; overflow-wrap: anywhere; }
+.phero-info p { margin: 0; color: #E2E8F0; font-size: 15px; }
+.phero-uni { display: flex; align-items: center; gap: 4px; margin-top: 2px !important; }
+.phero-uni svg { width: 16px; height: 16px; flex: none; }
+.phero-actions { display: grid; gap: 10px; flex: none; }
+.phero-btn { min-width: 124px; height: 40px; box-sizing: border-box; padding: 0 12px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 12px; background: #fff; color: #0F172A; font: 700 15px var(--font-body); text-decoration: none; cursor: pointer; white-space: nowrap; }
+.phero-btn.blue { background: #0017A0; color: #fff; }
+.phero-btn svg { width: 16px; height: 16px; }
+.phero-btn:focus-visible, .phero-circ:focus-visible, .phero-add:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.phero-sheet { position: relative; margin-top: -24px; padding-top: 20px; background: var(--bg); border-radius: 28px 28px 0 0; display: grid; gap: 18px; }
+.prof-bio { margin: 0; }
+.pstats { background: var(--paper); border-radius: 22px; padding: 16px 18px; display: grid; gap: 10px; box-shadow: 0 2px 10px rgba(15,23,42,.06); }
+.pstats p { margin: 0; font-weight: 500; }
+.plock { text-align: center; display: grid; justify-items: center; gap: 8px; padding: 24px 18px; background: var(--paper); border: 1.5px dashed var(--line); border-radius: 22px; }
+.plock h2 { font-size: 20px; }
+.plock p { margin: 0; }
+.plock-ico { width: 64px; height: 64px; border: 2px solid var(--ink); border-radius: 50%; display: grid; place-items: center; }
+.plock-ico svg { width: 30px; height: 30px; }
+/* כפתור החזרה הכללי – עגול ושקוף, על התמונה */
+.hero-page > .back-btn.round { position: absolute; z-index: 3; top: 16px; inset-inline-start: 16px; border: 0; background: rgba(100,116,139,.55); color: #fff; box-shadow: none; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+@media (max-width: 820px) {
+  /* בטלפון: התמונה מקצה לקצה ועד למעלה */
+  .phero { margin: calc(-28px - env(safe-area-inset-top, 0px)) calc(-1 * max(20px, env(safe-area-inset-right, 0px))) 0; border-radius: 0; min-height: calc(450px + env(safe-area-inset-top, 0px)); }
+  .phero-top { top: calc(16px + env(safe-area-inset-top, 0px)); }
+  .hero-page > .back-btn.round { top: -12px; inset-inline-start: -4px; }   /* ה-safe-area כבר בתוך ה-padding של main */
+  .hero-page { max-width: none !important; }   /* אייפד לאורך: התמונה עד הקצה */
+}
+/* מסך התאמת התמונה */
+.padj { position: fixed; inset: 0; z-index: 200; background: #0B1120; color: #fff; display: grid; justify-items: center; align-content: start; gap: 16px; padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 24px; overflow: auto; }
+.padj-bar { width: min(420px, 100%); display: flex; align-items: center; justify-content: space-between; }
+.padj-bar h2 { font-size: 18px; color: #fff; }
+.padj-txt { min-height: 44px; padding: 0 16px; border: 1.5px solid rgba(255,255,255,.45); border-radius: 12px; background: transparent; color: #fff; font: 700 15px var(--font-body); cursor: pointer; }
+.padj-bar .padj-txt { border: 0; }
+.padj-save { min-height: 44px; padding: 0 20px; border: 0; border-radius: 12px; background: #fff; color: #0F172A; font: 700 15px var(--font-body); cursor: pointer; }
+.padj-frame { position: relative; width: min(330px, 100%); aspect-ratio: 390 / 450; overflow: hidden; outline: 2px solid #fff; border-radius: 4px; background: #1F2937; touch-action: none; cursor: grab; }
+.padj-frame img { position: absolute; max-width: none; user-select: none; -webkit-user-select: none; pointer-events: none; }
+.padj-name { position: absolute; inset-inline-start: 14px; bottom: 20px; font: 900 24px var(--font-display); pointer-events: none; }
+.padj-hint { margin: 0; color: #CBD5E1; font-size: 14px; text-align: center; }
+.padj-zoom { width: min(330px, 100%); display: grid; gap: 8px; font-weight: 700; }
+.padj-zoom span { display: flex; justify-content: space-between; }
+.padj-zoom input { width: 100%; accent-color: #fff; }
+.pstats .chip, .prof-bio .chip { font-family: var(--font-body); letter-spacing: 0; text-transform: none; font-size: 13px; font-weight: 700; }
+/* התמונה: בטלפון ממלאת את הכותרת; במחשב/אייפד (רחב יותר מהתמונה) – כל התמונה במרכז, על רקע מטושטש שלה */
+.phero-blur { display: none; }
+@media (min-width: 600px) {
+  .phero-blur { display: block; filter: blur(22px) brightness(.7); transform: scale(1.15); }
+  .phero-main { object-fit: contain; }
+}

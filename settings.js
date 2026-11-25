@@ -62,12 +62,15 @@ export function initSettings(ctx) {
         <div class="set-row"><span>שם משתמש</span><b dir="ltr">@${esc(me?.username || "")}</b></div>
         <div class="set-row"><span>מייל</span><b dir="ltr">${esc(api.user()?.email || "")}</b></div>
         <div class="row"><button class="btn ghost" type="button" id="editProf">עריכת פרופיל</button><button class="btn ghost" type="button" id="chPass">שינוי סיסמה</button></div>
+        <h3>התוכן שלי</h3>
+        <div class="list"><a class="item" href="#profile-posts"><span class="t">📝 מה שפרסמתי</span></a><a class="item" href="#profile-liked"><span class="t">❤️ מה שאהבתי</span></a><a class="item" href="#profile-saved"><span class="t">🔖 שמורים</span></a></div>
         <div class="row"><button class="btn ghost" type="button" id="exportData">⬇️ הורדת כל המידע שלי</button><button class="btn danger" type="button" id="logout">↪ יציאה מהחשבון</button></div>
         <button class="btn danger" type="button" id="delAcc">מחיקת החשבון</button>
         <p class="small muted">מחיקת החשבון מוחקת לצמיתות מהשרת את הפרופיל, החברים, ההודעות, הסיכומים והפוסטים שלך.</p>
       </section>
 
       <section class="soft set" id="set-privacy"><h2>🔒 פרטיות ובטיחות</h2>
+        ${toggle("pvPrivate", "🔒 חשבון פרטי", !!me?.is_private, "כשהחשבון פרטי, מי שאינו חבר רואה רק את הפרופיל (שם, תמונה, מוסד), ולא את הפוסטים. כשהוא פתוח – כולם רואים את מה שפרסמת לפי מה שבחרת בכל פוסט.")}
         ${select("pvPosts", "ברירת מחדל לפוסט חדש", [["friends", "👥 כל החברים שלי"], ["course_friends", "🎓 החברים שלי מהקורס"], ["course", "🏫 כל מי שרשום לקורס"], ["public", "🌍 כולם"]], priv.posts || "friends")}
         <label class="row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="pvMail" ${api.profile()?.email_notify !== false ? "checked" : ""} style="width:auto;margin-top:5px"><span>📧 לשלוח לי מייל כשמישהו שולח לי הודעה <span class="small muted">(עד שתהיה אפליקציה עם התראות. לכל היותר מייל אחד בחצי שעה מאותו אדם)</span></span></label>
         <p class="small muted">יום ההולדת שלך מוצג רק לחברים. הודעה ממי שאינו חבר נכנסת ל"בקשות", והוא לא יודע שקראת עד שתאשר/י. הסיכומים שלך מוצגים רק לחברים ששיתפת איתם קורס ב"אותה כיתה", ורק אם גם הם שיתפו איתך.</p>
@@ -86,7 +89,6 @@ export function initSettings(ctx) {
       <section class="soft set" id="set-legal"><h2>📄 מידע ותמיכה</h2>
         <div class="list"><a class="item" href="#legal-terms"><span class="t">תנאי שימוש</span></a><a class="item" href="#legal-privacy"><span class="t">מדיניות פרטיות</span></a><a class="item" href="#legal-access"><span class="t">הצהרת נגישות</span></a>
         <a class="item" href="#legal-support"><span><span class="t">✉️ תמיכה ויצירת קשר</span><br><span class="small muted">מייל לתמיכה, משוב ובדיקת מכשיר</span></span></a><a class="item" href="#diag"><span><span class="t">🩺 בדיקת מכשיר</span><br><span class="small muted">דוח לשליחה כשמשהו לא עובד</span></span></a></div>
-        <p class="small muted">גרסת האפליקציה: <b>${version()}</b></p>
       </section>
     </div>`;
     bind();
@@ -163,6 +165,11 @@ export function initSettings(ctx) {
     // פרטיות
     $("#pvMail") && ($("#pvMail").onchange = async (e) => { try { await api.updateMe({ email_notify: e.target.checked }); toast(e.target.checked ? "יישלח לך מייל על הודעות חדשות" : "לא יישלחו מיילים על הודעות"); } catch (er) { toast(er.message); } });
     $("#pvPosts").onchange = (e) => saveP((p) => { (p.privacy ??= {}).posts = e.target.value; });
+    $("#pvPrivate") && ($("#pvPrivate").onchange = async (e) => {
+      const on = e.target.checked;
+      try { await api.updateMe({ is_private: on }); toast(on ? "🔒 החשבון פרטי עכשיו" : "🌍 החשבון פתוח עכשיו"); }
+      catch { e.target.checked = !on; toast("האפשרות הזו תיפתח ממש בקרוב"); }
+    });
     view.querySelectorAll("[data-unblock]").forEach((b) => (b.onclick = async () => { try { await api.unblock(b.dataset.unblock); page("privacy"); } catch (e) { toast(e.message); } }));
     // נגישות
     $("#uiSize").onchange = (e) => { saveP((p) => ((p.ui ??= {}).size = +e.target.value)); applyUI(); };

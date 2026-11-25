@@ -190,6 +190,15 @@ export function initPlanner(ctx) {
   }
 
   // ---------- תיבת הודעות ----------
+  // התראות של חברים (בקשות, לייקים, תגובות, שיתופים) – באייקון הפרופיל; הודעות – ב-💬. ב-🔔 נשארים המודל ו"פספסתי שיעור"
+  const FRIEND_KINDS = new Set(["friend_request", "friend_accepted", "course_share", "comment", "like"]);
+  // התראות שנשמרו במכשיר לפני 25.11.2026 – בלי kind: מזהים לפי האייקון והכותרת
+  const kindOf = (x) => x.kind || (!String(x.id || "").startsWith("sn-") ? "" : x.icon === "👋" ? "friend_request" : x.icon === "🤝" ? "friend_accepted" : x.icon === "🎓" ? "course_share" : x.icon === "❤️" ? "like" : x.icon === "🙋" ? "missed" : x.icon === "💬" ? (/^הודעה מ/.test(x.title || "") ? "message" : "comment") : "");
+  const notBell = (x) => FRIEND_KINDS.has(kindOf(x)) || kindOf(x) === "message";
+  const isBell = (x) => !notBell(x);
+  async function socialItems() { return ((await store.getItem("inbox"))?.items || []).filter((x) => FRIEND_KINDS.has(kindOf(x))); }
+  async function socialUnread() { return (await socialItems()).filter((x) => !x.read).length; }
+  async function markSocialRead() { const b = await inboxStore(); b.items.forEach((x) => { if (FRIEND_KINDS.has(kindOf(x))) x.read = true; }); await store.putItem(b); }
   async function inboxStore() { return (await store.getItem("inbox")) || { id: "inbox", type: "inbox", items: [], seenSummaries: null, seenMoodle: null }; }
   // מחשב הודעות חדשות ומוסיף לתיבה (כל הודעה פעם אחת)
   async function refresh() {
@@ -236,18 +245,18 @@ export function initPlanner(ctx) {
     return fresh;
   }
   function paintBadge(box) {
-    const n = box.items.filter((x) => !x.read).length;
+    const n = box.items.filter((x) => !x.read && !notBell(x)).length;
     document.querySelectorAll(".bell-n").forEach((el) => { el.textContent = n || ""; el.hidden = !n; });
   }
   async function inbox() {
     const box = await inboxStore();
     view.innerHTML = `<div class="page">
-      <div class="row" style="justify-content:space-between"><h1 style="font-size:30px">🔔 הודעות</h1>${box.items.some((x) => !x.read) ? '<button class="btn ghost small-btn" id="readAll">סימון הכול כנקרא</button>' : ""}</div>
-      <div class="list">${box.items.map((x) => `<a class="item msg ${x.read ? "" : "unread"}" data-id="${esc(x.id)}" href="${esc(x.link || "#inbox")}" ${x.ext ? 'target="_blank" rel="noopener"' : ""}><span class="micon">${x.icon}</span><span style="min-width:0;flex:1"><span class="t">${esc(x.title)}</span><br><span class="small muted">${x.body}</span></span><span class="small muted"><bdi>${new Date(x.at).toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })}</bdi></span></a>`).join("") || '<p class="muted">אין הודעות כרגע. כאן יופיעו תזכורות למבחנים ולהגשות, סיכומים חדשים, חדש במודל, וסיכום שבועי במוצאי שבת.</p>'}</div>
+      <div class="row" style="justify-content:space-between"><h1 style="font-size:30px">🔔 הודעות</h1>${box.items.some((x) => !x.read && !notBell(x)) ? '<button class="btn ghost small-btn" id="readAll">סימון הכול כנקרא</button>' : ""}</div>
+      <div class="list">${box.items.filter((x) => !notBell(x)).map((x) => `<a class="item msg ${x.read ? "" : "unread"}" data-id="${esc(x.id)}" href="${esc(x.link || "#inbox")}" ${x.ext ? 'target="_blank" rel="noopener"' : ""}><span class="micon">${x.icon}</span><span style="min-width:0;flex:1"><span class="t">${esc(x.title)}</span><br><span class="small muted">${x.body}</span></span><span class="small muted"><bdi>${new Date(x.at).toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })}</bdi></span></a>`).join("") || '<p class="muted">אין הודעות כרגע. כאן יופיעו תזכורות למבחנים ולהגשות, סיכומים חדשים, חדש במודל, וסיכום שבועי במוצאי שבת.</p>'}</div>
     </div>`;
     const mark = async (ids) => { const b = await inboxStore(); b.items.forEach((x) => ids.includes(x.id) && (x.read = true)); await store.putItem(b); paintBadge(b); };
     view.querySelectorAll(".msg").forEach((a) => a.addEventListener("click", () => mark([a.dataset.id])));
-    $("#readAll") && ($("#readAll").onclick = async () => { await mark(box.items.map((x) => x.id)); inbox(); });
+    $("#readAll") && ($("#readAll").onclick = async () => { await mark(box.items.filter((x) => !notBell(x)).map((x) => x.id)); inbox(); });
   }
 
   // ---------- סיכום שבועי (באפליקציה) ----------
@@ -288,5 +297,5 @@ export function initPlanner(ctx) {
     view.innerHTML = m ? `<div class="page"><a href="#inbox" class="small">→ הודעות</a><h1 style="font-size:28px">${m.icon || "☀️"} ${esc(m.title)}</h1><p class="small muted"><bdi>${esc(m.date || "")}</bdi></p><article class="card md-body">${miniMd(m.md || "")}</article></div>` : '<div class="page"><p>ההודעה לא נמצאה.</p><a href="#inbox">להודעות</a></div>';
   }
 
-  return { lessonExtras, message, calendar, materials, inbox, weekly, refresh, paintBadge, inboxStore, eventsBetween };
+  return { isBell, socialItems, socialUnread, markSocialRead, lessonExtras, message, calendar, materials, inbox, weekly, refresh, paintBadge, inboxStore, eventsBetween };
 }

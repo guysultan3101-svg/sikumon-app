@@ -117,6 +117,14 @@ async function withExtras(list) {
 }
 export async function findUser(username) { if (username.toLowerCase().replace(/^@/, "") === "smtptest") return null;   // חשבון הבדיקה לא נמצא בחיפוש חברים
   const p = ok(await sb.from("profiles").select(PCOLS).eq("username", username.toLowerCase()).maybeSingle()); return p ? (await withExtras([p]))[0] : null; }
+// חיפוש אנשים לפי שם או שם משתמש (ל"הודעה חדשה")
+export async function searchPeople(q) {
+  const t = String(q || "").replace(/[,()%*\\]/g, " ").trim().replace(/^@/, ""); if (t.length < 2) return [];
+  const rows = ok(await sb.from("profiles").select(PCOLS).or(`username.ilike.%${t}%,full_name.ilike.%${t}%`).neq("username", "smtptest").limit(20));
+  return rows.filter((p) => p.id !== user()?.id);
+}
+// חשבון פרטי? (אם העמודה עוד לא קיימת בשרת – כולם פתוחים)
+export async function isPrivate(id) { try { const { data, error } = await sb.from("profiles").select("is_private").eq("id", id).maybeSingle(); return !error && !!data?.is_private; } catch { return false; } }
 export async function profiles(ids) { if (!ids.length) return []; return withExtras(ok(await sb.from("profiles").select(PCOLS).in("id", ids))); }
 export async function friendships() { return ok(await sb.from("friendships").select("*")); }
 export async function requestFriend(id) { ok(await sb.from("friendships").insert({ requester: user().id, addressee: id })); }

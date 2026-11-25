@@ -172,7 +172,6 @@ async function home() {
   const nowSlot = currentSlot();
   const next = (await extras.upcoming()).slice(0, 3);
   const hasMarks = (await store.listRecordings()).some((r) => (r.marks || []).length);
-  const gaps = await practice.missing();
   const tq = await tools.openQuestions();
   const lastSum = items.filter((x) => x.type === "summary" && x.kind !== "formulas").sort((a, b) => b.date.localeCompare(a.date))[0];
   const quizCount = items.filter((x) => x.type === "quiz").length;
@@ -185,7 +184,7 @@ async function home() {
   view.innerHTML = `<div class="page home-page">
     <div>
       <p class="eyebrow">${new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}</p>
-      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}${(p.streak || 0) > 1 && p.streakDay >= new Date(Date.now() - 864e5).toLocaleDateString("en-CA") ? ` <span class="streak">🔥 ${p.streak}</span>` : ""}</h1><span class="row" style="gap:4px"><a href="#search" class="tool" aria-label="חיפוש בכל החומר">${svg("search")}</a><a href="#inbox" class="tool bell" aria-label="הודעות">${svg("bell")}<span class="bell-n" hidden></span></a><a href="#profile" class="tool" aria-label="הפרופיל והחברים">${svg("user")}</a></span></div>
+      <div class="row" style="justify-content:space-between;margin-top:8px"><h1 style="font-size:clamp(30px,5vw,44px)">היי${p.name ? " " + esc(p.name) : ""}${(p.streak || 0) > 1 && p.streakDay >= new Date(Date.now() - 864e5).toLocaleDateString("en-CA") ? ` <span class="streak">🔥 ${p.streak}</span>` : ""}</h1><span class="row" style="gap:4px"><a href="#search" class="tool" aria-label="חיפוש בכל החומר">${svg("search")}</a><a href="#inbox" class="tool bell" aria-label="הודעות">${svg("bell")}<span class="bell-n" hidden></span></a><a href="#profile" class="tool bell" aria-label="הפרופיל והחברים">${svg("user")}<span class="prof-n bell-x" hidden></span></a></span></div>
     </div>
     <div class="quad">
       <a class="card" href="#summaries"><b class="card-t">📄 סיכומים חדשים</b><p class="small muted">${newSums.length ? `${newSums.length} מהשבוע האחרון · ${esc(newSums[0].course)}` : "עוד אין סיכומים חדשים השבוע"}</p><span class="small go">לסיכומים ←</span></a>
@@ -199,22 +198,12 @@ async function home() {
       <span class="rec-btn" style="width:84px;height:84px;box-shadow:3px 3px 0 var(--ink);flex:none">${svg("mic")}</span>
     </a>
     ${false && news && news.length ? `<section class="soft"><div class="row" style="justify-content:space-between"><h3>חדש במודל <span class="chip new">${news.length}</span></h3><a class="small" href="#notebooks">לפי קורסים</a></div><div class="list" style="margin-top:10px">${news.slice(0, 5).map((it) => study.moodleItem(it, true)).join("")}</div></section>` : ""}
-    ${next.length ? `<section class="soft"><div class="row" style="justify-content:space-between"><h3>⏳ הבא בתור</h3><a class="small" href="#deadlines">לוח מבחנים</a></div><div class="list" style="margin-top:10px">${next.map((x) => `<a class="item" href="#deadlines"><span style="min-width:0"><span class="t">${x.kind === "exam" ? "📝" : "📌"} ${esc(x.title)}</span><br><span class="small muted">${esc(x.course)}</span></span>${extras.chip(x)}</a>`).join("")}</div></section>` : ""}
-    <section class="soft"><div class="row" style="justify-content:space-between"><h3>📰 מהחברים</h3><a class="small" href="#social">לכל הפיד</a></div><div class="feed" id="homeFeed" style="margin-top:10px"><p class="small muted">טוען…</p></div></section>
+    ${next.length ? `<section class="soft"><div class="row" style="justify-content:space-between"><h3>📌 הגשת עבודות</h3><a class="small" href="#deadlines">לוח מבחנים</a></div><div class="list" style="margin-top:10px">${next.map((x) => `<a class="item" href="#deadlines"><span style="min-width:0"><span class="t">${x.kind === "exam" ? "📝" : "📌"} ${esc(x.title)}</span><br><span class="small muted">${esc(x.course)}</span></span>${extras.chip(x)}</a>`).join("")}</div></section>` : ""}
+    <section class="soft" id="homeFeedSec" hidden><div class="row" style="justify-content:space-between"><h3>📰 מהחברים</h3><a class="small" href="#social">לכל הפיד</a></div><div class="feed" id="homeFeed" style="margin-top:10px"><p class="small muted">טוען…</p></div></section>
     ${tq.length ? `<a class="item" href="#questions"><span style="min-width:0"><span class="t">🙋 ${tq.length} שאלות למתרגל</span><br><span class="small muted">${esc(tq[0].course)}: ${esc(tq[0].text)}</span></span></a>` : ""}
-    ${gaps.length ? `<a class="item" href="#missing"><span style="min-width:0"><span class="t">📋 להשלים: ${gaps.length} דברים</span><br><span class="small muted">${esc(gaps[0].text)}</span></span></a>` : ""}
     ${hasMarks ? `<a class="item" href="#reels"><span><span class="t">🎬 הרגעים החשובים מהשיעורים</span><br><span class="small muted">קטע של דקה סביב כל ⭐ שסימנת</span></span></a>` : ""}
     ${study.getCode() ? "" : `<div class="grid2"><a class="card" href="#upload"><b class="card-t">📄 סיכום ממצגת</b><p class="small muted">מעלים מצגת או PDF של שיעור ומקבלים סיכום אישי + מבחן</p></a><a class="card" href="#connect"><b class="card-t">🔗 חיבור למודל</b><p class="small muted">תוסף לכרום במחשב – כל קובץ חדש במודל מסוכם לבד</p></a></div>`}
     ${installHint()}
-    <section class="soft">
-      <h3>מה בודקים בגרסה הזו?</h3>
-      <ol class="steps">
-        <li><a href="#record">מקליטים שיעור אמיתי</a> מההתחלה ועד הסוף, ובודקים שההקלטה נשמרה.</li>
-        <li>כותבים סיכום בעצמכם ב<a href="#notebooks">מחברות</a>: בעט (Apple Pencil), באצבע או בהקלדה. לכל קורס יש תיקייה, ולכל שיעור דף משלו.</li>
-        <li>עוברים על <a href="#summaries">הסיכומים</a> ועושים <a href="#quizzes">מבחן</a>. אפשר גם לכתוב מבחן בעצמכם.</li>
-        <li><a href="#feedback">שולחים משוב</a>: דקה אחת, וזה עוזר לנו יותר מכל דבר אחר.</li>
-      </ol>
-    </section>
     <div class="grid2">
       <section class="soft"><h3>הסיכום האחרון</h3>
         ${lastSum ? `<a class="item" href="#sum-${esc(lastSum.id)}" style="margin-top:12px"><span style="min-width:0"><span class="t">${esc(lastSum.course)}</span><br><span class="small muted">${esc(lastSum.title).replace(/(?<![\d.\/]|\d\s*[–-]\s*)(\d+)\s*([–-])\s*(\d+)(?![\d.\/]|\s*[–-]\s*\d)/g, '<bdi dir="ltr">$1$2$3</bdi>')}</span></span></a>` : `<a class="item" href="#upload" style="margin-top:12px"><span><span class="t">📄 הסיכום הראשון שלך</span><br><span class="small muted">מעלים מצגת או PDF של שיעור</span></span></a>`}
@@ -1491,8 +1480,8 @@ function timetable() {
     <input type="text" class="tt-lect" maxlength="60" placeholder="שם המרצה" value="${esc(x.lecturer || "")}" aria-label="שם המרצה">
     <button class="link tt-del" aria-label="מחיקת השיעור מהמערכת">${svg("trash")}</button></div>`;
   view.innerHTML = `<div class="page">
-    <a href="#profile" class="small">→ פרופיל</a>
-    <h1 style="font-size:30px">מערכת השעות שלי</h1>
+    <a href="#calendar" class="small">→ יומן</a>
+    <h1 style="font-size:30px">עריכת שעות מערכת</h1>
     <p class="small muted">באוניברסיטת אריאל (עם חדר ומרצה) ובבן-גוריון (עם חדר) המערכת מתמלאת לבד מהתוסף. בשאר המוסדות אפשר להוסיף כאן שיעורים ידנית, כולל חדר ומרצה.</p>
     <p class="muted">לפי המערכת, כשלוחצים "הקלט" האפליקציה יודעת לבד איזה שיעור עכשיו, וההקלטה נכנסת ישר למחברת של אותו קורס.</p>
     <div class="list" id="ttList">${rows.map(row).join("") || '<p class="muted">עוד אין שיעורים במערכת.</p>'}</div>
@@ -1521,25 +1510,36 @@ function timetable() {
   };
 }
 
-async function profile(tab = "posts") {
-  const st = support();
-  const head = await social.myProfile(tab);
-  view.innerHTML = `<div class="page" style="max-width:760px">
-    ${head}
-    <section class="list">
-      <a class="item" href="#social-friends"><span><span class="t">👥 החברים שלי</span><br><span class="small muted">בקשות חברות, אנשים שאולי תכירו</span></span><span class="soc-n chip new" hidden></span></a>
-      <a class="item" href="#social"><span><span class="t">📰 הפיד של החברים</span><br><span class="small muted">פוסטים, סיכומים ששיתפו, ימי הולדת</span></span></a>
-      <a class="item" href="#timetable"><span><span class="t">🕘 מערכת השעות</span></span></a>
-      <a class="item" href="#rights"><span><span class="t">⚖️ הזכויות שלי</span><br><span class="small muted">מילואים, הריון ולידה, מפונים ועוד – לפי המוסד שלך</span></span></a>
-      <a class="item" href="#scholarships"><span><span class="t">🎓 מלגות</span><br><span class="small muted">מלגות שמתאימות לך, עם ציון התאמה ומתי מגישים</span></span></a>
-      <a class="item" href="#feedback"><span><span class="t">✉️ משוב על הגרסה</span></span></a>
+async function profile() {
+  const { hero, bio } = await social.myProfile();
+  const ownAI = ai.provider() && ai.provider() !== "sikumon";
+  view.innerHTML = `<div class="page hero-page" style="max-width:760px">
+    ${hero}<div class="phero-sheet">${bio}
+    <div class="quad">
+      <a class="card" href="#social-friends"><b class="card-t">👥 חברים <span class="prof-n chip new" hidden></span></b><p class="small muted">בקשות חברות, הוספת חברים ואנשים שאולי תכירו</p><span class="small go">לחברים ←</span></a>
+      <a class="card" href="#scholarships"><b class="card-t">🎓 מלגות</b><p class="small muted">מלגות שמתאימות לך, עם ציון התאמה ומתי מגישים</p><span class="small go">למלגות ←</span></a>
+      <a class="card" href="#rights"><b class="card-t">⚖️ הזכויות שלי</b><p class="small muted">מילואים, הריון ולידה, מפונים ועוד – לפי המוסד שלך</p><span class="small go">לזכויות ←</span></a>
+      <a class="card" href="#settings-ai"><b class="card-t">🤖 ${ownAI ? "ה-AI שלך מחובר" : "חברו את ה-AI שלכם"}</b><p class="small muted">${ownAI ? `✓ ${esc(ai.PROVIDERS[ai.provider()]?.name || "")} – בלי הגבלה` : "רוצים בלי הגבלה? חברו את ה-AI שלכם (גם בחינם)"}</p><span class="small go">${ownAI ? "להגדרות ←" : "לחבר ←"}</span></a>
+    </div>
+    <section class="my-content" aria-label="התוכן שלי"><h2 style="font-size:20px;margin:0 0 8px">התוכן שלי</h2>
+      <nav class="snav" aria-label="התוכן שלי">${[["posts", "📝 שפרסמתי"], ["liked", "❤️ אהבתי"], ["saved", "🔖 שמורים"]].map(([k, l], i) => `<a href="#profile" data-ct="${k}" ${i ? "" : 'aria-current="page"'}>${l}</a>`).join("")}</nav>
+      <p class="small muted" id="ctNote" hidden>🔒 רק את/ה רואה את הרשימה הזו</p>
+      <div class="feed" id="meFeed"><p class="muted small">טוען…</p></div>
     </section>
-    ${!st.standalone ? '<p class="notice"><b>להתקנה באייפד/אייפון:</b> ב-Safari לוחצים על כפתור השיתוף ובוחרים "הוסף למסך הבית".</p>' : ""}
     <div class="row" style="margin-top:8px"><button class="btn danger" id="profLogout" type="button">↪ יציאה מהחשבון</button></div>
-    <p class="small muted">גרסת האפליקציה: <b>${APP_VERSION}</b></p>
-  </div>`;
+  </div></div>`;
   $("#profLogout").onclick = settings.logout;
-  social.bindMyProfile(tab);
+  await social.bindMyProfile();
+  // התוכן שלי – לשוניות בתוך הפרופיל (בלי לעבור דף)
+  const ct = (k) => { view.querySelectorAll("[data-ct]").forEach((a) => (a.dataset.ct === k ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"))); $("#ctNote").hidden = k === "posts"; social.bindMyContent(k); };
+  view.querySelectorAll("[data-ct]").forEach((a) => (a.onclick = (e) => { e.preventDefault(); ct(a.dataset.ct); }));
+  ct("posts");
+}
+// מה שפרסמתי / אהבתי / שמורים – נכנסים אליהם מההגדרות
+async function myContent(tab) {
+  const T = { posts: "📝 מה שפרסמתי", liked: "❤️ מה שאהבתי", saved: "🔖 שמורים" };
+  view.innerHTML = `<div class="page" style="max-width:760px"><h1 style="font-size:28px">${T[tab]}</h1>${tab !== "posts" ? '<p class="small muted">🔒 רק את/ה רואה את הרשימה הזו</p>' : ""}<div class="feed" id="meFeed"><p class="muted small">טוען…</p></div></div>`;
+  await social.bindMyContent(tab);
 }
 
 // ---------- ניתוב ----------
@@ -1582,9 +1582,10 @@ async function routeInner() {
   if (!prefs.get()) return onboarding(0);
   if (!hash.startsWith("lesson-")) closeLesson();
   if (hash === "social-missed") hash = "missed-lesson";
-  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") || hash === "groups" || hash.startsWith("g-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "feedback" || hash === "diag" || hash === "timetable" || hash === "rights" || hash === "scholarships" ? "profile" : hash.startsWith("assign-") ? "assignments" : hash.startsWith("materials-") ? "calendar" : hash === "admin" ? "profile" : hash;
+  if (hash !== prevHashCur) { prevHash = prevHashCur; prevHashCur = hash; }
+  const tab = hash === "missed-lesson" || hash === "upload" ? "summaries" : hash === "connect" ? "home" : hash.startsWith("share-") ? "social" : hash.startsWith("messages") || hash.startsWith("dm-") || hash === "groups" || hash.startsWith("g-") ? "messages" : hash.startsWith("settings") || hash.startsWith("legal-") || hash.startsWith("profile") || hash === "social-friends" ? "profile" : hash.startsWith("social") || hash.startsWith("u-") ? "social" : hash.startsWith("calendar") ? "calendar" : hash === "inbox" || hash === "weekly" || hash.startsWith("msg-") ? "home" : hash.startsWith("sum") || hash === "summary" || hash === "deadlines" || hash === "exam-focus" ? "summaries" : hash.startsWith("reels") ? "notebooks" : hash === "podcasts" ? "summaries" : hash.startsWith("cards") || hash === "progress" || hash === "sim" ? "quizzes" : hash.startsWith("search") || hash === "questions" ? "home" : hash === "missing" ? "home" : hash.startsWith("sum") || hash === "summary" ? "summaries" : hash.startsWith("quiz") ? "quizzes" : hash.startsWith("rec-") || hash.startsWith("tr-") || hash.startsWith("mf-") || hash.startsWith("course-") || hash.startsWith("lesson-") || hash === "recordings" ? "notebooks" : hash === "summary" || hash === "quiz" ? "summaries" : hash === "timetable" ? "calendar" : hash === "feedback" || hash === "diag" || hash === "rights" || hash === "scholarships" ? "profile" : hash.startsWith("assign-") ? "assignments" : hash.startsWith("materials-") ? "calendar" : hash === "admin" ? "profile" : hash;
   curTab = tab;
-  renderTabs(MERGED[tab] || tab);
+  renderTabs(tab === "profile" ? "" : MERGED[tab] || tab);
   if (hash === "home") { await home(); planner.inboxStore().then(planner.paintBadge); }
   else if (hash === "record") record();
   else if (hash === "recordings") await recordings();
@@ -1641,7 +1642,7 @@ async function routeInner() {
   else if (hash === "quiz") await study.quizById("demo");
   else if (hash.startsWith("quiz-")) await study.quizById(hash.slice(5));
   else if (hash === "social") await social.feed();
-  else if (hash === "social-friends") await social.friends();
+  else if (hash === "social-friends") await social.friendsPage();
   else if (hash === "missed-lesson") await social.missed();
   else if (hash === "upload") uploadPage();
   else if (hash === "connect") connectPage();
@@ -1655,7 +1656,7 @@ async function routeInner() {
   else if (hash === "settings") await settings.page();
   else if (hash.startsWith("settings-")) await settings.page(hash.slice(9));
   else if (hash.startsWith("legal-")) settings.legal(hash.slice(6));
-  else if (hash === "profile-liked" || hash === "profile-saved") await profile(hash.slice(8));
+  else if (hash === "profile-posts" || hash === "profile-liked" || hash === "profile-saved") await myContent(hash.slice(8));
   else if (hash.startsWith("u-")) await social.profile(hash.slice(2));
   else if (hash === "profile") await profile();
   else if (hash === "rights") rights.page();
@@ -1691,11 +1692,12 @@ async function routeInner() {
   }
   if (hash.startsWith("calendar")) {
     const bb = view.querySelector(".page > .back-btn");
-    if (bb) { bb.insertAdjacentHTML("beforebegin", '<div class="row page-top"></div>'); const row = bb.previousElementSibling; row.append(bb); row.insertAdjacentHTML("beforeend", '<a class="pill-link" href="#notebooks">📓 מחברת</a>'); }
+    if (bb) { bb.insertAdjacentHTML("beforebegin", '<div class="row page-top"></div>'); const row = bb.previousElementSibling; row.append(bb); row.insertAdjacentHTML("beforeend", '<a class="pill-link" href="#notebooks">📓 מחברת</a><a class="pill-link" href="#timetable">✏️ עריכת שעות מערכת</a>'); }
   }
-  if (hash === "home" && $("#homeFeed")) social.latestPosts($("#homeFeed"), 3).catch(() => { $("#homeFeed").innerHTML = '<p class="small muted">אין חיבור לפיד כרגע.</p>'; });
+  if (hash === "home" && $("#homeFeed")) social.latestPosts($("#homeFeed"), 3).then((n) => { const s = $("#homeFeedSec"); if (s) s.hidden = !n; }).catch(() => {});
   view.focus({ preventScroll: true });
   window.scrollTo(0, 0);
+  if (renderFriendsAnchor) { renderFriendsAnchor = false; document.getElementById("profFriends")?.scrollIntoView(); }
 }
 const studyCtx = { view, $, esc, svg, toast, prefs, store, demoQuiz, lessonLabel };
 const study = initStudy(studyCtx);
@@ -1707,7 +1709,7 @@ studyCtx.syncSummaries = () => social.syncSummaries();
 studyCtx.htmlToMd = (h) => social.summaryHtmlToMd(h);
 const extras = initExtras({ view, $, esc, svg, toast, prefs, store, segmentsOf, fmtTime });
 const tools = initTools({ view, $, esc, svg, toast, prefs, store, lessonTitle, onQuizDone: () => practice.bumpStreak() });
-const social = initSocial({ view, $, esc, toast, prefs, store, api });
+const social = initSocial({ view, $, esc, toast, prefs, store, api, socialItems: () => planner.socialItems(), markSocialRead: () => planner.markSocialRead() });
 const assignments = initAssignments({ view, $, esc, toast, store, api, onChange: () => paintCounts() });
 const rights = initRights({ view, $, esc, prefs, api });
 const scholarships = initScholarships({ view, $, esc, toast, prefs, api });
@@ -1722,6 +1724,7 @@ async function paintCounts() {
   try {
     const c = await social.counts();
     put(".soc-n", c.requests); put(".dm-n", c.unread);
+    put(".prof-n", await planner.socialUnread());
   } catch { /* בלי אינטרנט */ }
 }
 // סנכרון מהשרת: התראות (🔔) וסיכומים (שלי + של חברים מאותה כיתה)
@@ -1772,7 +1775,9 @@ async function serverSync(force = false) {
   try {
     const fresh = await social.syncNotifications();
     planner.inboxStore().then(planner.paintBadge);
-    if (fresh.length && location.hash !== "#inbox") toast(`🔔 ${fresh[0].title}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ""}`);
+    if (location.hash === "#social-friends") social.paintProfNotes().catch(() => {});   // ההתראות הגיעו אחרי שהדף כבר הוצג
+    const bellFresh = fresh.filter((x) => planner.isBell(x));   // הודעות – ב-💬, התראות חברים – בפרופיל: לא קופצות עם 🔔
+    if (bellFresh.length && location.hash !== "#inbox") toast(`🔔 ${bellFresh[0].title}${bellFresh.length > 1 ? ` (+${bellFresh.length - 1})` : ""}`);
     const sched = await applyUniSchedule(), dls = await applyServerDeadlines();
     await applyReferral();
     extUpdateCheck();
@@ -2071,6 +2076,15 @@ function connectPage() {
   view.innerHTML = `<div class="page" style="max-width:680px">
     <h1 style="font-size:30px">🔗 חיבור למודל</h1>
     <p class="muted">עושים את זה <b>פעם אחת, במחשב</b> (כ-3 דקות). אחר כך הסיכומים, המטלות ומערכת השעות מגיעים לבד – גם לאייפד.</p>
+    <section class="card ios-install">
+      <h2>📲 באייפון ובאייפד: מתקינים את Clearly כמו אפליקציה</h2>
+      <ol class="steps big-steps">
+        <li>פותחים את <b dir="ltr">clearlyapp.io</b> ב-<b>Safari</b>.</li>
+        <li>לוחצים על <b>כפתור השיתוף</b> <span aria-hidden="true">(ריבוע עם חץ למעלה ⬆️)</span>.</li>
+        <li>גוללים ובוחרים <b>"הוסף למסך הבית"</b>, ואז <b>"הוסף"</b>.</li>
+      </ol>
+      <p class="small muted">מעכשיו Clearly נפתחת מהמסך הראשי, במסך מלא, בדיוק כמו אפליקציה.</p>
+    </section>
     <p><a class="btn" href="guide/" target="_blank" rel="noopener">🎬 סרטון הדרכה קצר (דקה וחצי)</a></p>
     <section class="card" style="display:grid;gap:12px">
       <ol class="steps big-steps">
@@ -2097,11 +2111,13 @@ settings.applyUI();
   p.courses = p.courses.filter((c) => c !== "קורס כללי"); prefs.set(p);
 })().catch(() => {});
 // חזרה דף אחד אחורה: אם נכנסו ישר לדף (בלי היסטוריה באפליקציה) – לבית
-let navDepth = 0, goingBack = false, curTab = "home";
+let navDepth = 0, goingBack = false, curTab = "home", renderFriendsAnchor = false, prevHash = "", prevHashCur = "";
 window.addEventListener("hashchange", () => { if (goingBack) { navDepth = Math.max(0, navDepth - 1); goingBack = false; } else navDepth++; });
 // "חזרה": מתוך דף פנימי – לדף הראשי של אותה לשונית (למשל מסיכום -> לכל הסיכומים). מדף ראשי של לשונית – לבית.
 function goBack() {
   const h = (location.hash.slice(1) || "home").split("?")[0];
+  if (/^profile-(posts|liked|saved)$/.test(h)) { location.hash = "#settings-account"; return; }
+  if (h === "social-friends") { location.hash = prevHash === "profile" ? "#profile" : "#home"; return; }
   location.hash = h === curTab ? "#" + (MERGED[curTab] || "home") : curTab === "home" || !curTab ? "#home" : "#" + curTab;
 }
 const planner = initPlanner({ view, $, esc, toast, prefs, store, extras, study, lessonForToday });
@@ -2154,7 +2170,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "96";
+const APP_VERSION = "97";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
@@ -2167,4 +2183,4 @@ if ("serviceWorker" in navigator && location.protocol === "https:") {
     reloading = true; location.reload();
   });
 }
-document.querySelector(".beta") && (document.querySelector(".beta").textContent = "גרסת בדיקה · " + APP_VERSION);
+// בלי מספר גרסה בממשק (גיא, 25.11.2026) – המספר רק בקוד, כדי שהאפליקציה תתעדכן ברענון
