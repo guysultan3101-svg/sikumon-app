@@ -912,7 +912,30 @@ body:has(.pod-bar) .dm-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 .padj-zoom { width: min(330px, 100%); display: grid; gap: 8px; font-weight: 700; }
 .padj-zoom span { display: flex; justify-content: space-between; }
 .padj-zoom input { width: 100%; accent-color: #fff; }
-.pstats .chip, .prof-bio .chip { font-family: var(--font-body); letter-spacing: 0; text-transform: none; font-size: 13px; font-weight: 700; }
+/* כפתור "איך רואים אותי" למעלה על התמונה */
+.phero-pill { height: 40px; box-sizing: border-box; padding: 0 14px; display: flex; align-items: center; gap: 6px; border-radius: 999px; background: rgba(15,23,42,.78); color: #fff; font: 700 14px var(--font-body);   /* כהה: טקסט קריא גם על תמונה בהירה */ text-decoration: none; white-space: nowrap; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.phero-pill svg { width: 18px; height: 18px; }
+.phero-pill:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+/* התיאור מימין, אייקוני הרשתות (קטנים, כמו באינסטגרם) משמאל */
+.pbio-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.pbio-row .prof-bio { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.plinks { display: flex; gap: 6px; flex: none; direction: ltr; margin-left: 10px; }   /* קצת פנימה – לא צמוד לפינה המעוגלת */
+.plink { width: 30px; height: 30px; box-sizing: border-box; border-radius: 8px; display: grid; place-items: center; overflow: hidden; text-decoration: none; color: #fff; font: 900 15px Arial, sans-serif; }
+.plink.ig { background: linear-gradient(45deg, #F58529, #DD2A7B 50%, #8134AF); }
+.plink.li { background: #0A66C2; }
+.plink.sol img { width: 30px; height: 30px; display: block; }
+.plink svg { width: 20px; height: 20px; }
+a.plink:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+/* תצוגה "איך רואים אותי": פס כהה למעלה עם "חזרה"; הכפתורים לא לחיצים */
+.viewas-bar { position: absolute; z-index: 3; top: 16px; inset-inline: 16px; min-height: 48px; box-sizing: border-box; padding: 6px 6px 6px 14px; padding-inline-start: 14px; border-radius: 999px; background: #0F172A; color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.3); font: 700 14px var(--font-body); }
+.viewas-bar > span { display: flex; align-items: center; gap: 8px; }
+.viewas-bar svg { width: 18px; height: 18px; flex: none; }
+.viewas-back { height: 36px; box-sizing: border-box; padding: 0 16px; border-radius: 999px; background: #fff; color: #0F172A; display: flex; align-items: center; text-decoration: none; font-weight: 700; flex: none; }
+.viewas-back:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.viewas .phero-btn[aria-disabled] { cursor: default; opacity: .8; }
+.viewas [data-del] { display: none; }   /* מחיקה רואה רק את/ה */
+@media (max-width: 820px) { .viewas-bar { top: -12px; inset-inline: -4px; } }
+.pstats .chip, .pchips .chip, .prof-bio .chip { font-family: var(--font-body); letter-spacing: 0; text-transform: none; font-size: 13px; font-weight: 700; }
 /* התמונה: בטלפון ממלאת את הכותרת; במחשב/אייפד (רחב יותר מהתמונה) – כל התמונה במרכז, על רקע מטושטש שלה */
 .phero-blur { display: none; }
 @media (min-width: 600px) {
@@ -922,3 +945,6 @@ body:has(.pod-bar) .dm-fab { bottom: calc(var(--tabbar-h) + 90px + env(safe-area
 /* "רק החברים": שורה אחת, כפתורים קומפקטיים בטלפון צר */
 #friendsOnly .item > a:not(.btn) { min-width: 0 !important; overflow-wrap: anywhere; }
 @media (max-width: 480px) { #friendsOnly .item > .btn { min-width: 0; min-height: 40px; padding: 4px 8px; } }
+/* קוד מהמייל לאיפוס סיסמה */
+.code-box { display: grid; gap: 10px; padding: 12px; border: 1.5px dashed var(--line); border-radius: 14px; }
+.code-box input { font: 700 22px var(--font-mono); letter-spacing: 4px; text-align: center; }

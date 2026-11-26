@@ -34,6 +34,7 @@ function heb(e) {
   const m = e?.message || String(e);
   if (/Invalid login credentials/i.test(m)) return "המייל או הסיסמה לא נכונים";
   if (/only request this after|rate limit|too many/i.test(m)) return "כבר שלחנו מייל. אפשר לבקש שוב בעוד דקה";
+  if (/token has expired|otp.*(expired|invalid)|invalid.*(token|otp)/i.test(m)) return "הקוד לא נכון או שכבר לא בתוקף. השתמשו בקוד מהמייל האחרון";
   if (/already registered|already exists/i.test(m)) return "כבר יש חשבון עם המייל הזה. נסו להתחבר";
   if (/profiles_username_key|duplicate key.*username/i.test(m)) return "שם המשתמש תפוס. בחרו שם אחר";
   if (/profiles_uni_email_key/i.test(m)) return "המייל של המוסד כבר רשום בחשבון אחר";
@@ -99,6 +100,13 @@ export async function signOut() {
   try { localStorage.removeItem("clearly-rights"); } catch { /* תשובות השאלון של "הזכויות שלי" (מידע רגיש) לא נשארות במכשיר */ }
 }
 export async function resetPassword(email) { ok(await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })); }
+// איפוס סיסמה בעזרת הקוד מהמייל (כשהקישור לא נפתח – למשל בטלפון, או כש-Gmail הסתיר את המייל החדש)
+export async function verifyRecoveryCode(email, code) {
+  const r = await sb.auth.verifyOtp({ email: String(email).trim(), token: String(code).replace(/\D/g, ""), type: "recovery" });
+  if (r.error) throw new Error(heb(r.error));
+  session = r.data.session; recovering = true;
+  return loadMe();
+}
 export async function changePassword(password, confirm) { await checkPassword(password, confirm); ok(await sb.auth.updateUser({ password })); recovering = false; }
 export async function updateMe(fields) { ok(await sb.from("profiles").update(fields).eq("id", user().id)); return loadMe(); }
 export async function deleteAccount() {
@@ -119,7 +127,7 @@ async function withExtras(list) {
   if (!list.length) return list;
   const { data } = await sb.rpc("profile_extras", { p_ids: list.map((p) => p.id) });
   const ex = new Map((data || []).map((x) => [x.id, x]));
-  return list.map((p) => ({ bio: "", ig: "", li: "", courses: [], ...p, ...(ex.get(p.id) || {}) }));
+  return list.map((p) => ({ bio: "", ig: "", li: "", solution: "", courses: [], ...p, ...(ex.get(p.id) || {}) }));
 }
 export async function findUser(username) { if (username.toLowerCase().replace(/^@/, "") === "smtptest") return null;   // חשבון הבדיקה לא נמצא בחיפוש חברים
   const p = ok(await sb.from("profiles").select(PCOLS).eq("username", username.toLowerCase()).maybeSingle()); return p ? (await withExtras([p]))[0] : null; }

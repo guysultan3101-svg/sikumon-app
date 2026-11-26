@@ -25,7 +25,7 @@ export function initSocial(ctx) {
   const avatar = (id, big = false) => { const u = people.get(id)?.avatar_url; return u && AV_OK.test(u) ? `<img class="av av-img${big ? " big" : ""}" src="${esc(u)}" alt="" loading="lazy">` : `<span class="av${big ? " big" : ""}" style="background:${color(id)}" aria-hidden="true">${esc((people.get(id)?.full_name || "?")[0])}</span>`; };
   const when = (t) => new Date(t).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
   const myCourses = () => prefs.get()?.courses || api.profile()?.courses || [];
-  const safeLink = (url, host) => { try { const u = new URL(url); return u.protocol === "https:" && (u.hostname === host || u.hostname.endsWith("." + host)) ? u.href : ""; } catch { return ""; } };
+  const safeLink = (url, host) => { try { const u = new URL(url); return u.protocol === "https:" && !u.username && !u.password && (u.hostname === host || u.hostname.endsWith("." + host)) ? u.href : ""; } catch { return ""; } };
   const subnav = (cur) => `<nav class="snav" aria-label="חברים">${[["social", "📰 פיד"], ["social-friends", "👥 חברים"], ["messages", "💬 הודעות"]].map(([h, l]) => `<a href="#${h}" ${cur === h ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</nav>`;
   const busy = (msg = "טוען…") => { view.innerHTML = `<div class="page"><p class="muted">${msg}</p></div>`; };
   const fail = (e) => { view.innerHTML = `<div class="page"><p class="notice alert">${esc(e.message || e)}</p><button class="btn" onclick="location.reload()">לנסות שוב</button></div>`; };
@@ -70,7 +70,13 @@ export function initSocial(ctx) {
         ${isUp ? `<label>יום הולדת (לא חובה – חברים יקבלו תזכורת)<input id="sgBday" type="date"></label>
         <label class="row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="sgTerms" style="width:auto;margin-top:6px"><span class="small">זו <b>גרסת בדיקה</b>. אני מסכים/ה ל<a href="#legal-terms" target="_blank">תנאי השימוש</a> ול<a href="#legal-privacy" target="_blank">מדיניות הפרטיות</a>: הפרופיל, החברים, ההודעות והסיכומים נשמרים בשרת מאובטח באירופה. משתפים רק סיכומים שלי, לא קבצים של מרצים.</span></label>` : ""}
         <button class="btn" type="submit" id="sgGo">${isUp ? "יצירת חשבון" : "כניסה"}</button>
-        ${isUp ? "" : '<button class="btn ghost" type="button" id="sgReset">שכחתי סיסמה</button>'}
+        ${isUp ? "" : `<button class="btn ghost" type="button" id="sgReset">שכחתי סיסמה</button>
+        <a href="#" class="small" id="sgHaveCode">יש לי קוד מהמייל</a>
+        <div id="sgCodeBox" class="code-box" hidden>
+          <label>הקוד מהמייל<input id="sgCode" inputmode="numeric" autocomplete="one-time-code" dir="ltr" maxlength="12" placeholder="123456"></label>
+          <button class="btn" type="button" id="sgCodeGo">אישור הקוד</button>
+          <p class="small muted" style="margin:0">הקוד נמצא במייל האחרון ששלחנו, מעל הכפתור. הוא עובד פעם אחת.</p>
+        </div>`}
       </form>
       <p style="text-align:center"><a href="#" id="sgSwitch">${isUp ? "כבר יש לי חשבון – כניסה" : "אין לי חשבון – הרשמה"}</a></p></div>`;
     $("#sgSwitch").onclick = (e) => { e.preventDefault(); signup(isUp ? "login" : "signup"); };
@@ -88,11 +94,29 @@ export function initSocial(ctx) {
         if (bt.disabled) return; bt.disabled = true;
         try {
           await api.resetPassword(m);
-          toast("שלחנו קישור לאיפוס למייל. פתחו את המייל האחרון – כל קישור עובד פעם אחת");
+          toast("שלחנו מייל לאיפוס. פתחו את המייל האחרון – או הקלידו כאן את הקוד שבו");
+          $("#sgCodeBox").hidden = false; $("#sgCode").focus();
           let left = 60; bt.textContent = `נשלח ✓ (שוב בעוד ${left})`;
           const t = setInterval(() => { left--; if (!document.body.contains(bt)) return clearInterval(t); if (left <= 0) { clearInterval(t); bt.disabled = false; bt.textContent = "שכחתי סיסמה"; } else bt.textContent = `נשלח ✓ (שוב בעוד ${left})`; }, 1000);
         } catch (e) { bt.disabled = false; toast(e.message); }
       };
+    }
+    if (!isUp) {
+      $("#sgHaveCode").onclick = (e) => { e.preventDefault(); $("#sgCodeBox").hidden = false; $("#sgCode").focus(); };
+      // הקוד מהמייל → נכנסים, ומיד בוחרים סיסמה חדשה
+      $("#sgCodeGo").onclick = async () => {
+        const m = $("#sgMail").value.trim(), c = $("#sgCode").value.replace(/\D/g, "");
+        if (!m) return toast("כתבו קודם את המייל");
+        if (c.length < 6) return toast("הקלידו את הקוד מהמייל");
+        const bt = $("#sgCodeGo"); bt.disabled = true;
+        try {
+          await api.verifyRecoveryCode(m, c);
+          restorePrefs();
+          if (location.hash === "#home") dispatchEvent(new HashChangeEvent("hashchange")); else location.hash = "#home";
+          setTimeout(() => newPasswordModal(), 900);
+        } catch (err) { toast(err.message); bt.disabled = false; }
+      };
+      $("#sgCode").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); $("#sgCodeGo").click(); } };
     }
     $("#sgForm").onsubmit = async (e) => {
       e.preventDefault();
@@ -709,8 +733,25 @@ export function initSocial(ctx) {
     check: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>',
     dots: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
     pin: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0114 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+    eye: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     lock: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>',
   };
+  // אייקונים קטנים של רשתות (רק מה שמולא). בתצוגה "איך רואים אותי" – לא לחיצים
+  const ICO_IG = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#fff" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="5"/><circle cx="12" cy="12" r="3.6"/><circle cx="17" cy="7" r="1" fill="#fff" stroke="none"/></svg>';
+  function linksHtml(p, { preview = false } = {}) {
+    const name = esc((p.full_name || "").split(" ")[0]);
+    const L = [
+      [safeLink(p.ig, "instagram.com"), "ig", ICO_IG, `האינסטגרם של ${name}`],
+      [safeLink(p.li, "linkedin.com"), "li", "in", `הלינקדאין של ${name}`],
+      [safeLink(p.solution, "solution.community"), "sol", '<img src="icons/solution.png" alt="" width="30" height="30">', `ה-Solution של ${name}`],
+    ].filter(([u]) => u);
+    if (!L.length) return "";
+    return `<div class="plinks">${L.map(([u, k, ico, lbl]) => preview
+      ? `<span class="plink ${k}" role="img" aria-label="${lbl}">${ico}</span>`
+      : `<a class="plink ${k}" href="${esc(u)}" target="_blank" rel="noopener noreferrer" aria-label="${lbl}" title="${lbl}">${ico}</a>`).join("")}</div>`;
+  }
+  // שורה אחת: התיאור מימין, האייקונים משמאל
+  const bioRow = (text, links, cls = "") => (text || links ? `<div class="pbio-row">${text ? `<p class="prof-bio ${cls}">${text}</p>` : "<span></span>"}${links}</div>` : "");
   function heroHtml(p, { mine, top, actions }) {
     const u = p.avatar_url && AV_OK.test(p.avatar_url) ? p.avatar_url : "";
     const year = mine && p.study_year ? api.STUDY_YEARS[p.study_year - 1] : "";
@@ -891,7 +932,6 @@ export function initSocial(ctx) {
       const priv = await api.isPrivate(p.id);
       const locked = (!f || f.status !== "accepted") && priv;
       const d = locked ? { ps: [] } : await feedData((x) => x.author === p.id);
-      const ig = safeLink(p.ig, "instagram.com"), li = safeLink(p.li, "linkedin.com");
       const first = esc(p.full_name.split(" ")[0]);
       const rel = !f ? `<button class="phero-btn blue" type="button" id="add">${ICO.plus}הוספת חבר</button>`
         : f.status === "accepted" ? `<button class="phero-btn" type="button" id="relMenu" aria-haspopup="dialog">${ICO.check}חברים</button>`
@@ -899,12 +939,12 @@ export function initSocial(ctx) {
       const hero = heroHtml(p, { mine: false,
         top: `<button class="phero-circ" type="button" id="pfMore" aria-label="עוד: חסימה או דיווח" aria-haspopup="dialog">${ICO.dots}</button>`,
         actions: `${rel}<a class="phero-btn" href="#dm-${esc(p.username)}">הודעה</a>` });
-      // אותה כיתה: קורסים משותפים (רק אם השרת נתן את הקורסים שלו), אחרת אותו מוסד
+      // אותה כיתה: קורסים משותפים (רק אם השרת נתן את הקורסים שלו). המוסד כבר כתוב בתמונה – לא חוזרים עליו
       const mine = new Set(myCourses()), common = (p.courses || []).filter((c) => mine.has(c));
-      const same = common.length ? `אתם באותה כיתה ב${common.slice(0, 2).map(esc).join(" וב")}${common.length > 2 ? ` ועוד ${common.length - 2}` : ""}` : p.uni && p.uni === api.profile()?.uni ? `גם ב${esc(p.uni)}` : "";
+      const same = common.length ? `🎓 אתם באותה כיתה ב${common.slice(0, 2).map(esc).join(" וב")}${common.length > 2 ? ` ועוד ${common.length - 2}` : ""}` : "";
       view.innerHTML = `<div class="page hero-page" style="max-width:760px">${hero}<div class="phero-sheet">
-        <section class="pstats">${same ? `<p>${same}</p>` : ""}<div class="row" style="gap:8px"><span class="chip">${priv ? "🔒 חשבון סגור" : "🌍 חשבון פתוח"}</span>${ig ? `<a class="chip" href="${esc(ig)}" target="_blank" rel="noopener noreferrer">Instagram</a>` : ""}${li ? `<a class="chip" href="${esc(li)}" target="_blank" rel="noopener noreferrer">LinkedIn</a>` : ""}</div></section>
-        ${p.bio ? `<p class="prof-bio">${esc(p.bio)}</p>` : ""}
+        ${bioRow(p.bio ? esc(p.bio) : "", linksHtml(p))}
+        <div class="row pchips" style="gap:8px"><span class="chip">${priv ? "🔒 חשבון סגור" : "🌍 חשבון פתוח"}</span>${same ? `<span class="chip">${same}</span>` : ""}</div>
         ${locked ? `<section class="plock"><span class="plock-ico" aria-hidden="true">${ICO.lock}</span><h2>החשבון הזה סגור</h2><p class="muted">אחרי שתהיו חברים תוכלו לראות את הפוסטים והסיכומים ש${first} משתף/ת.</p></section>` : `<h2 style="font-size:20px">מה ${first} שיתף/ה</h2><div class="feed" id="pfFeed"></div>`}
       </div></div>`;
       if (!locked) renderPosts($("#pfFeed"), d, () => profileView(username));
@@ -935,11 +975,35 @@ export function initSocial(ctx) {
     const n = g.friends.length;
     const hero = heroHtml(me, {
       mine: true,
-      top: `<a class="phero-circ" href="#settings" aria-label="הגדרות">${ICO.gear}</a><button class="phero-circ" type="button" id="heroCam" aria-label="${me.avatar_url ? "תמונת הפרופיל – החלפה, התאמה או הסרה" : "הוספת תמונת פרופיל"}">${ICO.cam}</button><input type="file" id="meAvatar" accept="image/*" hidden>`,
+      top: `<a class="phero-pill" href="#profile-view">${ICO.eye}איך רואים אותי</a><a class="phero-circ" href="#settings" aria-label="הגדרות">${ICO.gear}</a><button class="phero-circ" type="button" id="heroCam" aria-label="${me.avatar_url ? "תמונת הפרופיל – החלפה, התאמה או הסרה" : "הוספת תמונת פרופיל"}">${ICO.cam}</button><input type="file" id="meAvatar" accept="image/*" hidden>`,
       actions: `<button class="phero-btn" type="button" id="meEdit">${ICO.pen}עריכת פרופיל</button><a class="phero-btn" href="#friends-list">👥 ${n === 1 ? "חבר אחד" : n + " חברים"}</a>`,
     });
-    const bio = `<p class="prof-bio ${me.bio ? "" : "muted"}">${me.bio ? esc(me.bio) : "עוד לא כתבת משהו על עצמך"}${me.is_private ? ' <span class="chip">🔒 חשבון סגור</span>' : ""}</p>`;
+    const bio = bioRow(`${me.bio ? esc(me.bio) : "עוד לא כתבת משהו על עצמך"}${me.is_private ? ' <span class="chip">🔒 חשבון סגור</span>' : ""}`, linksHtml(me), me.bio ? "" : "muted");
     return { hero, bio };
+  }
+  // ---------- "איך רואים אותי": הפרופיל שלי כמו שמי שעוד לא חבר שלי רואה אותו ----------
+  async function viewAs() {
+    busy();
+    try {
+      const me = api.profile(); if (!me) { location.hash = "#home"; return; }
+      people.set(me.id, me);
+      const first = esc((me.full_name || "").split(" ")[0]);
+      const priv = !!me.is_private;
+      const hero = heroHtml(me, { mine: false, top: "",
+        actions: `<span class="phero-btn blue" aria-disabled="true">${ICO.plus}הוספת חבר</span><span class="phero-btn" aria-disabled="true">הודעה</span>` });
+      // חשבון סגור: מי שלא חבר לא רואה תיאור, רשתות ופוסטים (כמו בשרת)
+      view.innerHTML = `<div class="page hero-page viewas" style="max-width:760px" data-noback>
+        <div class="viewas-bar" role="status"><span>${ICO.eye}כך אחרים רואים את הפרופיל שלך</span><a class="viewas-back" href="#profile" id="vaBack">חזרה</a></div>
+        ${hero}<div class="phero-sheet">
+        ${priv ? "" : bioRow(me.bio ? esc(me.bio) : "", linksHtml(me, { preview: true }))}
+        <div class="row pchips" style="gap:8px"><span class="chip">${priv ? "🔒 חשבון סגור" : "🌍 חשבון פתוח"}</span></div>
+        ${priv ? `<section class="plock"><span class="plock-ico" aria-hidden="true">${ICO.lock}</span><h2>החשבון הזה סגור</h2><p class="muted">אחרי שתהיו חברים תוכלו לראות את הפוסטים והסיכומים ש${first} משתף/ת.</p></section>`
+          : `<h2 style="font-size:20px">מה ${first} שיתף/ה</h2><div class="feed" id="vaFeed" inert></div>`}
+        <p class="small muted" style="text-align:center">${priv ? "כך רואה אותך מי שעוד לא חבר שלך. חברים רואים גם את התיאור, הרשתות והפוסטים." : "זו רק תצוגה – הכפתורים כאן לא לחיצים. פוסטים ששיתפת רק עם חברים לא מופיעים כאן, ופוסט לקורס רואה רק מי שלומד אותו."} את המלגות, הזכויות וה-AI רואה רק את/ה.</p>
+      </div></div>`;
+      // כמו בשרת (can_see_post): מי שלא חבר רואה רק פוסטים לכולם, ופוסטים לקורס – רק אם הוא לומד אותו. "לחברים" – לא
+      if (!priv) renderPosts($("#vaFeed"), await feedData((x) => x.author === me.id && (x.visibility === "public" || x.visibility === "course")), () => viewAs());
+    } catch (e) { fail(e); }
   }
   // התראות של חברים (בקשה חדשה, אישרו אותך, לייק, תגובה, שיתוף) – למעלה בפרופיל
   async function paintProfNotes() {
@@ -1018,15 +1082,20 @@ export function initSocial(ctx) {
       <label>יום הולדת<input id="eBday" type="date" value="${esc(me.birthday || "")}"></label>
       <label>קישור לאינסטגרם<input id="eIg" dir="ltr" value="${esc(me.ig)}" placeholder="https://instagram.com/..."></label>
       <label>קישור ללינקדאין<input id="eLi" dir="ltr" value="${esc(me.li)}" placeholder="https://linkedin.com/in/..."></label>
+      ${"solution" in me ? `<label>קישור ל-Solution (הרשת של הסטארטאפים)<input id="eSol" dir="ltr" value="${esc(me.solution)}" placeholder="https://www.solution.community/..."></label>` : ""}
       <div class="row"><button class="btn" id="eGo" type="button">שמירה</button><button class="btn ghost" data-x type="button">ביטול</button></div>`);
     $("#eGo", m).onclick = async () => {
       const ig = $("#eIg", m).value.trim(), li = $("#eLi", m).value.trim();
       if (ig && !safeLink(ig, "instagram.com")) return toast("קישור אינסטגרם צריך להתחיל ב-https://instagram.com");
       if (li && !safeLink(li, "linkedin.com")) return toast("קישור לינקדאין צריך להתחיל ב-https://linkedin.com");
+      // Solution: רק אם העמודה קיימת בשרת (אחרת השדה לא מוצג בכלל)
+      const sol = $("#eSol", m)?.value.trim() || "";
+      if (sol && !safeLink(sol, "solution.community")) return toast("קישור Solution צריך להתחיל ב-https://www.solution.community");
+      const solField = $("#eSol", m) ? { solution: safeLink(sol, "solution.community") } : {};
       const uniMail = $("#eUniMail", m).value.trim().toLowerCase();
       if (uniMail && !/^[^@\s]+@[^@\s]+\.ac\.il$/i.test(uniMail)) return toast("המייל של מוסד הלימודים צריך להיגמר ב-ac.il");
       try {
-        await api.updateMe({ full_name: $("#eName", m).value.trim() || me.full_name, bio: $("#eBio", m).value.trim(), uni: $("#eUni", m).value, degree: $("#eDeg", m).value.trim(), birthday: $("#eBday", m).value || null, ig: safeLink(ig, "instagram.com"), li: safeLink(li, "linkedin.com"), uni_email: uniMail || null, study_year: +$("#eYear", m).value || null });
+        await api.updateMe({ full_name: $("#eName", m).value.trim() || me.full_name, bio: $("#eBio", m).value.trim(), uni: $("#eUni", m).value, degree: $("#eDeg", m).value.trim(), birthday: $("#eBday", m).value || null, ig: safeLink(ig, "instagram.com"), li: safeLink(li, "linkedin.com"), uni_email: uniMail || null, study_year: +$("#eYear", m).value || null, ...solField });
         const pr = prefs.get(); if (pr) { pr.studyYear = +$("#eYear", m).value || null; prefs.set(pr); }
         m.remove(); toast("נשמר ✓"); dispatchEvent(new HashChangeEvent("hashchange"));
       } catch (e) { toast(e.message); }
@@ -1036,5 +1105,5 @@ export function initSocial(ctx) {
   // העלאת קובץ -> סיכום אישי, ומיד מכניסים אותו לספרייה במכשיר
   async function upload(file, course) { const r = await api.summarizeFile(file, course); await syncSummaries(); return r; }
 
-  return { summaryHtmlToMd, newPasswordModal, upload, latestPosts, groups, group, feed, friends, friendsPage, friendsListPage, paintProfNotes, missed, signup, messages, dm, myProfile, bindMyProfile, bindMyContent, editMe, counts, syncSummaries, syncNotifications, pushPrefs, restorePrefs, shareFrom, profile: profileView };
+  return { summaryHtmlToMd, newPasswordModal, upload, latestPosts, groups, group, feed, friends, friendsPage, friendsListPage, paintProfNotes, missed, signup, messages, dm, myProfile, viewAs, bindMyProfile, bindMyContent, editMe, counts, syncSummaries, syncNotifications, pushPrefs, restorePrefs, shareFrom, profile: profileView };
 }

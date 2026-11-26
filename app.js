@@ -1666,6 +1666,7 @@ async function routeInner() {
   else if (hash === "profile-posts" || hash === "profile-liked" || hash === "profile-saved") await myContent(hash.slice(8));
   else if (hash.startsWith("u-")) await social.profile(hash.slice(2));
   else if (hash === "profile") await profile();
+  else if (hash === "profile-view") await social.viewAs();   // "איך רואים אותי"
   else if (hash === "rights") rights.page();
   else if (hash === "scholarships") scholarships.page();
   else if (hash === "feedback") feedback();
@@ -1691,7 +1692,7 @@ async function routeInner() {
     const pg = view.querySelector(".page") || view.querySelector(".nb-main") || view.querySelector(".nb");
     // קישור חזרה ישן ("→ ...") בתחילת הדף – מוחלף בעיגול, והחזרה הולכת לאותו מקום שהקישור הוביל אליו
     const own = pg && [...pg.children].slice(0, 2).find((el) => el.matches("a.small, a.back-btn") && /^\s*→/.test(el.textContent));
-    if (pg) {
+    if (pg && !pg.hasAttribute("data-noback")) {   // בתצוגה "איך רואים אותי" יש כפתור "חזרה" משלה
       pg.insertAdjacentHTML("afterbegin", '<button class="back-btn round" type="button" aria-label="חזרה לדף הקודם" title="חזרה"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>');
       const bb = pg.querySelector(".back-btn.round");
       if (own) { const to = own.getAttribute("href"); own.remove(); bb.onclick = () => { if (to) location.hash = to; else goBack(); }; } else bb.onclick = goBack;
@@ -2177,7 +2178,7 @@ setTimeout(autoSync, 1500);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") autoSync(); });
 
 try { const r = new URLSearchParams(location.search).get("ref"); if (r && /^[a-z0-9_.]{2,30}$/i.test(r)) localStorage.setItem("clearly-ref", r.toLowerCase()); } catch { /* בלי אחסון – אין הזמנה */ }
-const APP_VERSION = "98";
+const APP_VERSION = "99";
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
     reg.update();
