@@ -25,7 +25,12 @@ export function initSocial(ctx) {
   const avatar = (id, big = false) => { const u = people.get(id)?.avatar_url; return u && AV_OK.test(u) ? `<img class="av av-img${big ? " big" : ""}" src="${esc(u)}" alt="" loading="lazy">` : `<span class="av${big ? " big" : ""}" style="background:${color(id)}" aria-hidden="true">${esc((people.get(id)?.full_name || "?")[0])}</span>`; };
   const when = (t) => new Date(t).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
   const myCourses = () => prefs.get()?.courses || api.profile()?.courses || [];
-  const safeLink = (url, host) => { try { const u = new URL(url); return u.protocol === "https:" && !u.username && !u.password && (u.hostname === host || u.hostname.endsWith("." + host)) ? u.href : ""; } catch { return ""; } };
+  // קישור בטוח – כמו הבדיקה בשרת: https, בלי פורט ובלי סיסמה, הדומיין עצמו או תת-דומיין אחד בלבד (www.instagram.com)
+  const safeLink = (url, host) => { try {
+    const u = new URL(url), h = u.hostname, sub = h.endsWith("." + host) ? h.slice(0, -(host.length + 1)) : null;
+    const hostOk = h === host || (sub !== null && /^[a-z0-9-]+$/.test(sub));
+    return u.protocol === "https:" && !u.username && !u.password && !u.port && hostOk ? u.href : "";
+  } catch { return ""; } };
   const subnav = (cur) => `<nav class="snav" aria-label="חברים">${[["social", "📰 פיד"], ["social-friends", "👥 חברים"], ["messages", "💬 הודעות"]].map(([h, l]) => `<a href="#${h}" ${cur === h ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</nav>`;
   const busy = (msg = "טוען…") => { view.innerHTML = `<div class="page"><p class="muted">${msg}</p></div>`; };
   const fail = (e) => { view.innerHTML = `<div class="page"><p class="notice alert">${esc(e.message || e)}</p><button class="btn" onclick="location.reload()">לנסות שוב</button></div>`; };
@@ -68,6 +73,12 @@ export function initSocial(ctx) {
         <label>סיסמה${isUp ? " (8 תווים לפחות)" : ""}<input id="sgPass" type="password" required ${isUp ? 'minlength="8"' : ""} autocomplete="${isUp ? "new-password" : "current-password"}"></label>
         ${isUp ? '<label>אימות סיסמה – אותה סיסמה שוב<input id="sgPass2" type="password" required minlength="8" autocomplete="new-password"></label>' : ""}
         ${isUp ? `<label>יום הולדת (לא חובה – חברים יקבלו תזכורת)<input id="sgBday" type="date"></label>
+        <details class="sg-links"><summary>רשתות חברתיות (לא חובה)</summary>
+          <p class="small muted">מה שתמלאו יופיע כאייקון קטן בפרופיל. אפשר גם להוסיף או לשנות אחר כך ב"עריכת פרופיל".</p>
+          <label>אינסטגרם<input id="sgIg" type="url" dir="ltr" autocomplete="off" placeholder="https://instagram.com/..."></label>
+          <label>לינקדאין<input id="sgLi" type="url" dir="ltr" autocomplete="off" placeholder="https://linkedin.com/in/..."></label>
+          <label>Solution (הרשת של הסטארטאפים)<input id="sgSol" type="url" dir="ltr" autocomplete="off" placeholder="https://www.solution.community/..."></label>
+        </details>
         <label class="row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="sgTerms" style="width:auto;margin-top:6px"><span class="small">זו <b>גרסת בדיקה</b>. אני מסכים/ה ל<a href="#legal-terms" target="_blank">תנאי השימוש</a> ול<a href="#legal-privacy" target="_blank">מדיניות הפרטיות</a>: הפרופיל, החברים, ההודעות והסיכומים נשמרים בשרת מאובטח באירופה. משתפים רק סיכומים שלי, לא קבצים של מרצים.</span></label>` : ""}
         <button class="btn" type="submit" id="sgGo">${isUp ? "יצירת חשבון" : "כניסה"}</button>
         ${isUp ? "" : `<button class="btn ghost" type="button" id="sgReset">שכחתי סיסמה</button>
@@ -85,7 +96,9 @@ export function initSocial(ctx) {
       $("#sgUser").oninput = () => {
         const v = $("#sgUser").value.trim().toLowerCase(); clearTimeout(t);
         if (!/^[a-z0-9_.]{3,20}$/.test(v)) { $("#sgUserHint").textContent = v ? "3–20 תווים: אותיות באנגלית, מספרים, _ ונקודה" : "אותיות באנגלית, מספרים, _ ונקודה"; return; }
-        t = setTimeout(async () => { try { $("#sgUserHint").textContent = (await api.usernameFree(v)) ? "✅ פנוי" : "❌ השם הזה תפוס או שמור – בחרו שם אחר"; } catch (e) { $("#sgUserHint").textContent = e.message; } }, 400);
+        // הבדיקה יכולה לחזור אחרי שכבר עברו מסך (נרשמו מהר) – אז אין איפה לכתוב, ולא כותבים
+        const hint = (s) => { const h = $("#sgUserHint"); if (h) h.textContent = s; };
+        t = setTimeout(async () => { try { hint((await api.usernameFree(v)) ? "✅ פנוי" : "❌ השם הזה תפוס או שמור – בחרו שם אחר"); } catch (e) { hint(e.message); } }, 400);
       };
     } else {
       // שכחתי סיסמה: לחיצה אחת שולחת מייל אחד. הכפתור ננעל לדקה – כי כל מייל חדש מבטל את הקישור של הקודם
@@ -131,11 +144,15 @@ export function initSocial(ctx) {
           if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) throw new Error("כתבו מייל אישי תקין (למשל ג'ימייל)");
           if (/\.ac\.il$/i.test(mail)) throw new Error("בשדה הראשון כותבים את המייל האישי (למשל ג'ימייל). את המייל של המוסד – בשדה השני");
           if (!/^[^@\s]+@[^@\s]+\.ac\.il$/i.test(uniMail)) throw new Error("המייל של מוסד הלימודים צריך להיגמר ב-ac.il");
+          // רשתות – לא חובה, אבל מה שמולא חייב להיות קישור אמיתי לאתר הנכון
+          const LNK = [["sgIg", "instagram.com", "ig", "קישור אינסטגרם צריך להתחיל ב-https://instagram.com"], ["sgLi", "linkedin.com", "li", "קישור לינקדאין צריך להתחיל ב-https://linkedin.com"], ["sgSol", "solution.community", "solution", "קישור Solution צריך להתחיל ב-https://www.solution.community"]];
+          const links = {};
+          for (const [id, host, k, msg] of LNK) { const v = $("#" + id).value.trim(); if (!v) continue; const ok = safeLink(v, host); if (!ok) { $(".sg-links").open = true; $("#" + id).focus(); throw new Error(msg); } links[k] = ok; }
           if (!$("#sgTerms").checked) throw new Error("צריך לאשר את התנאים");
           // לפני שנוצר חשבון: השם פנוי, והסיסמה ארוכה מספיק ולא דלפה. מייל כפול – השרת חוסם ("כבר יש חשבון")
           if (!(await api.usernameFree(u))) throw new Error("שם המשתמש תפוס או שמור – בחרו שם אחר");
           await api.checkPassword(pass, $("#sgPass2").value);
-          await api.signUp({ email: mail, password: pass, username: u, full_name: name, uni: $("#sgUni").value, degree: $("#sgDeg").value.trim(), birthday: $("#sgBday").value, uni_email: uniMail });
+          await api.signUp({ email: mail, password: pass, username: u, full_name: name, uni: $("#sgUni").value, degree: $("#sgDeg").value.trim(), birthday: $("#sgBday").value, uni_email: uniMail, links });
           // השאלון מתחיל מאפס במכשיר הזה
           try { localStorage.removeItem("sikumon-prefs"); } catch { /* */ }
           toast("החשבון נוצר 🎉 עכשיו כמה שאלות קצרות");

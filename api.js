@@ -75,7 +75,7 @@ export async function checkPassword(password, confirm) {
 export const TERMS_VERSION = "2026-11-23";
 // שנת הלימודים (בשביל "אנשים שאולי תכירו": קודם מי שבאותו קורס, מוסד ושנה). נשמרת בפרופיל כמספר 1-6
 export const STUDY_YEARS = ["שנה א'", "שנה ב'", "שנה ג'", "שנה ד'", "שנה ה' ומעלה", "תואר שני ומעלה"];
-export async function signUp({ email, password, username, full_name, uni, degree, birthday, uni_email }) {
+export async function signUp({ email, password, username, full_name, uni, degree, birthday, uni_email, links = {} }) {
   // כבר מחובר/ת אבל הפרופיל לא נוצר (למשל האינטרנט נפל באמצע) – רק משלימים את הפרופיל
   if (!session) {
     const r = await sb.auth.signUp({ email, password });
@@ -86,6 +86,8 @@ export async function signUp({ email, password, username, full_name, uni, degree
   ok(await sb.from("profiles").insert({ id: session.user.id, username, full_name, uni, degree, birthday: birthday || null, uni_email: uni_email || null,
     // תיעוד ההסכמה לתנאים ולמדיניות (התיבה בטופס חובה ולא מסומנת מראש)
     terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION }));
+  // רשתות (לא חובה): השרת מאפשר אותן רק בעדכון, לכן שלב שני. אם נכשל – החשבון כבר נוצר, ואפשר להוסיף ב"עריכת פרופיל"
+  if (Object.keys(links).length) { try { ok(await sb.from("profiles").update(links).eq("id", session.user.id)); } catch { /* לא חוסם הרשמה */ } }
   return loadMe();
 }
 export async function signIn(email, password) {

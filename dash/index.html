@@ -67,11 +67,42 @@ svg text { fill:var(--soft); font-size:10px; font-family:var(--fb); }
 .login { max-width:380px; margin:12vh auto; display:grid; gap:12px; }
 .login input { padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); }
 .err { color:var(--bad); }
+/* תפריט צד: ראשי / טבלת משתמשים. בטלפון – שורה למעלה */
+.shell { display:grid; grid-template-columns:210px minmax(0, 1fr); min-height:100vh; }
+.shell > .wrap { align-content:start; width:100%; }   /* בלי רווחים ריקים כשהתוכן קצר */
+.side { position:sticky; top:0; align-self:start; height:100vh; display:flex; flex-direction:column; gap:4px; padding:20px 12px; border-inline-end:1px solid var(--line); background:var(--card); }
+.side b { font:900 18px var(--fd); padding:4px 10px 12px; }
+.side a { display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:10px; color:var(--ink); text-decoration:none; font-weight:500; }
+.side a:hover { background:var(--bg); }
+.side a[aria-current=page] { background:var(--blue); color:var(--card); font-weight:700; }
+.side a:focus-visible, .ucell:focus-visible { outline:3px solid var(--blue2); outline-offset:2px; }
+@media (max-width:760px) { .shell { grid-template-columns:1fr; align-content:start; } .side { position:static; height:auto; flex-direction:row; flex-wrap:wrap; padding:10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left)); border-inline-end:0; border-bottom:1px solid var(--line); } .side b { padding:6px 4px; margin-inline-end:auto; } }
+/* טבלת המשתמשים */
+.utable { overflow:auto; max-height:calc(100vh - 210px); border:1px solid var(--line); border-radius:12px; background:var(--card); }
+.utable table { font-size:13px; }
+.utable th { position:sticky; top:0; z-index:2; background:var(--card); color:var(--ink); font-weight:700; border-bottom:2px solid var(--line); }
+.utable th small { display:block; font-weight:400; color:var(--soft); font-size:11px; }
+.utable td { max-width:260px; overflow:hidden; text-overflow:ellipsis; vertical-align:middle; }
+.utable td.sticky, .utable th.sticky { position:sticky; inset-inline-start:0; z-index:1; background:var(--card); box-shadow:-1px 0 0 var(--line) inset; }
+.utable th.sticky { z-index:3; }
+.ucell { display:block; width:100%; min-height:24px; padding:2px 4px; border:1px dashed transparent; border-radius:6px; background:none; text-align:inherit; cursor:text; overflow:hidden; text-overflow:ellipsis; }
+.ucell:hover { border-color:var(--line); background:var(--bg); }
+.ro { color:var(--soft); }
+.empty { color:var(--line); }
+.uedit input, .uedit select { width:100%; min-width:140px; padding:4px 6px; border:1.5px solid var(--blue); border-radius:6px; background:var(--card); }
+.saved { animation:ok 1.4s ease-out; } @keyframes ok { from { background:color-mix(in srgb, var(--good) 30%, transparent); } to { background:transparent; } }
+@media (prefers-reduced-motion: reduce) { .saved { animation:none; } }
+.toast { position:fixed; bottom:20px; inset-inline-start:50%; transform:translateX(50%); z-index:30; background:var(--ink); color:var(--bg); padding:9px 16px; border-radius:10px; font-weight:700; box-shadow:0 8px 24px rgba(0,0,0,.2); }
+.toast.bad { background:var(--bad); color:#fff; }
+.colpick .menu { max-height:60vh; overflow:auto; }
 .tip { position:fixed; pointer-events:none; background:var(--ink); color:var(--bg); padding:6px 9px; border-radius:8px; font-size:12px; z-index:20; white-space:nowrap; }
 </style>
 </head>
 <body>
-<div class="wrap" id="app"><p class="muted">טוען…</p></div>
+<div class="shell"><nav class="side" id="side" aria-label="דפי הדאשבורד" hidden><b>Clearly</b>
+  <a href="#main" data-page="main">📊 ראשי</a><a href="#users" data-page="users">👥 טבלת משתמשים</a></nav>
+<div class="wrap" id="app"><p class="muted">טוען…</p></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <div class="tip" id="tip" hidden></div>
 <script type="module">
 const SDK = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
@@ -279,6 +310,113 @@ function render() {
   bindTips(app);
 }
 
+// ---------- טבלת המשתמשים (כמו ב-Supabase, בעברית) ----------
+// כותרות בעברית; מה שהמשתמשים כתבו (שמות, מיילים, קישורים) מוצג כמו שהוא. תא ריק = אין ערך (בלי NULL)
+const YEARS = { "": "", 1: "שנה א'", 2: "שנה ב'", 3: "שנה ג'", 4: "שנה ד'", 5: "שנה ה'", 6: "שנה ו'" };
+const COLS = [
+  { k: "username", t: "שם משתמש", ed: "text", ltr: 1, lock: (u) => u.is_admin && "שם המשתמש של חשבון מנהל נעול (חשבון הבדיקה מזוהה לפיו)" },
+  { k: "first", t: "שם פרטי", sub: "מתוך השם המלא", get: (u) => String(u.full_name || "").trim().split(/\s+/)[0] || "" },
+  { k: "full_name", t: "שם מלא", ed: "text" },
+  { k: "email", t: "מייל מקורי", sub: "מייל ההתחברות – רק לקריאה", ltr: 1 },
+  { k: "uni_email", t: "מייל אוניברסיטאי", ed: "text", ltr: 1 },
+  { k: "uni", t: "מוסד", ed: "text" },
+  { k: "degree", t: "תואר", ed: "text" },
+  { k: "study_year", t: "שנת לימודים", ed: "sel", opts: YEARS },
+  { k: "birthday", t: "יום הולדת", ed: "date", show: (v) => fmtDate(v) },
+  { k: "access", t: "גישה", ed: "sel", opts: { waitlist: "ברשימת המתנה", approved: "מאושר/ת" } },
+  { k: "plan", t: "תוכנית", ed: "sel", opts: { tester: "בודק/ת", pro: "Pro" } },
+  { k: "is_private", t: "חשבון סגור", ed: "bool" },
+  { k: "email_notify", t: "מקבל/ת מיילים", ed: "bool" },
+  { k: "bio", t: "על עצמי", ed: "text" },
+  { k: "ig", t: "אינסטגרם", ed: "text", ltr: 1 },
+  { k: "li", t: "לינקדאין", ed: "text", ltr: 1 },
+  { k: "solution", t: "Solution", ed: "text", ltr: 1 },
+  { k: "courses", t: "קורסים", sub: "רק לקריאה", get: (u) => (u.courses || []).length || "", tip: (u) => (u.courses || []).join(" · ") },
+  { k: "has_avatar", t: "תמונה", show: (v) => (v ? "יש" : "") },
+  { k: "is_admin", t: "מנהל/ת", show: (v) => (v ? "✓ מנהל/ת" : "") },
+  { k: "terms_version", t: "גרסת תנאים", sub: "תיעוד ההסכמה – רק לקריאה", ltr: 1 },
+  { k: "terms_accepted_at", t: "אישר/ה תנאים", show: (v) => fmtDate(v) },
+  { k: "created_at", t: "נרשם/ה", show: (v) => fmtDate(v) },
+  { k: "last_seen", t: "נראה/תה לאחרונה", show: (v) => fmtDate(v, 1) },
+];
+const fmtDate = (v, time) => { if (!v) return ""; const d = new Date(String(v).length === 10 ? v + "T12:00:00Z" : v); return isNaN(d) ? String(v) : d.toLocaleString("he-IL", { timeZone: "Asia/Jerusalem", day: "numeric", month: "numeric", year: "2-digit", ...(time ? { hour: "2-digit", minute: "2-digit" } : {}) }); };
+const val = (u, c) => (c.get ? c.get(u) : u[c.k]);
+const shown = (u, c) => { const v = val(u, c); if (v === null || v === undefined || v === "") return ""; if (c.show) return c.show(v); if (c.ed === "bool") return v ? "כן" : "לא"; if (c.opts) return c.opts[v] ?? String(v); return String(v); };
+const ERR = [[/forbidden/, "הדף הזה פתוח רק למנהלים"], [/username_key/, "שם המשתמש הזה כבר תפוס"], [/uni_email_key/, "המייל האוניברסיטאי הזה כבר שייך למשתמש אחר"], [/duplicate key/, "הערך הזה כבר קיים אצל משתמש אחר"], [/admin_username_locked/, "שם המשתמש של חשבון מנהל נעול"], [/username_not_reserved/, "שם המשתמש הזה שמור למערכת"], [/username_check/, "שם משתמש: 3–20 תווים – אותיות באנגלית קטנות, מספרים, _ ונקודה"],
+  [/uni_email_check/, "מייל אוניברסיטאי צריך להיגמר ב-ac.il"], [/full_name_check/, "שם מלא: בין 1 ל-60 תווים (אי אפשר להשאיר ריק)"], [/ig_check/, "קישור אינסטגרם צריך להתחיל ב-https://instagram.com"], [/li_check/, "קישור לינקדאין צריך להתחיל ב-https://linkedin.com"],
+  [/bio_check/, "על עצמי: עד 300 תווים"], [/degree_check/, "תואר: עד 80 תווים"], [/uni_check/, "מוסד: עד 60 תווים"], [/study_year_check/, "שנת לימודים: 1 עד 6"], [/terms_version_check/, "גרסת תנאים: עד 20 תווים"],
+  [/type date|date\/time/, "תאריך לא תקין"], [/column_not_editable/, "את העמודה הזו אי אפשר לשנות מכאן"], [/no_such_user/, "המשתמש לא נמצא (אולי נמחק)"], [/admin_set_profile|admin_users|does not exist|schema cache/, "צריך קודם להריץ את קובץ ה-SQL של טבלת המשתמשים ב-Supabase"]];
+const hebErr = (m) => (ERR.find(([r]) => r.test(m)) || [0, "השמירה לא הצליחה: " + m])[1];
+let toastT; function toast(t, bad) { const el = $("#toast"); el.textContent = t; el.className = "toast" + (bad ? " bad" : ""); el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (el.hidden = true), bad ? 5000 : 1800); }
+const ust = { q: "", hide: new Set(ls.get("uhide", [])) };
+let USERS = null;
+const cellHtml = (u, c) => {
+  const t = shown(u, c), inner = t === "" ? '<span class="empty" aria-hidden="true">—</span>' : esc(t), title = c.tip ? c.tip(u) : t, dir = c.ltr ? ' dir="ltr"' : "";
+  const lock = c.lock && c.lock(u);
+  if (lock) return `<span class="ro" title="${esc(lock)}"${dir}>🔒 ${inner}</span>`;
+  return c.ed ? `<button type="button" class="ucell" data-id="${esc(u.id)}" data-k="${c.k}" title="${esc(title)}" aria-label="${esc(c.t)}${t ? ": " + esc(t) : " – ריק"}. לחיצה לעריכה"${dir}>${inner}</button>`
+    : `<span class="ro" title="${esc(title)}"${dir}>${inner}</span>`;
+};
+async function loadUsers() {
+  app.innerHTML = '<p class="muted">טוען את המשתמשים…</p>';
+  const { data, error } = window.DASH_USERS_DEMO ? { data: window.DASH_USERS_DEMO } : await sb.rpc("admin_users");
+  if (error) { app.innerHTML = `<div class="card"><h1>טבלת משתמשים</h1><p class="err">${esc(hebErr(error.message))}</p></div>`; return; }
+  USERS = data || []; renderUsers();
+}
+function renderUsers() {
+  const cols = COLS.filter((c) => !ust.hide.has(c.k));
+  const q = ust.q.trim().toLowerCase();
+  const rows = USERS.filter((u) => !q || [u.username, u.full_name, u.email, u.uni_email, u.uni].join(" ").toLowerCase().includes(q));
+  app.innerHTML = `<div class="head"><div><h1>👥 טבלת משתמשים</h1><p class="muted small" style="margin:2px 0 0">${USERS.length} משתמשים · לחיצה על תא – עריכה (Enter שומר, Esc מבטל). תא ריק = אין ערך. מוחקים את התוכן ושומרים = הערך נמחק.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input type="search" id="uq" placeholder="חיפוש: שם, שם משתמש, מייל, מוסד" value="${esc(ust.q)}" aria-label="חיפוש משתמשים" style="min-width:min(240px, 100%)">
+      <details class="multi colpick"><summary>עמודות (${cols.length}/${COLS.length})</summary><div class="menu">${COLS.map((c) => `<label><input type="checkbox" data-col="${c.k}" ${ust.hide.has(c.k) ? "" : "checked"}> ${esc(c.t)}</label>`).join("")}<div class="row2"><button class="link" type="button" id="colAll">הכול</button></div></div></details>
+      <button class="btn pri" id="urefresh" type="button">רענון</button></div></div>
+    <div class="utable" role="region" aria-label="טבלת המשתמשים" tabindex="0"><table><thead><tr>${cols.map((c, i) => `<th scope="col" class="${i ? "" : "sticky"}">${esc(c.t)}${c.sub ? `<small>${esc(c.sub)}</small>` : ""}</th>`).join("")}</tr></thead><tbody>
+      ${rows.map((u) => `<tr data-row="${esc(u.id)}">${cols.map((c, i) => `<td class="${i ? "" : "sticky"}" data-k="${c.k}">${cellHtml(u, c)}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${cols.length}" class="muted">לא נמצאו משתמשים</td></tr>`}
+    </tbody></table></div>
+    <p class="note">הכותרות בעברית; מה שהמשתמשים כתבו מוצג כמו שהוא. המייל המקורי, התאריכים והקורסים – רק לקריאה. כל שינוי נשמר מיד בשרת ונרשם ביומן השינויים.</p>`;
+  const uq = $("#uq"); uq.oninput = () => { ust.q = uq.value; renderUsers(); const n = $("#uq"); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
+  $("#urefresh").onclick = loadUsers;
+  app.querySelectorAll("[data-col]").forEach((b) => (b.onchange = () => { b.checked ? ust.hide.delete(b.dataset.col) : ust.hide.add(b.dataset.col); if (ust.hide.size >= COLS.length) ust.hide.delete("username"); ls.set("uhide", [...ust.hide]); renderUsers(); app.querySelector(".colpick").open = true; }));
+  $("#colAll").onclick = () => { ust.hide.clear(); ls.set("uhide", []); renderUsers(); };
+  app.querySelectorAll(".ucell").forEach((b) => (b.onclick = () => editCell(b)));
+}
+function editCell(btn) {
+  const td = btn.parentElement, id = btn.dataset.id, c = COLS.find((x) => x.k === btn.dataset.k), u = USERS.find((x) => x.id === id);
+  const cur = u[c.k] ?? "";
+  let field;
+  if (c.ed === "sel") field = `<select aria-label="${esc(c.t)}">${Object.entries(c.opts).map(([v, t]) => `<option value="${esc(v)}" ${String(cur) === v ? "selected" : ""}>${esc(t || "ריק")}</option>`).join("")}</select>`;
+  else if (c.ed === "bool") field = `<select aria-label="${esc(c.t)}"><option value="true" ${cur ? "selected" : ""}>כן</option><option value="false" ${cur ? "" : "selected"}>לא</option></select>`;
+  else field = `<input type="${c.ed === "date" ? "date" : "text"}" aria-label="${esc(c.t)}" value="${esc(cur)}"${c.ltr ? ' dir="ltr"' : ""}>`;
+  td.innerHTML = `<div class="uedit">${field}</div>`;
+  const f = td.querySelector("input, select"); f.focus(); if (f.type === "text") f.select();
+  let done = false, failed = null;
+  const back = () => { td.innerHTML = cellHtml(u, c); const b = td.querySelector(".ucell"); b.onclick = () => editCell(b); return b; };
+  const commit = async () => {
+    if (done) return; done = true;
+    const v = f.value;
+    if (String(v) === String(cur)) return back().focus();
+    f.disabled = true;
+    const { data, error } = window.DASH_USERS_DEMO ? { data: { ...u, [c.k]: c.ed === "bool" ? v === "true" : v || (c.ed === "text" ? "" : null) } } : await sb.rpc("admin_set_profile", { p_id: id, p_col: c.k, p_val: v });
+    // שגיאה: ההודעה מוצגת, התיבה נשארת פתוחה לתיקון. יציאה מהתא בלי לשנות = ביטול (לא שולחים שוב את אותו ערך)
+    if (error) { toast(hebErr(error.message), true); failed = v; done = false; f.disabled = false; f.focus(); return; }
+    for (const k of Object.keys(u)) if (data && k in data) u[k] = data[k];
+    back().focus(); td.classList.remove("saved"); void td.offsetWidth; td.classList.add("saved"); toast("נשמר ✓");
+  };
+  f.onkeydown = (e) => { if (e.key === "Escape") { done = true; back().focus(); } else if (e.key === "Enter") { e.preventDefault(); commit(); } };
+  if (f.tagName === "SELECT") f.onchange = commit;
+  f.onblur = () => { if (done) return; if (failed !== null && f.value === failed) { done = true; back(); return; } commit(); };
+}
+
+// ---------- ניווט בין הדפים (תפריט הצד) ----------
+function route() {
+  const page = location.hash === "#users" ? "users" : "main";
+  document.querySelectorAll("#side a").forEach((a) => (a.dataset.page === page ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
+  document.title = page === "users" ? "Clearly · טבלת משתמשים" : "Clearly · דאשבורד";
+  if (page === "users") loadUsers(); else load();
+}
+addEventListener("hashchange", () => { if (!$("#side").hidden) route(); });
+
 // ---------- טעינה וכניסה ----------
 let sb;
 async function load() {
@@ -295,12 +433,12 @@ function loginForm() {
   $("#lf").onsubmit = async (e) => { e.preventDefault(); const { error } = await sb.auth.signInWithPassword({ email: $("#em").value.trim(), password: $("#pw").value }); if (error) $("#le").textContent = "המייל או הסיסמה לא נכונים"; else start(); };
 }
 async function start() {
-  if (window.DASH_DEMO) return load();
+  if (window.DASH_DEMO) { $("#side").hidden = false; return route(); }
   // התחברות נפרדת מהאפליקציה (מפתח שמירה אחר) – כניסה לדאשבורד לא מחברת את האפליקציה, ולהפך
   if (!sb) { const { createClient } = await import(SDK); sb = createClient(URL_, ANON, { auth: { persistSession: true, autoRefreshToken: true, storageKey: "clearly-dash-auth" } }); }
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) return loginForm();
-  load();
+  if (!session) { $("#side").hidden = true; return loginForm(); }
+  $("#side").hidden = false; route();
 }
 start();
 </script>
