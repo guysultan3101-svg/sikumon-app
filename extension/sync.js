@@ -26,19 +26,50 @@ const set = (o) => chrome.storage.local.set(o);
 export async function status(patch) { const s = { ...(await get("status")), ...patch, at: new Date().toISOString() }; await set({ status: s }); return s; }
 
 // ---------- התחברות ל-Clearly ----------
+// התשובות של השרת שאומרות שההתחברות השמורה כבר לא תקפה (ולא סתם תקלה)
+const DEAD_SESSION = /^(refresh_token_not_found|refresh_token_already_used|session_not_found|session_expired|validation_failed|invalid_grant)$/;
 async function authCall(grant, body) {
   const r = await fetch(`${SB}/auth/v1/token?grant_type=${grant}`, { method: "POST", headers: { apikey: ANON, "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
+  // ההתחברות השמורה כבר לא בתוקף (למשל אחרי שינוי סיסמה או "יציאה מכל המכשירים"): מתנתקים לבד ומבקשים להתחבר שוב.
+  // רק כשהשרת אומר במפורש שההתחברות מתה – לא ב"יותר מדי בקשות" (429), לא בחסימה של רשת ולא בתקלה זמנית.
+  // שומרים את המודל ואת רשימת הקבצים שכבר טופלו – רק ההתחברות ל-Clearly נמחקת.
+  if (!r.ok && grant === "refresh_token" && DEAD_SESSION.test(String(j.error_code || j.code || j.error || ""))) {
+    // מרוץ: חלק אחר של התוסף (למשל החלון) חידש באותו רגע ושמר התחברות חדשה – אז לא מתנתקים, ממשיכים איתה
+    const old = await get("auth");
+    if (old?.refresh && old.refresh !== body.refresh_token) return old;
+    if (old?.user && !(await get("seenOwner"))) await set({ seenOwner: old.user });
+    await chrome.storage.local.remove("auth");
+    await status({ state: "", error: "", relogin: "החיבור ל-Clearly נותק (למשל אחרי שינוי סיסמה). התחברו שוב עם המייל והסיסמה של Clearly." });
+    throw new Error("צריך להתחבר שוב ל-Clearly (לחצו על סמל התוסף)");
+  }
   if (!r.ok) throw new Error(/Invalid login/i.test(j.error_description || j.msg || "") ? "המייל או הסיסמה לא נכונים" : "ההתחברות ל-Clearly נכשלה");
   const auth = { access: j.access_token, refresh: j.refresh_token, exp: Date.now() + (j.expires_in - 60) * 1000, user: j.user.id, email: j.user.email };
   await set({ auth });
+  if (grant === "password") {
+    await status({ relogin: "", error: "" });   // התחברו שוב – מנקים את ההודעה
+    // רשימת הקבצים שכבר טופלו שייכת לחשבון. אותו חשבון – שומרים (לא מסכמים שוב). חשבון אחר – מתחילים מאפס
+    const owner = await get("seenOwner");
+    if (owner && owner !== auth.user) await chrome.storage.local.remove(["seen", "backlogLeft"]);
+    await set({ seenOwner: auth.user });
+  }
   return auth;
 }
 export const login = (email, password) => authCall("password", { email, password });
-export async function logout() { await chrome.storage.local.remove(["auth", "seen", "status"]); }
+// התנתקות: רק ההתחברות. הרשימה של מה שכבר טופל נשארת, כדי שהתחברות מחדש לא תסכם שוב (נמחקת רק במעבר לחשבון אחר)
+export async function logout() {
+  const a = await get("auth"); if (a?.user && !(await get("seenOwner"))) await set({ seenOwner: a.user });
+  await chrome.storage.local.remove(["auth", "status"]);
+}
+// חידוש אחד בכל פעם: אם הבדיקה של המודל ובדיקת ההגשות מחדשות יחד, שתיהן מחכות לאותו חידוש
+// (אחרת השנייה שולחת מפתח שכבר הוחלף, והשרת מנתק את החיבור)
+let refreshing = null;
 async function token() {
   let a = await get("auth"); if (!a) throw new Error("צריך להתחבר ל-Clearly (לחצו על סמל התוסף)");
-  if (Date.now() > a.exp) a = await authCall("refresh_token", { refresh_token: a.refresh });
+  if (Date.now() > a.exp) {
+    refreshing ||= authCall("refresh_token", { refresh_token: a.refresh }).finally(() => { refreshing = null; });
+    a = await refreshing;
+  }
   return a;
 }
 

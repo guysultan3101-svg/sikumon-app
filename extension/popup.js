@@ -7,7 +7,12 @@ const get = (k) => chrome.storage.local.get(k).then((o) => o[k]);
 async function draw() {
   const auth = await get("auth");
   $("#loginBox").hidden = !!auth; $("#mainBox").hidden = !auth;
-  if (!auth) return;
+  if (!auth) {
+    // התנתקנו לבד (ההתחברות השמורה פגה) – מסבירים למה צריך להתחבר שוב
+    const msg = ((await get("status")) || {}).relogin || "";
+    $("#reloginMsg").textContent = msg; $("#reloginMsg").hidden = !msg;
+    return;
+  }
   $("#who").textContent = auth.email;
   const cur = (await get("moodle")) || "";
   const opts = { ...MOODLES, "מוסד אחר (להקליד כתובת)": "other" };
