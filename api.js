@@ -274,6 +274,8 @@ export async function notifyEmail(body) {
 }
 // גרסת התוסף שמותקנת אצלי (התוסף מדווח בכל סנכרון; null = עוד לא דיווח, כלומר גרסה ישנה)
 export async function myExtVersion() { const { data, error } = await sb.rpc("my_ext_version"); if (error) throw error; return data?.[0]?.ext_version || null; }
+// כל מה שהתוסף דיווח: גרסה, ומתי נראה לאחרונה עותק מהחנות של כרום (ext_store_seen_at – קיים רק אחרי ה-SQL של 28.11)
+export async function myExtInfo() { const { data, error } = await sb.rpc("my_ext_version"); if (error) throw error; return data?.[0] || null; }
 // ---------- מחברות בענן: כל שיעור נשמר כקובץ פרטי, ומופיע בכל מכשיר ----------
 const NB = "notebooks";
 export async function nbList() {

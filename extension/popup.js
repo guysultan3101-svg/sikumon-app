@@ -59,5 +59,19 @@ $("#confirmSend").onclick = async () => {
   finally { $("#sendPage").hidden = false; }
 };
 $("#logoutBtn").onclick = async () => { await logout(); draw(); };
+// מעבר לגרסה מהחנות: רק בגרסה שהותקנה מקובץ (לגרסה מהחנות יש update_url), ורק כשהאתר מפרסם קישור לחנות
+async function storeOffer() {
+  if (chrome.runtime.getManifest().update_url) return;   // כבר מהחנות – מתעדכן לבד
+  try {
+    const latest = await (await fetch("https://clearlyapp.io/extension/latest.json?x=" + Date.now(), { cache: "no-store" })).json();
+    if (!/^https:\/\/chromewebstore\.google\.com\//.test(latest?.store || "")) return;
+    // כבר הותקנה גרסה מהחנות (העותק הזה הפסיק לסנכרן) – נשאר רק להסיר את הישן
+    if (((await get("status")) || {}).storeTakeover) { $("#storeGo").hidden = true; $("#storeIntro").textContent = "✅ הגרסה מהחנות כבר מותקנת ועובדת. נשאר רק להסיר את הגרסה הישנה הזו."; }
+    $("#storeBox").hidden = false;
+    $("#storeGo").onclick = () => chrome.tabs.create({ url: latest.store });
+    $("#storeRemoveOld").onclick = () => chrome.management.uninstallSelf({ showConfirmDialog: true }, () => void chrome.runtime.lastError);
+  } catch { /* בלי אינטרנט – לא מציגים */ }
+}
+storeOffer();
 chrome.storage.onChanged.addListener(draw);
 draw();

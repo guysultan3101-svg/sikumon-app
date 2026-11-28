@@ -22,6 +22,15 @@
   <h1><img src="logo-mark.png" alt="" width="26" height="26" style="vertical-align:-6px"> המחבר של Clearly</h1>
   <p class="muted">כל קובץ חדש במודל שלך – מסוכם לבד ומגיע לאפליקציה.</p>
 
+  <!-- מעבר לגרסה מהחנות (מתעדכנת לבד). מוצג רק בגרסה שהותקנה מקובץ, ורק כשבאתר יש קישור לחנות (latest.json → store) -->
+  <section id="storeBox" class="box" hidden style="border-color:#0017A0">
+    <b>⭐ גרסה שמתעדכנת לבד</b>
+    <p class="muted" id="storeIntro">התוסף נמצא עכשיו בחנות של כרום. מתקינים משם פעם אחת – ומאז כל עדכון מגיע לבד, בלי להוריד קבצים. מה שכבר סוכם לא הולך לאיבוד.</p>
+    <button id="storeGo">1. התקנה מהחנות של כרום</button>
+    <p class="muted">בגרסה מהחנות מתחברים שוב פעם אחת ובוחרים את המודל. ואז:</p>
+    <button class="ghost" id="storeRemoveOld">2. הסרת הגרסה הישנה (הזו)</button>
+  </section>
+
   <section id="loginBox" class="box" hidden>
     <b>התחברות ל-Clearly</b>
     <p class="err" id="reloginMsg" role="alert" hidden></p>

@@ -64,9 +64,9 @@ export async function logout() {
 // חידוש אחד בכל פעם: אם הבדיקה של המודל ובדיקת ההגשות מחדשות יחד, שתיהן מחכות לאותו חידוש
 // (אחרת השנייה שולחת מפתח שכבר הוחלף, והשרת מנתק את החיבור)
 let refreshing = null;
-async function token() {
+async function token(force = false) {
   let a = await get("auth"); if (!a) throw new Error("צריך להתחבר ל-Clearly (לחצו על סמל התוסף)");
-  if (Date.now() > a.exp) {
+  if (force || Date.now() > a.exp) {
     refreshing ||= authCall("refresh_token", { refresh_token: a.refresh }).finally(() => { refreshing = null; });
     a = await refreshing;
   }
@@ -157,6 +157,30 @@ async function fileUrls(base, item) {
 // ---------- שרת Clearly ----------
 async function rest(path, a, opts = {}) {
   return fetch(`${SB}/rest/v1/${path}`, { ...opts, headers: { apikey: ANON, Authorization: `Bearer ${a.access}`, "Content-Type": "application/json", ...(opts.headers || {}) } });
+}
+// בתחילת כל בדיקה: פנייה קלה לשרת (דיווח הגרסה). אם השרת עונה 401 – ההתחברות ששמורה לא מתקבלת
+// למרות שלפי התוסף היא עוד בתוקף (למשל שינוי מפתחות בשרת או קפיצה של שעון המחשב). אז מחדשים פעם אחת וממשיכים, במקום להיכשל שוב ושוב.
+// הותקן מהחנות של כרום? (לגרסה מהחנות יש update_url; לגרסה שנטענה מקובץ – אין)
+const FROM_STORE = !!chrome.runtime.getManifest().update_url;
+// עותק ישן (מקובץ) כשיש כבר עותק מהחנות אצל אותו משתמש (נראה ב-14 הימים האחרונים): מפסיקים לסנכרן, כדי שלא יסוכם אותו קובץ פעמיים
+export const STORE_TAKEOVER = "הותקנה גרסה מהחנות של כרום – הגרסה הזו הפסיקה לעבוד. אפשר להסיר אותה (בחלון של התוסף: \"הסרת הגרסה הישנה\").";
+async function storeTookOver(a) {
+  if (FROM_STORE) return false;
+  try {
+    const r = await rest("rpc/my_ext_version", a, { method: "POST", body: "{}" });
+    if (!r.ok) return false;
+    const seen = (await r.json())?.[0]?.ext_store_seen_at;
+    return !!seen && Date.now() - new Date(seen).getTime() < 14 * 864e5;   // 14 יום (כמו באפליקציה): גם אחרי לילה שכרום היה סגור
+  } catch { return false; }
+}
+async function liveToken() {
+  let a = await token();
+  // עותק מהחנות מדווח p_store (העותק מקובץ – רק גרסה, כמו קודם; כך זה עובד גם מול שרת ישן)
+  const body = { p_version: chrome.runtime.getManifest().version, ...(FROM_STORE ? { p_store: true } : {}) };
+  const report = (x) => rest("rpc/report_ext", x, { method: "POST", body: JSON.stringify(body) });
+  const r = await report(a).catch(() => null);
+  if (r?.status === 401) { a = await token(true); await report(a).catch(() => {}); }
+  return a;
 }
 async function markItem(a, row) {
   await rest("moodle_items", a, { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: JSON.stringify({ owner: a.user, ...row }) });
@@ -336,9 +360,8 @@ export async function syncOnce({ manual = false } = {}) {
   // ("Failed to fetch"). קריאה קלה כל 20 שניות מחזיקה אותו ער כל זמן שהסנכרון רץ.
   const keepAlive = setInterval(() => { chrome.runtime.getPlatformInfo(() => {}); }, 20000);
   try {
-    const a = await token();
-    // מדווחים לשרת איזו גרסה מותקנת, כדי שהאפליקציה תדע להציג "יש עדכון לתוסף"
-    try { await rest("rpc/report_ext", a, { method: "POST", body: JSON.stringify({ p_version: chrome.runtime.getManifest().version }) }); } catch { /* לא חובה */ }
+    const a = await liveToken();   // גם מדווח לשרת איזו גרסה מותקנת (בשביל "יש עדכון לתוסף")
+    if (await storeTookOver(a)) return await status({ state: "", error: STORE_TAKEOVER, storeTakeover: true });
     let base = await get("moodle");
     if (!base) throw new Error("בחרו את המודל שלכם (לחצו על סמל התוסף)");
     await status({ state: "בודק את המודל…", error: "" });
@@ -362,6 +385,12 @@ export async function syncOnce({ manual = false } = {}) {
       const r = await rest("moodle_items?select=item_key,status,note&status=in.(done,skipped)&limit=2000", a);
       if (r.ok) for (const x of await r.json()) if (x.item_key && !seen[x.item_key]) { if (x.status === "done") seen[x.item_key] = "done"; else if (/30MB|250MB/.test(x.note || "")) seen[x.item_key] = "big"; }
     } catch { /* לא חובה: ממשיכים עם הזיכרון המקומי */ }
+    // קבצים שנכשלו בגלל תקלה אצלנו (למשל ה-AI לא עבד) וסומנו בשרת "לנסות שוב" (note = retry): חוזרים לתור,
+    // גם אם כבר נכשלו 3 פעמים. אחרי סיכום מוצלח הם מסומנים "done" – אז לא חוזרים שוב.
+    try {
+      const r = await rest("moodle_items?select=item_key&status=eq.failed&note=eq.retry&limit=500", a);
+      if (r.ok) for (const x of await r.json()) if (x.item_key && seen[x.item_key] !== "done") { delete seen[x.item_key]; delete seen["n:" + x.item_key]; }
+    } catch { /* לא חובה */ }
     // פעם אחת: קבצים ישנים שבגרסאות קודמות סומנו "ישן" (ולא סוכמו) חוזרים לתור – מסכמים את כל הסמסטר
     if (!(await get("backfill1"))) {
       for (const k of Object.keys(seen)) if (seen[k] === "old") delete seen[k];
@@ -459,7 +488,7 @@ export async function syncOnce({ manual = false } = {}) {
     const left = Math.max(backlog - made, 0);
     const more = (left ? ` · נשארו עוד כ-${left} קבצים מהסמסטר – ממשיכים לבד (לפי המכסה היומית)` : "") + (idx.n ? ` · 🔍 ${idx.n} קבצים נוספו לחיפוש באפליקציה` : "");
     await set({ backlogLeft: left });
-    return await status({ state: (stop || (made ? `✅ ${made} סיכומים חדשים נשלחו לאפליקציה` : "✅ אין קבצים חדשים")) + more, courses: courses.length, error: "", last: new Date().toISOString() });
+    return await status({ state: (stop || (made ? `✅ ${made} סיכומים חדשים נשלחו לאפליקציה` : "✅ אין קבצים חדשים")) + more, courses: courses.length, error: "", storeTakeover: false, last: new Date().toISOString() });
   } catch (e) {
     chrome.action.setBadgeText({ text: "!" });
     return await status({ state: "", error: e.message, needMoodle: e.code === "moodle_login" });
@@ -514,7 +543,8 @@ async function uploadToMoodle(base, cmid, blob, fileName) {
   return assignStatus(base, cmid);
 }
 export async function submitJobs() {
-  const a = await token();
+  const a = await liveToken();
+  if (await storeTookOver(a)) return 0;
   const base = await get("moodle");
   if (!base) return 0;
   const jobs = await (await rest("submission_jobs?status=eq.queued&order=created_at.asc&limit=5", a)).json();
